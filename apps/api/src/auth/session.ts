@@ -82,7 +82,7 @@ export async function revokeSession(env: Parameters<typeof withDatabase>[0], req
     .set({ revokedAt: new Date() })
     .where(and(eq(sessions.sessionTokenHash, tokenHash), isNull(sessions.revokedAt))));
 
-  return result.rowCount > 0;
+  return (result.rowCount ?? 0) > 0;
 }
 
 export function sessionCookie(token: string, expiresAt: Date) {

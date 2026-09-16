@@ -1,8 +1,12 @@
 import { Hono } from 'hono';
+import { sql } from 'drizzle-orm';
+import { withDatabase } from './db/client';
 
 export type Bindings = {
   ENVIRONMENT: string;
   API_VERSION: string;
+  HYPERDRIVE?: Hyperdrive;
+  DATABASE_URL?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -21,6 +25,36 @@ app.get('/api/v1/health', (c) => {
     environment: c.env.ENVIRONMENT,
     version: c.env.API_VERSION,
   });
+});
+
+app.get('/api/v1/health/db', async (c) => {
+  if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) {
+    return c.json({
+      ok: false,
+      database: 'not_configured',
+      message: 'قاعدة البيانات غير مهيأة بعد',
+    }, 503);
+  }
+
+  try {
+    const result = await withDatabase(c.env, async (db) => {
+      const response = await db.execute(sql`select 1 as ok`);
+      return response.rows[0];
+    });
+
+    return c.json({
+      ok: true,
+      database: 'connected',
+      result,
+    });
+  } catch (error) {
+    console.error('Database health check failed', error);
+    return c.json({
+      ok: false,
+      database: 'unavailable',
+      message: 'تعذر الاتصال بقاعدة البيانات',
+    }, 503);
+  }
 });
 
 app.notFound((c) => c.json({

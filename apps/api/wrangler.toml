@@ -1,0 +1,11 @@
+name = "nutrition-center-api"
+main = "src/index.ts"
+compatibility_date = "2026-09-17"
+workers_dev = true
+
+[vars]
+ENVIRONMENT = "development"
+API_VERSION = "v1"
+
+# Production secrets and Hyperdrive bindings are intentionally not committed here.
+# Configure them through Cloudflare environment settings when the deployment stage begins.

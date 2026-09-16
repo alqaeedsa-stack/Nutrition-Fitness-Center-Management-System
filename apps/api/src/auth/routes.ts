@@ -18,7 +18,7 @@ const loginSchema = z.object({
 });
 
 export type AuthBindings = {
-  HYPERDRIVE?: Hyperdrive;
+  HYPERDRIVE?: { connectionString: string };
   DATABASE_URL?: string;
 };
 

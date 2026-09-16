@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { withDatabase } from './db/client';
+import { authRoutes } from './auth/routes';
 
 export type Bindings = {
   ENVIRONMENT: string;
@@ -17,6 +18,8 @@ app.use('*', async (c, next) => {
   c.header('X-Frame-Options', 'DENY');
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
 });
+
+app.route('/api/v1/auth', authRoutes);
 
 app.get('/api/v1/health', (c) => {
   return c.json({
@@ -71,7 +74,7 @@ app.onError((error, c) => {
       code: 'INTERNAL_ERROR',
       message: 'حدث خطأ داخلي غير متوقع',
     },
-  }, 500);
+  }, 500));
 });
 
 export default app;

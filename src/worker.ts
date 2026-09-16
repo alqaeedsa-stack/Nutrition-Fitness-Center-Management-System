@@ -1,6 +1,10 @@
+type WorkerService = {
+  fetch(request: Request): Promise<Response>;
+};
+
 export interface Env {
-  ASSETS: Fetcher;
-  API: Fetcher;
+  ASSETS: WorkerService;
+  API: WorkerService;
 }
 
 export default {

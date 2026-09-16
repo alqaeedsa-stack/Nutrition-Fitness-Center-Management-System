@@ -74,7 +74,7 @@ app.onError((error, c) => {
       code: 'INTERNAL_ERROR',
       message: 'حدث خطأ داخلي غير متوقع',
     },
-  }, 500));
+  }, 500);
 });
 
 export default app;

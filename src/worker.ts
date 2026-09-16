@@ -1,10 +1,15 @@
-type WorkerService = {
+import api from '../apps/api/src/index';
+
+type AssetsBinding = {
   fetch(request: Request): Promise<Response>;
 };
 
 export interface Env {
-  ASSETS: WorkerService;
-  API: WorkerService;
+  ASSETS: AssetsBinding;
+  ENVIRONMENT: string;
+  API_VERSION: string;
+  HYPERDRIVE?: Hyperdrive;
+  DATABASE_URL?: string;
 }
 
 export default {
@@ -12,7 +17,7 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith('/api/')) {
-      return env.API.fetch(request);
+      return api.fetch(request, env);
     }
 
     return env.ASSETS.fetch(request);

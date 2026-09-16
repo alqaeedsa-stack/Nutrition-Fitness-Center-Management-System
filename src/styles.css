@@ -10,15 +10,17 @@
 body { margin: 0; min-width: 320px; background: #f5f7fa; }
 button, input, select, textarea { font: inherit; }
 a { color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .65; }
 
-.shell {
+.shell, .app-shell {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
   padding: 28px 0 56px;
 }
 .narrow { width: min(720px, calc(100% - 32px)); }
 
-.topbar {
+.topbar, .app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -35,11 +37,11 @@ a { color: inherit; }
   letter-spacing: .02em;
 }
 
-h1, h2, p { margin-top: 0; }
+h1, h2, h3, p { margin-top: 0; }
 h1 { margin-bottom: 0; font-size: clamp(24px, 4vw, 34px); }
 h2 { font-size: clamp(25px, 5vw, 42px); line-height: 1.25; }
 
-.status {
+.status, .module-status {
   padding: 7px 11px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
@@ -48,11 +50,8 @@ h2 { font-size: clamp(25px, 5vw, 42px); line-height: 1.25; }
   font-size: 13px;
 }
 
-.welcome {
-  max-width: 780px;
-  padding: 76px 0 30px;
-}
-.welcome p:not(.eyebrow), .panel p:not(.eyebrow) {
+.welcome { max-width: 780px; padding: 76px 0 30px; }
+.welcome p:not(.eyebrow), .panel p:not(.eyebrow), .dashboard-intro p:not(.eyebrow) {
   max-width: 680px;
   color: #526174;
   font-size: 17px;
@@ -63,10 +62,20 @@ h2 { font-size: clamp(25px, 5vw, 42px); line-height: 1.25; }
   display: inline-block;
   margin-top: 18px;
   padding: 11px 18px;
+  border: 0;
   border-radius: 6px;
   background: #172033;
   color: #fff;
   text-decoration: none;
+  font-weight: 700;
+}
+.button { width: 100%; }
+.secondary-button {
+  padding: 10px 15px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #172033;
   font-weight: 700;
 }
 
@@ -79,9 +88,61 @@ h2 { font-size: clamp(25px, 5vw, 42px); line-height: 1.25; }
 }
 .text-link { font-weight: 700; }
 
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.auth-card {
+  width: min(440px, 100%);
+  padding: 32px;
+  border: 1px solid #dfe4eb;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 30px rgba(23, 32, 51, .06);
+}
+.brand-block { margin-bottom: 28px; }
+.brand-block h1 { margin-bottom: 12px; }
+.brand-block p { margin-bottom: 0; color: #64748b; line-height: 1.7; }
+.form-stack { display: grid; gap: 18px; margin-bottom: 22px; }
+.form-stack label { display: grid; gap: 7px; color: #334155; font-weight: 700; }
+.form-stack input {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #172033;
+  outline: none;
+}
+.form-stack input:focus { border-color: #64748b; box-shadow: 0 0 0 3px rgba(100, 116, 139, .12); }
+.form-error { padding: 10px 12px; border: 1px solid #fecaca; border-radius: 6px; background: #fef2f2; color: #991b1b; line-height: 1.6; }
+
+.dashboard-intro { padding: 48px 0 28px; }
+.dashboard-intro h2 { margin-bottom: 12px; }
+.module-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.module-card { min-height: 190px; padding: 20px; border: 1px solid #dfe4eb; border-radius: 8px; background: #fff; }
+.module-code { color: #64748b; font-size: 12px; font-weight: 700; }
+.module-card h3 { margin: 9px 0 10px; font-size: 20px; }
+.module-card p { min-height: 62px; color: #64748b; font-size: 14px; line-height: 1.7; }
+.module-status { display: inline-block; }
+.app-footer { display: flex; justify-content: space-between; gap: 16px; margin-top: 28px; padding-top: 18px; border-top: 1px solid #dfe4eb; color: #64748b; font-size: 13px; }
+
+@media (max-width: 900px) {
+  .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 640px) {
-  .shell { width: min(100% - 24px, 1180px); padding-top: 16px; }
-  .topbar { align-items: flex-start; padding-bottom: 20px; }
+  .shell, .app-shell { width: min(100% - 24px, 1180px); padding-top: 16px; }
+  .topbar, .app-header { align-items: flex-start; padding-bottom: 20px; }
   .welcome { padding-top: 48px; }
   .panel { margin-top: 36px; padding: 24px 20px; }
+  .auth-page { padding: 16px; }
+  .auth-card { padding: 24px 20px; }
+  .module-grid { grid-template-columns: 1fr; }
+  .module-card { min-height: 0; }
+  .module-card p { min-height: 0; }
+  .app-footer { flex-direction: column; }
 }

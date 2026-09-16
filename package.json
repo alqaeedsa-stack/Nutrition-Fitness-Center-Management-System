@@ -10,20 +10,24 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
-    "deploy:all": "cd apps/api && npm install --no-audit --no-fund && npx wrangler deploy && cd ../.. && npx wrangler deploy"
+    "deploy:all": "npx wrangler deploy"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.2",
     "@tanstack/react-query": "^5.85.5",
+    "drizzle-orm": "^0.44.5",
     "hono": "^4.9.7",
+    "pg": "^8.16.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.1",
     "zod": "^4.1.5"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260916.1",
     "@eslint/js": "^9.35.0",
     "@types/node": "^24.4.0",
+    "@types/pg": "^8.15.5",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
@@ -33,6 +37,7 @@
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.43.0",
     "vite": "^7.1.5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wrangler": "^4.133.0"
   }
 }

@@ -1,13 +1,13 @@
-import { createHash } from 'node:crypto';
-import { and, eq, gt, isNull, or } from 'drizzle-orm';
+import { and, eq, gt, isNull } from 'drizzle-orm';
 import { sessions, users } from '../db/schema';
 import { withDatabase } from '../db/client';
 
 const SESSION_COOKIE = 'nc_session';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12;
 
-function sha256(value: string) {
-  return createHash('sha256').update(value).digest('hex');
+async function sha256(value: string) {
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function generateToken() {
@@ -25,11 +25,12 @@ export async function createSession(env: Parameters<typeof withDatabase>[0], use
   const token = generateToken();
   const now = new Date();
   const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
+  const tokenHash = await sha256(token);
 
   await withDatabase(env, async (db) => {
     await db.insert(sessions).values({
       userId,
-      sessionTokenHash: sha256(token),
+      sessionTokenHash: tokenHash,
       createdAt: now,
       expiresAt,
       lastSeenAt: now,
@@ -46,6 +47,7 @@ export async function createSession(env: Parameters<typeof withDatabase>[0], use
 export async function getAuthenticatedUser(env: Parameters<typeof withDatabase>[0], request: Request) {
   const token = getSessionToken(request);
   if (!token) return null;
+  const tokenHash = await sha256(token);
 
   return withDatabase(env, async (db) => {
     const rows = await db.select({
@@ -60,7 +62,7 @@ export async function getAuthenticatedUser(env: Parameters<typeof withDatabase>[
       .from(sessions)
       .innerJoin(users, eq(users.id, sessions.userId))
       .where(and(
-        eq(sessions.sessionTokenHash, sha256(token)),
+        eq(sessions.sessionTokenHash, tokenHash),
         isNull(sessions.revokedAt),
         gt(sessions.expiresAt, new Date()),
         eq(users.status, 'active'),
@@ -74,10 +76,11 @@ export async function getAuthenticatedUser(env: Parameters<typeof withDatabase>[
 export async function revokeSession(env: Parameters<typeof withDatabase>[0], request: Request) {
   const token = getSessionToken(request);
   if (!token) return false;
+  const tokenHash = await sha256(token);
 
   const result = await withDatabase(env, async (db) => db.update(sessions)
     .set({ revokedAt: new Date() })
-    .where(and(eq(sessions.sessionTokenHash, sha256(token)), isNull(sessions.revokedAt))));
+    .where(and(eq(sessions.sessionTokenHash, tokenHash), isNull(sessions.revokedAt))));
 
   return result.rowCount > 0;
 }

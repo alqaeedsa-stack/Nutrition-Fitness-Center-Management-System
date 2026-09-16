@@ -3,10 +3,14 @@ import { sql } from 'drizzle-orm';
 import { withDatabase } from './db/client';
 import { authRoutes } from './auth/routes';
 
+type DatabaseBinding = {
+  connectionString: string;
+};
+
 export type Bindings = {
   ENVIRONMENT: string;
   API_VERSION: string;
-  HYPERDRIVE?: Hyperdrive;
+  HYPERDRIVE?: DatabaseBinding;
   DATABASE_URL?: string;
 };
 

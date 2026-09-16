@@ -9,7 +9,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "deploy:all": "cd apps/api && npm install --no-audit --no-fund && npx wrangler deploy && cd ../.. && npx wrangler deploy"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.2",

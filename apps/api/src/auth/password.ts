@@ -22,8 +22,14 @@ async function derive(password: string, salt: Uint8Array, iterations: number) {
     ['deriveBits'],
   );
 
+  // TypeScript's newer DOM definitions distinguish ArrayBufferLike from the
+  // ArrayBuffer-backed BufferSource accepted by SubtleCrypto. The value is a
+  // normal Uint8Array at runtime, so this assertion only bridges that typing
+  // difference without changing the Web Crypto implementation.
+  const saltBufferSource = salt as unknown as BufferSource;
+
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: saltBufferSource, iterations, hash: 'SHA-256' },
     material,
     KEY_LENGTH * 8,
   );

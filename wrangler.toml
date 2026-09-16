@@ -1,6 +1,6 @@
 name = "nutrition-fitness-center-management-system"
 main = "./src/worker.ts"
-compatibility_date = "2026-09-17"
+compatibility_date = "2026-09-16"
 workers_dev = true
 
 [assets]

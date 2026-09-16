@@ -4,11 +4,15 @@ type AssetsBinding = {
   fetch(request: Request): Promise<Response>;
 };
 
+type DatabaseBinding = {
+  connectionString: string;
+};
+
 export interface Env {
   ASSETS: AssetsBinding;
   ENVIRONMENT: string;
   API_VERSION: string;
-  HYPERDRIVE?: Hyperdrive;
+  HYPERDRIVE?: DatabaseBinding;
   DATABASE_URL?: string;
 }
 

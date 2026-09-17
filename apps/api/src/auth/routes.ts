@@ -75,7 +75,7 @@ authRoutes.post('/register', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
 
   const data = body.data;
-  const email = data.email;
+  const email = data.email.toLowerCase();
   const phone = data.phone || null;
   let stage = 'password_hash';
 
@@ -90,18 +90,42 @@ authRoutes.post('/register', async (c) => {
         if (!company) return { error: 'COMPANY_NOT_CONFIGURED' as const };
 
         stage = 'duplicate_email_check';
-        const existing = await tx.select({ id: users.id })
+        const existingRows = await tx.select({ id: users.id })
           .from(users)
           .where(eq(users.email, email))
           .limit(1);
-        if (existing[0]) return { error: 'ACCOUNT_EXISTS' as const };
+        const existing = existingRows[0];
 
-        stage = 'user_insert';
+        let user;
         const customerNumber = `C-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
-        const userRows = await tx.insert(users).values({ centerId: company.id, email, phone, passwordHash, status: 'active' })
-          .returning({ id: users.id, centerId: users.centerId, email: users.email, phone: users.phone, status: users.status });
-        const user = userRows[0];
-        if (!user) throw new Error('User insert returned no row');
+
+        if (existing) {
+          const customerAccount = await tx.select({ id: customerAccounts.id })
+            .from(customerAccounts)
+            .where(eq(customerAccounts.userId, existing.id))
+            .limit(1);
+          const staffProfile = await tx.select({ id: staffProfiles.id })
+            .from(staffProfiles)
+            .where(eq(staffProfiles.userId, existing.id))
+            .limit(1);
+
+          if (customerAccount[0] || staffProfile[0]) return { error: 'ACCOUNT_EXISTS' as const };
+
+          // Repair a legacy/incomplete user row left behind by an earlier failed registration.
+          stage = 'orphan_user_recovery';
+          const recoveredRows = await tx.update(users)
+            .set({ centerId: company.id, email, phone, passwordHash, status: 'active', updatedAt: new Date() })
+            .where(eq(users.id, existing.id))
+            .returning({ id: users.id, centerId: users.centerId, email: users.email, phone: users.phone, status: users.status });
+          user = recoveredRows[0];
+        } else {
+          stage = 'user_insert';
+          const userRows = await tx.insert(users).values({ centerId: company.id, email, phone, passwordHash, status: 'active' })
+            .returning({ id: users.id, centerId: users.centerId, email: users.email, phone: users.phone, status: users.status });
+          user = userRows[0];
+        }
+
+        if (!user) throw new Error('User insert/recovery returned no row');
 
         stage = 'customer_insert';
         const customerRows = await tx.insert(customers).values({
@@ -163,7 +187,7 @@ authRoutes.post('/login', async (c) => {
   const user = await withDatabase(c.env, async (db) => {
     const rows = await db.select().from(users)
       .where(body.data.portal === 'customer'
-        ? eq(users.email, body.data.identifier)
+        ? eq(users.email, body.data.identifier.toLowerCase())
         : or(eq(users.email, body.data.identifier), eq(users.phone, body.data.identifier)))
       .limit(1);
     const candidate = rows[0];

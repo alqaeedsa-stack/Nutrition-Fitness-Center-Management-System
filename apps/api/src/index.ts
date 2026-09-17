@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { withDatabase } from './db/client';
 import { authRoutes } from './auth/routes';
+import { customerAccountRoutes } from './customer-account/routes';
 
 type DatabaseBinding = {
   connectionString: string;
@@ -24,6 +25,7 @@ app.use('*', async (c, next) => {
 });
 
 app.route('/api/v1/auth', authRoutes);
+app.route('/api/v1/customer-account', customerAccountRoutes);
 
 app.get('/api/v1/health', (c) => {
   return c.json({

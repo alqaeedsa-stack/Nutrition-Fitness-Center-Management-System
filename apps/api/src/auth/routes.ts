@@ -46,57 +46,88 @@ authRoutes.post('/register', async (c) => {
   const data = body.data;
   const email = data.email;
   const phone = data.phone || null;
-  const passwordHash = await hashPassword(data.password);
-  const created = await withDatabase(c.env, async (db) => {
-    const company = await getCompany(db);
-    if (!company) return { error: 'COMPANY_NOT_CONFIGURED' as const };
+  let stage = 'password_hash';
 
-    const existing = await db.select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
-    if (existing[0]) return { error: 'ACCOUNT_EXISTS' as const };
+  try {
+    const passwordHash = await hashPassword(data.password);
+    stage = 'database_transaction';
 
-    const customerNumber = `C-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
-    const userRows = await db.insert(users).values({ centerId: company.id, email, phone, passwordHash, status: 'active' })
-      .returning({ id: users.id, centerId: users.centerId, email: users.email, phone: users.phone, status: users.status });
-    const user = userRows[0];
-    const customerRows = await db.insert(customers).values({
-      centerId: company.id,
-      customerNumber,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      phone,
-      email,
-      status: 'active',
-      createdBy: user.id,
-      updatedBy: user.id,
-    }).returning({ id: customers.id });
-    const customer = customerRows[0];
-    await db.insert(customerAccounts).values({ customerId: customer.id, userId: user.id, status: 'active' });
-    await db.insert(auditLogs).values({
-      centerId: company.id,
-      actorUserId: user.id,
-      action: 'auth.register',
-      resourceType: 'customer_account',
-      resourceId: customer.id,
-      result: 'success',
-      ipAddress: c.req.header('CF-Connecting-IP'),
-      userAgent: c.req.header('User-Agent'),
+    const created = await withDatabase(c.env, async (db) => {
+      return db.transaction(async (tx) => {
+        stage = 'company_lookup';
+        const company = await getCompany(tx);
+        if (!company) return { error: 'COMPANY_NOT_CONFIGURED' as const };
+
+        stage = 'duplicate_email_check';
+        const existing = await tx.select({ id: users.id })
+          .from(users)
+          .where(eq(users.email, email))
+          .limit(1);
+        if (existing[0]) return { error: 'ACCOUNT_EXISTS' as const };
+
+        stage = 'user_insert';
+        const customerNumber = `C-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
+        const userRows = await tx.insert(users).values({ centerId: company.id, email, phone, passwordHash, status: 'active' })
+          .returning({ id: users.id, centerId: users.centerId, email: users.email, phone: users.phone, status: users.status });
+        const user = userRows[0];
+        if (!user) throw new Error('User insert returned no row');
+
+        stage = 'customer_insert';
+        const customerRows = await tx.insert(customers).values({
+          centerId: company.id,
+          customerNumber,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phone,
+          email,
+          status: 'active',
+          createdBy: user.id,
+          updatedBy: user.id,
+        }).returning({ id: customers.id });
+        const customer = customerRows[0];
+        if (!customer) throw new Error('Customer insert returned no row');
+
+        stage = 'customer_account_insert';
+        await tx.insert(customerAccounts).values({ customerId: customer.id, userId: user.id, status: 'active' });
+
+        stage = 'audit_log_insert';
+        await tx.insert(auditLogs).values({
+          centerId: company.id,
+          actorUserId: user.id,
+          action: 'auth.register',
+          resourceType: 'customer_account',
+          resourceId: customer.id,
+          result: 'success',
+          ipAddress: c.req.header('CF-Connecting-IP'),
+          userAgent: c.req.header('User-Agent'),
+        });
+
+        return { user };
+      });
     });
-    return { user };
-  });
 
-  if ('error' in created) {
-    if (created.error === 'COMPANY_NOT_CONFIGURED') {
-      return c.json({ error: { code: 'COMPANY_NOT_CONFIGURED', message: 'لم يتم إعداد بيانات الشركة في النظام بعد' } }, 503);
+    if ('error' in created) {
+      if (created.error === 'COMPANY_NOT_CONFIGURED') {
+        return c.json({ error: { code: 'COMPANY_NOT_CONFIGURED', message: 'لم يتم إعداد بيانات الشركة في النظام بعد' } }, 503);
+      }
+      return c.json({ error: { code: 'ACCOUNT_EXISTS', message: 'يوجد حساب مسجل بهذا البريد الإلكتروني' } }, 409);
     }
-    return c.json({ error: { code: 'ACCOUNT_EXISTS', message: 'يوجد حساب مسجل بهذا البريد الإلكتروني' } }, 409);
-  }
 
-  const session = await createSession(c.env, created.user.id, c.req.raw);
-  c.header('Set-Cookie', sessionCookie(session.token, session.expiresAt));
-  return c.json({ user: created.user, expiresAt: session.expiresAt.toISOString() }, 201);
+    stage = 'session_create';
+    const session = await createSession(c.env, created.user.id, c.req.raw);
+    c.header('Set-Cookie', sessionCookie(session.token, session.expiresAt));
+    return c.json({ user: created.user, expiresAt: session.expiresAt.toISOString() }, 201);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error('Customer registration failed', { stage, detail });
+    return c.json({
+      error: {
+        code: 'REGISTRATION_FAILED',
+        message: `فشل إنشاء حساب العميل عند المرحلة: ${stage}`,
+        detail,
+      },
+    }, 500);
+  }
 });
 
 authRoutes.post('/login', async (c) => {

@@ -77,7 +77,6 @@ app.notFound((c) => c.json({
 
 app.onError((error, c) => {
   const requestId = crypto.randomUUID();
-  const isProduction = c.env.ENVIRONMENT === 'production';
   const detail = error instanceof Error ? error.message : String(error);
 
   console.error('Unhandled API error', {
@@ -91,7 +90,7 @@ app.onError((error, c) => {
       code: 'INTERNAL_ERROR',
       message: 'حدث خطأ داخلي غير متوقع',
       requestId,
-      ...(isProduction ? {} : { detail }),
+      detail,
     },
   }, 500);
 });

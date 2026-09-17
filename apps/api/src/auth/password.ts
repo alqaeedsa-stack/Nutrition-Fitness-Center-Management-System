@@ -1,4 +1,4 @@
-const ITERATIONS = 310_000;
+const ITERATIONS = 100_000;
 const KEY_LENGTH = 32;
 const SALT_LENGTH = 16;
 
@@ -22,10 +22,6 @@ async function derive(password: string, salt: Uint8Array, iterations: number) {
     ['deriveBits'],
   );
 
-  // TypeScript's newer DOM definitions distinguish ArrayBufferLike from the
-  // ArrayBuffer-backed BufferSource accepted by SubtleCrypto. The value is a
-  // normal Uint8Array at runtime, so this assertion only bridges that typing
-  // difference without changing the Web Crypto implementation.
   const saltBufferSource = salt as unknown as BufferSource;
 
   const bits = await crypto.subtle.deriveBits(
@@ -58,7 +54,7 @@ export async function verifyPassword(password: string, encoded: string) {
   const [algorithm, iterationsValue, saltHex, hashHex] = encoded.split('$');
   const iterations = Number.parseInt(iterationsValue, 10);
 
-  if (algorithm !== 'pbkdf2-sha256' || !Number.isSafeInteger(iterations) || iterations < 100_000) {
+  if (algorithm !== 'pbkdf2-sha256' || !Number.isSafeInteger(iterations) || iterations < 100_000 || iterations > 100_000) {
     return false;
   }
 

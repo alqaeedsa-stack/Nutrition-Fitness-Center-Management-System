@@ -14,7 +14,7 @@ import {
   sessionCookie,
 } from './session';
 
-const saudiPhoneSchema = z.string().trim().regex(/^\+9665\d{8}$/, 'رقم الجوال يجب أن يكون بصيغة +9665XXXXXXXX');
+const internationalPhoneSchema = z.string().trim().regex(/^\+[1-9]\d{6,14}$/, 'رقم الجوال يجب أن يكون بصيغة دولية صحيحة');
 
 const loginSchema = z.object({
   identifier: z.string().trim().min(3).max(320),
@@ -25,7 +25,7 @@ const loginSchema = z.object({
 const registerSchema = z.object({
   firstName: z.string().trim().min(2).max(100),
   lastName: z.string().trim().min(2).max(100),
-  phone: z.union([saudiPhoneSchema, z.literal('')]).optional(),
+  phone: z.union([internationalPhoneSchema, z.literal('')]).optional(),
   email: z.string().trim().email().max(320),
   password: z.string().min(10).max(256),
   confirmPassword: z.string().min(10).max(256),
@@ -45,7 +45,7 @@ authRoutes.post('/register', async (c) => {
 
   const data = body.data;
   const email = data.email;
-  const phone = data.phone || '';
+  const phone = data.phone || null;
   const passwordHash = await hashPassword(data.password);
   const created = await withDatabase(c.env, async (db) => {
     const company = await getCompany(db);
@@ -58,7 +58,7 @@ authRoutes.post('/register', async (c) => {
     if (existing[0]) return { error: 'ACCOUNT_EXISTS' as const };
 
     const customerNumber = `C-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
-    const userRows = await db.insert(users).values({ centerId: company.id, email, phone: phone || null, passwordHash, status: 'active' })
+    const userRows = await db.insert(users).values({ centerId: company.id, email, phone, passwordHash, status: 'active' })
       .returning({ id: users.id, centerId: users.centerId, email: users.email, phone: users.phone, status: users.status });
     const user = userRows[0];
     const customerRows = await db.insert(customers).values({

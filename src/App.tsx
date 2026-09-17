@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import Customers from './Customers';
+import CustomerPortal from './CustomerPortal';
 import { ForgotPassword, ResetPassword } from './PasswordReset';
 import { apiFetch } from './lib/api';
 
-type AuthUser = { id: string; centerId?: string | null; email?: string | null; phone?: string | null; status: string };
+type AuthUser = { id: string; centerId?: string | null; email?: string | null; phone?: string | null; status: string; role: 'customer' | 'staff' };
 type Customer = { id: string; centerId: string; customerNumber: string; firstName: string; lastName: string; phone?: string | null; email?: string | null; status: string };
 type CustomerAccountResponse = { account: { id: string; customerId: string; userId: string; status: string; createdAt: string; updatedAt: string }; customer: Customer };
 type LoginPortal = 'customer' | 'staff';
@@ -30,7 +31,8 @@ function Login({ onLogin, portal = 'customer' }: { onLogin: (user: AuthUser) => 
     event.preventDefault(); setError(''); setLoading(true);
     try {
       const result = await apiFetch<{ user: AuthUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ identifier, password, portal }) });
-      onLogin(result.user); navigate('/dashboard', { replace: true });
+      onLogin(result.user);
+      navigate(isStaff ? '/dashboard' : '/customer', { replace: true });
     } catch {
       setError(isStaff ? 'تعذر دخول الإدارة والموظفين. تحقق من البيانات ونوع الحساب.' : 'تعذر تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور.');
     } finally { setLoading(false); }
@@ -70,7 +72,7 @@ function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
     try {
       const phone = localPhone ? `+${form.countryCode}${localPhone}` : '';
       const result = await apiFetch<{ user: AuthUser }>('/auth/register', { method: 'POST', body: JSON.stringify({ firstName: form.firstName, lastName: form.lastName, phone, email: form.email.trim(), password: form.password, confirmPassword: form.confirmPassword }) });
-      onLogin(result.user); navigate('/dashboard', { replace: true });
+      onLogin(result.user); navigate('/customer', { replace: true });
     } catch (err) { setError(err instanceof Error ? err.message : 'تعذر إنشاء الحساب. تحقق من البيانات.'); }
     finally { setLoading(false); }
   }
@@ -95,10 +97,10 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
   const displayName = customer ? `${customer.firstName} ${customer.lastName}`.trim() : '';
   const modules = [['العملاء', 'Customer 360', 'ملف العميل والبيانات الأساسية والمتابعة.', '/customers'], ['المواعيد', 'Appointments', 'الحجوزات والمتابعة ومواعيد المركز.', ''], ['القياسات', 'Measurements', 'القياسات والتغيرات والتقارير المرتبطة بالعميل.', ''], ['الخطط الغذائية', 'Nutrition Plans', 'إعداد وإدارة الخطط الغذائية.', ''], ['اللياقة', 'Fitness Plans', 'خطط التدريب واللياقة.', ''], ['المبيعات', 'POS', 'المبيعات والفواتير والمرتجعات.', ''], ['المخزون', 'Inventory', 'الأصناف وحركات المخزون والجرد.', ''], ['التقارير', 'Reports', 'تقارير الإدارة والتحليل.', '']] as const;
   return <main className="app-shell"><header className="app-header"><div className="brand-inline"><div className="brand-mark">N</div><div><span className="eyebrow">Nutrition & Fitness Center</span><h1>لوحة إدارة المركز</h1></div></div><button className="secondary-button" onClick={logout}>تسجيل الخروج</button></header>
-    <section className="dashboard-intro"><p className="eyebrow">نظرة عامة</p><h2>{displayName ? `مرحبًا ${displayName}` : 'مرحبًا بك في نظام إدارة المركز'}</h2><p>مساحة تشغيل موحدة للعملاء والمواعيد والقياسات والخطط والمبيعات والمخزون.</p></section>
+    <section className="dashboard-intro"><p className="eyebrow">نظرة عامة</p><h2>{displayName ? `مرحبًا ${displayName}` : 'مرحبًا بك في نظام إدارة المركز'}</h2><p>مساحة تشغيل الإدارة والموظفين للمواعيد والقياسات والخطط والمبيعات والمخزون والتقارير.</p></section>
     {loading && <div className="info-strip">جارٍ تحميل ملف العميل...</div>}{error && <div className="info-strip warning">{error}</div>}
     {customer && <section className="customer-summary"><div><span className="eyebrow">ملف العميل</span><strong>{displayName}</strong></div><div><span className="eyebrow">الجوال</span><span dir="ltr">{customer.phone || 'لم تتم إضافته'}</span></div><div><span className="eyebrow">الحالة</span><span className="active-dot">نشط</span></div></section>}
-    <section className="module-grid" aria-label="وحدات النظام">{modules.map(([title, code, description, path]) => <article className="module-card" key={code}><span className="module-code">{code}</span><h3>{title}</h3><p>{description}</p>{path ? <Link className="module-link" to={path}>فتح الوحدة ←</Link> : <span className="module-status">قيد البناء</span>}</article>)}</section>
+    <section className="module-grid" aria-label="وحدات الإدارة">{modules.map(([title, code, description, path]) => <article className="module-card" key={code}><span className="module-code">{code}</span><h3>{title}</h3><p>{description}</p>{path ? <Link className="module-link" to={path}>فتح الوحدة ←</Link> : <span className="module-status">قيد البناء</span>}</article>)}</section>
     <footer className="app-footer"><span>Nutrition & Fitness Center</span><span>{user.email ?? user.phone ?? 'حساب مستخدم'}</span></footer>
   </main>;
 }
@@ -121,16 +123,20 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(true);
   useEffect(() => { apiFetch<{ user: AuthUser }>('/auth/me').then(r => setUser(r.user)).catch(() => setUser(null)).finally(() => setAuthChecking(false)); }, []);
   if (authChecking) return <main className="loading-page"><div className="brand-mark">N</div><p>جارٍ تحميل النظام...</p></main>;
+
+  const homeForRole = user?.role === 'staff' ? '/dashboard' : '/customer';
+
   return <Routes>
     <Route path="/" element={<Home />} />
     <Route path="/health" element={<Health />} />
-    <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login onLogin={setUser} />} />
-    <Route path="/staff/login" element={user ? <Navigate to="/dashboard" replace /> : <Login portal="staff" onLogin={setUser} />} />
-    <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register onLogin={setUser} />} />
-    <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} />
-    <Route path="/reset-password" element={user ? <Navigate to="/dashboard" replace /> : <ResetPassword />} />
-    <Route path="/dashboard" element={user ? <Dashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" replace />} />
-    <Route path="/customers" element={user ? <Customers /> : <Navigate to="/login" replace />} />
+    <Route path="/login" element={user ? <Navigate to={homeForRole} replace /> : <Login onLogin={setUser} />} />
+    <Route path="/staff/login" element={user ? <Navigate to={homeForRole} replace /> : <Login portal="staff" onLogin={setUser} />} />
+    <Route path="/register" element={user ? <Navigate to={homeForRole} replace /> : <Register onLogin={setUser} />} />
+    <Route path="/forgot-password" element={user ? <Navigate to={homeForRole} replace /> : <ForgotPassword />} />
+    <Route path="/reset-password" element={user ? <Navigate to={homeForRole} replace /> : <ResetPassword />} />
+    <Route path="/customer" element={user?.role === 'customer' ? <CustomerPortal onLogout={() => setUser(null)} /> : user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
+    <Route path="/dashboard" element={user?.role === 'staff' ? <Dashboard user={user} onLogout={() => setUser(null)} /> : user ? <Navigate to="/customer" replace /> : <Navigate to="/staff/login" replace />} />
+    <Route path="/customers" element={user?.role === 'staff' ? <Customers /> : user ? <Navigate to="/customer" replace /> : <Navigate to="/staff/login" replace />} />
     <Route path="*" element={<NotFound />} />
   </Routes>;
 }

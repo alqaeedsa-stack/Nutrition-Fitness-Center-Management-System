@@ -215,6 +215,7 @@ authRoutes.post('/forgot-password', async (c) => {
   });
 
   if (!user) return c.json({ message: 'إذا كان البريد مسجلًا، ستصل رسالة إعادة تعيين كلمة المرور خلال دقائق.' });
+  if (!user.email) return c.json({ error: { code: 'ACCOUNT_EMAIL_MISSING', message: 'حساب العميل لا يحتوي على بريد إلكتروني صالح لإعادة التعيين' } }, 500);
 
   const rawToken = randomToken();
   const tokenHash = await sha256Hex(rawToken);

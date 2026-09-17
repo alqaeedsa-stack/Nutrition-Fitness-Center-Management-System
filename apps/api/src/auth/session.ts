@@ -1,4 +1,5 @@
 import { and, eq, gt, isNull } from 'drizzle-orm';
+import { customerAccounts } from './customer-account';
 import { sessions, users } from '../db/schema';
 import { withDatabase } from '../db/client';
 
@@ -58,9 +59,11 @@ export async function getAuthenticatedUser(env: Parameters<typeof withDatabase>[
       phone: users.phone,
       status: users.status,
       expiresAt: sessions.expiresAt,
+      customerId: customerAccounts.customerId,
     })
       .from(sessions)
       .innerJoin(users, eq(users.id, sessions.userId))
+      .leftJoin(customerAccounts, eq(customerAccounts.userId, users.id))
       .where(and(
         eq(sessions.sessionTokenHash, tokenHash),
         isNull(sessions.revokedAt),
@@ -69,7 +72,9 @@ export async function getAuthenticatedUser(env: Parameters<typeof withDatabase>[
       ))
       .limit(1);
 
-    return rows[0] ?? null;
+    const user = rows[0];
+    if (!user) return null;
+    return { ...user, accountType: user.customerId ? 'customer' as const : 'staff' as const };
   });
 }
 

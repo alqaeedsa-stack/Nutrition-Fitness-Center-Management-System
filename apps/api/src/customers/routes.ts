@@ -1,22 +1,36 @@
 import { and, desc, eq, ilike, or } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { customers } from '../db/schema';
+import { customerAccounts } from '../db/customer-accounts';
 import { withDatabase } from '../db/client';
 import { getAuthenticatedUser } from '../auth/session';
 
 export type CustomerBindings = { HYPERDRIVE?: { connectionString: string }; DATABASE_URL?: string };
 export const customerRoutes = new Hono<{ Bindings: CustomerBindings }>();
 
-async function requireCustomerUser(c: any) {
+async function requireStaffUser(c: any) {
   const user = await getAuthenticatedUser(c.env, c.req.raw);
   if (!user) return { error: c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401) };
   if (!user.centerId) return { error: c.json({ error: { code: 'CENTER_NOT_ASSIGNED', message: 'المستخدم غير مرتبط بمركز' } }, 403) };
+
+  const linkedCustomer = await withDatabase(c.env, async (db) => {
+    const rows = await db.select({ id: customerAccounts.id, status: customerAccounts.status })
+      .from(customerAccounts)
+      .where(eq(customerAccounts.userId, user.userId))
+      .limit(1);
+    return rows[0] ?? null;
+  });
+
+  if (linkedCustomer?.status === 'active') {
+    return { error: c.json({ error: { code: 'STAFF_ACCESS_REQUIRED', message: 'هذه الوحدة مخصصة لموظفي المركز' } }, 403) };
+  }
+
   return { user: { ...user, centerId: user.centerId } };
 }
 
 customerRoutes.get('/', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
-  const auth = await requireCustomerUser(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffUser(c); if ('error' in auth) return auth.error;
   const search = c.req.query('search')?.trim(); const status = c.req.query('status')?.trim();
   const parsedLimit = Number(c.req.query('limit') ?? 50); const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit,1),100) : 50;
   const centerId = auth.user.centerId;
@@ -26,7 +40,7 @@ customerRoutes.get('/', async (c) => {
 
 customerRoutes.get('/:id', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
-  const auth = await requireCustomerUser(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffUser(c); if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select().from(customers).where(and(eq(customers.id,c.req.param('id')),eq(customers.centerId,auth.user.centerId))).limit(1));
   if (!rows[0]) return c.json({ error:{code:'CUSTOMER_NOT_FOUND',message:'العميل غير موجود'}},404);
   return c.json({ customer: rows[0] });
@@ -34,7 +48,7 @@ customerRoutes.get('/:id', async (c) => {
 
 customerRoutes.post('/', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error:{code:'DATABASE_NOT_CONFIGURED',message:'قاعدة البيانات غير مهيأة بعد'}},503);
-  const auth = await requireCustomerUser(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffUser(c); if ('error' in auth) return auth.error;
   const body = await c.req.json<{customerNumber?:string;firstName?:string;lastName?:string;phone?:string;email?:string;dateOfBirth?:string;gender?:string;source?:string;notes?:string}>();
   const customerNumber=body.customerNumber?.trim(); const firstName=body.firstName?.trim(); const lastName=body.lastName?.trim(); const phone=body.phone?.trim();
   if(!customerNumber||!firstName||!lastName||!phone) return c.json({error:{code:'VALIDATION_ERROR',message:'رقم العميل والاسم الأول واسم العائلة والجوال حقول مطلوبة'}},400);

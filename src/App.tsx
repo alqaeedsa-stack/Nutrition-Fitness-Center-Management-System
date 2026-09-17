@@ -30,7 +30,7 @@ function Login({ onLogin, portal = 'customer' }: { onLogin: (user: AuthUser) => 
     } catch {
       setError(isStaff
         ? 'تعذر دخول الإدارة والموظفين. تحقق من البيانات ونوع الحساب.'
-        : 'تعذر تسجيل الدخول. تحقق من بيانات حسابك واتصال خدمة النظام.');
+        : 'تعذر تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور.');
     } finally {
       setLoading(false);
     }
@@ -38,9 +38,9 @@ function Login({ onLogin, portal = 'customer' }: { onLogin: (user: AuthUser) => 
 
   return <main className="auth-page"><section className="auth-card">
     <div className="brand-mark small">N</div>
-    <div className="brand-block"><span className="eyebrow">Nutrition & Fitness Center</span><h1>{isStaff ? 'دخول الإدارة والموظفين' : 'دخول العملاء'}</h1><p>{isStaff ? 'ادخل إلى مساحة العمل الخاصة بك لإدارة المركز وتشغيل وحداته.' : 'سجّل الدخول لمتابعة ملفك وخططك وقياساتك ومواعيدك.'}</p></div>
+    <div className="brand-block"><span className="eyebrow">Nutrition & Fitness Center</span><h1>{isStaff ? 'دخول الإدارة والموظفين' : 'دخول العملاء'}</h1><p>{isStaff ? 'ادخل إلى مساحة العمل الخاصة بك لإدارة المركز وتشغيل وحداته.' : 'سجّل الدخول بالبريد الإلكتروني لمتابعة ملفك وخططك وقياساتك ومواعيدك.'}</p></div>
     <form onSubmit={submit} className="form-stack">
-      <label>البريد الإلكتروني أو الجوال<input value={identifier} onChange={e => setIdentifier(e.target.value)} autoComplete="username" required /></label>
+      <label>{isStaff ? 'البريد الإلكتروني أو الجوال' : 'البريد الإلكتروني'}<input type={isStaff ? 'text' : 'email'} value={identifier} onChange={e => setIdentifier(e.target.value)} autoComplete="username" required /></label>
       <label>كلمة المرور<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required /></label>
       {error && <div className="form-error" role="alert">{error}</div>}
       <button className="primary-action button" type="submit" disabled={loading}>{loading ? 'جارٍ التحقق...' : isStaff ? 'دخول مساحة العمل' : 'تسجيل الدخول'}</button>
@@ -61,10 +61,12 @@ function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    if (!form.email.trim()) { setError('البريد الإلكتروني مطلوب'); return; }
+    if (form.phone && !/^\+9665\d{8}$/.test(form.phone.trim())) { setError('رقم الجوال يجب أن يكون بصيغة +9665XXXXXXXX'); return; }
     if (form.password !== form.confirmPassword) { setError('كلمتا المرور غير متطابقتين'); return; }
     setLoading(true);
     try {
-      const result = await apiFetch<{ user: AuthUser }>('/auth/register', { method: 'POST', body: JSON.stringify(form) });
+      const result = await apiFetch<{ user: AuthUser }>('/auth/register', { method: 'POST', body: JSON.stringify({ ...form, phone: form.phone.trim(), email: form.email.trim() }) });
       onLogin(result.user);
       navigate('/dashboard', { replace: true });
     } catch (error) {
@@ -76,11 +78,11 @@ function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
 
   return <main className="auth-page"><section className="auth-card register-card">
     <div className="brand-mark small">N</div>
-    <div className="brand-block"><span className="eyebrow">Nutrition & Fitness Center</span><h1>إنشاء حساب عميل</h1><p>أنشئ حسابك، وسيتم إنشاء ملف العميل وربطه بحسابك تلقائيًا.</p></div>
+    <div className="brand-block"><span className="eyebrow">Nutrition & Fitness Center</span><h1>إنشاء حساب عميل</h1><p>أنشئ حسابك بالبريد الإلكتروني، وأضف رقم الجوال اختياريًا إذا رغبت.</p></div>
     <form onSubmit={submit} className="form-stack">
       <div className="form-row"><label>الاسم الأول<input value={form.firstName} onChange={e => update('firstName', e.target.value)} required /></label><label>اسم العائلة<input value={form.lastName} onChange={e => update('lastName', e.target.value)} required /></label></div>
-      <label>رقم الجوال<input type="tel" dir="ltr" value={form.phone} onChange={e => update('phone', e.target.value)} autoComplete="tel" required /></label>
-      <label>البريد الإلكتروني <span>(اختياري)</span><input type="email" dir="ltr" value={form.email} onChange={e => update('email', e.target.value)} autoComplete="email" /></label>
+      <label>البريد الإلكتروني <span>(مطلوب)</span><input type="email" dir="ltr" value={form.email} onChange={e => update('email', e.target.value)} autoComplete="email" required /></label>
+      <label>رقم الجوال <span>(اختياري)</span><input type="tel" dir="ltr" value={form.phone} onChange={e => update('phone', e.target.value)} autoComplete="tel" placeholder="+9665XXXXXXXX" pattern="\\+9665[0-9]{8}" /><small>إذا أضفته، استخدم الصيغة السعودية: +9665XXXXXXXX</small></label>
       <label>كلمة المرور<input type="password" value={form.password} onChange={e => update('password', e.target.value)} autoComplete="new-password" minLength={10} required /><small>10 أحرف على الأقل</small></label>
       <label>تأكيد كلمة المرور<input type="password" value={form.confirmPassword} onChange={e => update('confirmPassword', e.target.value)} autoComplete="new-password" minLength={10} required /></label>
       {error && <div className="form-error" role="alert">{error}</div>}
@@ -116,7 +118,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
   return <main className="app-shell"><header className="app-header"><div className="brand-inline"><div className="brand-mark">N</div><div><span className="eyebrow">Nutrition & Fitness Center</span><h1>لوحة إدارة المركز</h1></div></div><button className="secondary-button" onClick={logout}>تسجيل الخروج</button></header>
     <section className="dashboard-intro"><p className="eyebrow">نظرة عامة</p><h2>{displayName ? `مرحبًا ${displayName}` : 'مرحبًا بك في نظام إدارة المركز'}</h2><p>مساحة تشغيل موحدة للعملاء والمواعيد والقياسات والخطط والمبيعات والمخزون.</p></section>
     {loading && <div className="info-strip">جارٍ تحميل ملف العميل...</div>}{error && <div className="info-strip warning">{error}</div>}
-    {customer && <section className="customer-summary"><div><span className="eyebrow">ملف العميل</span><strong>{displayName}</strong></div><div><span className="eyebrow">الجوال</span><span dir="ltr">{customer.phone}</span></div><div><span className="eyebrow">الحالة</span><span className="active-dot">نشط</span></div></section>}
+    {customer && <section className="customer-summary"><div><span className="eyebrow">ملف العميل</span><strong>{displayName}</strong></div><div><span className="eyebrow">الجوال</span><span dir="ltr">{customer.phone || 'لم تتم إضافته'}</span></div><div><span className="eyebrow">الحالة</span><span className="active-dot">نشط</span></div></section>}
     <section className="module-grid" aria-label="وحدات النظام">{modules.map(([title, code, description, path]) => <article className="module-card" key={code}><span className="module-code">{code}</span><h3>{title}</h3><p>{description}</p>{path ? <Link className="module-link" to={path}>فتح الوحدة ←</Link> : <span className="module-status">قيد البناء</span>}</article>)}</section>
     <footer className="app-footer"><span>Nutrition & Fitness Center</span><span>{user.email ?? user.phone ?? 'حساب مستخدم'}</span></footer>
   </main>;

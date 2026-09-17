@@ -109,8 +109,6 @@ authRoutes.post('/register', async (c) => {
           if (customerAccount[0] || staffProfile[0]) return { error: 'ACCOUNT_EXISTS' as const };
         }
 
-        // Phone numbers are unique when provided. Check before INSERT/UPDATE so the
-        // customer receives a clear validation error instead of a generic 500.
         if (phone) {
           stage = 'duplicate_phone_check';
           const phoneRows = await tx.select({ id: users.id })
@@ -128,7 +126,6 @@ authRoutes.post('/register', async (c) => {
         const customerNumber = `C-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
 
         if (existing) {
-          // Repair a legacy/incomplete user row left behind by an earlier failed registration.
           stage = 'orphan_user_recovery';
           const recoveredRows = await tx.update(users)
             .set({ centerId: company.id, email, phone, passwordHash, status: 'active', updatedAt: new Date() })
@@ -191,7 +188,7 @@ authRoutes.post('/register', async (c) => {
     stage = 'session_create';
     const session = await createSession(c.env, created.user.id, c.req.raw);
     c.header('Set-Cookie', sessionCookie(session.token, session.expiresAt));
-    return c.json({ user: created.user, expiresAt: session.expiresAt.toISOString() }, 201);
+    return c.json({ user: { ...created.user, role: 'customer' as const }, expiresAt: session.expiresAt.toISOString() }, 201);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     console.error('Customer registration failed', { stage, detail });
@@ -238,7 +235,37 @@ authRoutes.post('/login', async (c) => {
     userAgent: c.req.header('User-Agent') ?? undefined,
   }));
   c.header('Set-Cookie', sessionCookie(session.token, session.expiresAt));
-  return c.json({ user: { id: user.id, centerId: user.centerId, email: user.email, phone: user.phone, status: user.status }, expiresAt: session.expiresAt.toISOString() });
+  return c.json({
+    user: {
+      id: user.id,
+      centerId: user.centerId,
+      email: user.email,
+      phone: user.phone,
+      status: user.status,
+      role: body.data.portal,
+    },
+    expiresAt: session.expiresAt.toISOString(),
+  });
+});
+
+authRoutes.get('/me', async (c) => {
+  const user = await getAuthenticatedUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: { code: 'UNAUTHENTICATED', message: 'تسجيل الدخول مطلوب' } }, 401);
+
+  const role = await withDatabase(c.env, async (db) => {
+    const staff = await db.select({ id: staffProfiles.id }).from(staffProfiles).where(eq(staffProfiles.userId, user.userId)).limit(1);
+    if (staff[0]) return 'staff' as const;
+    const customer = await db.select({ id: customerAccounts.id }).from(customerAccounts).where(eq(customerAccounts.userId, user.userId)).limit(1);
+    if (customer[0]) return 'customer' as const;
+    return null;
+  });
+
+  if (!role) {
+    await revokeSession(c.env, c.req.raw);
+    return c.json({ error: { code: 'ACCOUNT_ROLE_MISSING', message: 'نوع الحساب غير محدد' } }, 403);
+  }
+
+  return c.json({ user: { id: user.userId, centerId: user.centerId, email: user.email, phone: user.phone, status: user.status, role } });
 });
 
 authRoutes.post('/forgot-password', async (c) => {

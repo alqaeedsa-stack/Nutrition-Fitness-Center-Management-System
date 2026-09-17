@@ -14,6 +14,8 @@ import {
   sessionCookie,
 } from './session';
 
+const saudiPhoneSchema = z.string().trim().regex(/^\+9665\d{8}$/, 'رقم الجوال يجب أن يكون بصيغة +9665XXXXXXXX');
+
 const loginSchema = z.object({
   identifier: z.string().trim().min(3).max(320),
   password: z.string().min(1).max(256),
@@ -23,8 +25,8 @@ const loginSchema = z.object({
 const registerSchema = z.object({
   firstName: z.string().trim().min(2).max(100),
   lastName: z.string().trim().min(2).max(100),
-  phone: z.string().trim().min(8).max(30),
-  email: z.string().trim().email().max(320).optional().or(z.literal('')),
+  phone: z.union([saudiPhoneSchema, z.literal('')]).optional(),
+  email: z.string().trim().email().max(320),
   password: z.string().min(10).max(256),
   confirmPassword: z.string().min(10).max(256),
 }).superRefine((value, ctx) => {
@@ -42,7 +44,8 @@ authRoutes.post('/register', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
 
   const data = body.data;
-  const email = data.email || null;
+  const email = data.email;
+  const phone = data.phone || '';
   const passwordHash = await hashPassword(data.password);
   const created = await withDatabase(c.env, async (db) => {
     const company = await getCompany(db);
@@ -50,12 +53,12 @@ authRoutes.post('/register', async (c) => {
 
     const existing = await db.select({ id: users.id })
       .from(users)
-      .where(or(eq(users.phone, data.phone), ...(email ? [eq(users.email, email)] : [])))
+      .where(eq(users.email, email))
       .limit(1);
     if (existing[0]) return { error: 'ACCOUNT_EXISTS' as const };
 
     const customerNumber = `C-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
-    const userRows = await db.insert(users).values({ centerId: company.id, email, phone: data.phone, passwordHash, status: 'active' })
+    const userRows = await db.insert(users).values({ centerId: company.id, email, phone: phone || null, passwordHash, status: 'active' })
       .returning({ id: users.id, centerId: users.centerId, email: users.email, phone: users.phone, status: users.status });
     const user = userRows[0];
     const customerRows = await db.insert(customers).values({
@@ -63,7 +66,7 @@ authRoutes.post('/register', async (c) => {
       customerNumber,
       firstName: data.firstName,
       lastName: data.lastName,
-      phone: data.phone,
+      phone,
       email,
       status: 'active',
       createdBy: user.id,
@@ -88,7 +91,7 @@ authRoutes.post('/register', async (c) => {
     if (created.error === 'COMPANY_NOT_CONFIGURED') {
       return c.json({ error: { code: 'COMPANY_NOT_CONFIGURED', message: 'لم يتم إعداد بيانات الشركة في النظام بعد' } }, 503);
     }
-    return c.json({ error: { code: 'ACCOUNT_EXISTS', message: 'يوجد حساب مسجل بهذا الجوال أو البريد الإلكتروني' } }, 409);
+    return c.json({ error: { code: 'ACCOUNT_EXISTS', message: 'يوجد حساب مسجل بهذا البريد الإلكتروني' } }, 409);
   }
 
   const session = await createSession(c.env, created.user.id, c.req.raw);
@@ -103,7 +106,9 @@ authRoutes.post('/login', async (c) => {
 
   const user = await withDatabase(c.env, async (db) => {
     const rows = await db.select().from(users)
-      .where(or(eq(users.email, body.data.identifier), eq(users.phone, body.data.identifier)))
+      .where(body.data.portal === 'customer'
+        ? eq(users.email, body.data.identifier)
+        : or(eq(users.email, body.data.identifier), eq(users.phone, body.data.identifier)))
       .limit(1);
     const candidate = rows[0];
     if (!candidate) return null;

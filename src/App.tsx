@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import Customers from './Customers';
 import { apiFetch } from './lib/api';
 
 type AuthUser = {
@@ -13,14 +14,16 @@ type AuthUser = {
 type Customer = {
   id: string;
   centerId: string;
-  fullName?: string | null;
-  phone?: string | null;
+  customerNumber: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
   email?: string | null;
   status: string;
 };
 
 type CustomerAccountResponse = {
-  account: { id: string; customerId: string; status: string; createdAt: string; updatedAt: string };
+  account: { id: string; customerId: string; userId: string; status: string; createdAt: string; updatedAt: string };
   customer: Customer;
 };
 
@@ -105,6 +108,19 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
     }
   }
 
+  const displayName = customer ? `${customer.firstName} ${customer.lastName}`.trim() : '';
+
+  const modules = [
+    ['العملاء', 'Customer 360', 'ملف العميل والبيانات الأساسية والمتابعة.', '/customers'],
+    ['المواعيد', 'Appointments', 'الحجوزات والمتابعة ومواعيد المركز.', ''],
+    ['القياسات', 'Measurements', 'القياسات والتغيرات والتقارير المرتبطة بالعميل.', ''],
+    ['الخطط الغذائية', 'Nutrition Plans', 'إعداد وإدارة الخطط الغذائية.', ''],
+    ['اللياقة', 'Fitness Plans', 'خطط التدريب واللياقة.', ''],
+    ['المبيعات', 'POS', 'المبيعات والفواتير والمرتجعات.', ''],
+    ['المخزون', 'Inventory', 'الأصناف وحركات المخزون والجرد.', ''],
+    ['التقارير', 'Reports', 'تقارير الإدارة والتحليل.', ''],
+  ] as const;
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -122,7 +138,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
 
       <section className="dashboard-intro">
         <p className="eyebrow">نظرة عامة</p>
-        <h2>{customer?.fullName ? `مرحبًا ${customer.fullName}` : 'مرحبًا بك في نظام إدارة المركز'}</h2>
+        <h2>{displayName ? `مرحبًا ${displayName}` : 'مرحبًا بك في نظام إدارة المركز'}</h2>
         <p>مساحة تشغيل موحدة للعملاء والمواعيد والقياسات والخطط والمبيعات والمخزون.</p>
       </section>
 
@@ -130,28 +146,19 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
       {accountError && <div className="info-strip warning">{accountError}</div>}
       {customer && (
         <section className="customer-summary">
-          <div><span className="eyebrow">ملف العميل</span><strong>{customer.fullName ?? 'عميل'}</strong></div>
-          <div><span className="eyebrow">الجوال</span><span>{customer.phone ?? '—'}</span></div>
+          <div><span className="eyebrow">ملف العميل</span><strong>{displayName}</strong></div>
+          <div><span className="eyebrow">الجوال</span><span dir="ltr">{customer.phone}</span></div>
           <div><span className="eyebrow">الحالة</span><span className="active-dot">نشط</span></div>
         </section>
       )}
 
       <section className="module-grid" aria-label="وحدات النظام">
-        {[
-          ['العملاء', 'Customer 360', 'ملف العميل والبيانات الأساسية والمتابعة.'],
-          ['المواعيد', 'Appointments', 'الحجوزات والمتابعة ومواعيد المركز.'],
-          ['القياسات', 'Measurements', 'القياسات والتغيرات والتقارير المرتبطة بالعميل.'],
-          ['الخطط الغذائية', 'Nutrition Plans', 'إعداد وإدارة الخطط الغذائية.'],
-          ['اللياقة', 'Fitness Plans', 'خطط التدريب واللياقة.'],
-          ['المبيعات', 'POS', 'المبيعات والفواتير والمرتجعات.'],
-          ['المخزون', 'Inventory', 'الأصناف وحركات المخزون والجرد.'],
-          ['التقارير', 'Reports', 'تقارير الإدارة والتحليل.'],
-        ].map(([title, code, description]) => (
+        {modules.map(([title, code, description, path]) => (
           <article className="module-card" key={code}>
             <span className="module-code">{code}</span>
             <h3>{title}</h3>
             <p>{description}</p>
-            <span className="module-status">قيد البناء</span>
+            {path ? <Link className="module-link" to={path}>فتح الوحدة ←</Link> : <span className="module-status">قيد البناء</span>}
           </article>
         ))}
       </section>
@@ -290,6 +297,8 @@ export default function App() {
       <Route path="/health" element={<Health />} />
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login onLogin={setUser} />} />
       <Route path="/dashboard" element={user ? <Dashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" replace />} />
+      <Route path="/customers" element={user ? <Customers /> : <Navigate to="/login" replace />} />
+      <Route path="/customers/:id" element={user ? <Customers /> : <Navigate to="/login" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

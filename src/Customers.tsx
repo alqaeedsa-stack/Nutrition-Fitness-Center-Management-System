@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from './lib/api';
+import './customers.css';
 
 type Customer = {
   id: string;
@@ -45,10 +46,7 @@ export default function Customers() {
     setSaving(true);
     setError('');
     try {
-      await apiFetch<{ customer: Customer }>('/customers', {
-        method: 'POST',
-        body: JSON.stringify(form),
-      });
+      await apiFetch<{ customer: Customer }>('/customers', { method: 'POST', body: JSON.stringify(form) });
       setForm({ customerNumber: '', firstName: '', lastName: '', phone: '', email: '', dateOfBirth: '', gender: '', source: '', notes: '' });
       setShowForm(false);
       await loadCustomers(search);
@@ -62,10 +60,7 @@ export default function Customers() {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div>
-          <p className="eyebrow">Customer 360</p>
-          <h1>العملاء</h1>
-        </div>
+        <div><p className="eyebrow">Customer 360</p><h1>العملاء</h1></div>
         <div className="header-actions">
           <Link className="secondary-button" to="/dashboard">لوحة التحكم</Link>
           <button className="primary-action button" onClick={() => setShowForm((value) => !value)}>{showForm ? 'إغلاق' : 'عميل جديد'}</button>

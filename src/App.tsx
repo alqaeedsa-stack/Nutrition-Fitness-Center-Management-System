@@ -4,9 +4,18 @@ import Customers from './Customers';
 import { apiFetch } from './lib/api';
 
 type AuthUser = { id: string; centerId?: string | null; email?: string | null; phone?: string | null; status: string };
-type Customer = { id: string; centerId: string; customerNumber: string; firstName: string; lastName: string; phone: string; email?: string | null; status: string };
+type Customer = { id: string; centerId: string; customerNumber: string; firstName: string; lastName: string; phone?: string | null; email?: string | null; status: string };
 type CustomerAccountResponse = { account: { id: string; customerId: string; userId: string; status: string; createdAt: string; updatedAt: string }; customer: Customer };
 type LoginPortal = 'customer' | 'staff';
+
+const countryCodes = [
+  ['966', 'السعودية'], ['971', 'الإمارات'], ['965', 'الكويت'], ['974', 'قطر'], ['973', 'البحرين'], ['968', 'عُمان'],
+  ['20', 'مصر'], ['962', 'الأردن'], ['961', 'لبنان'], ['964', 'العراق'], ['212', 'المغرب'], ['213', 'الجزائر'],
+  ['216', 'تونس'], ['218', 'ليبيا'], ['249', 'السودان'], ['1', 'الولايات المتحدة / كندا'], ['44', 'المملكة المتحدة'],
+  ['33', 'فرنسا'], ['49', 'ألمانيا'], ['39', 'إيطاليا'], ['34', 'إسبانيا'], ['90', 'تركيا'], ['91', 'الهند'],
+  ['92', 'باكستان'], ['880', 'بنغلاديش'], ['60', 'ماليزيا'], ['65', 'سنغافورة'], ['81', 'اليابان'], ['82', 'كوريا الجنوبية'],
+  ['86', 'الصين'], ['61', 'أستراليا'], ['64', 'نيوزيلندا'], ['27', 'جنوب أفريقيا']
+] as const;
 
 function Login({ onLogin, portal = 'customer' }: { onLogin: (user: AuthUser) => void; portal?: LoginPortal }) {
   const navigate = useNavigate();
@@ -28,12 +37,8 @@ function Login({ onLogin, portal = 'customer' }: { onLogin: (user: AuthUser) => 
       onLogin(result.user);
       navigate('/dashboard', { replace: true });
     } catch {
-      setError(isStaff
-        ? 'تعذر دخول الإدارة والموظفين. تحقق من البيانات ونوع الحساب.'
-        : 'تعذر تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور.');
-    } finally {
-      setLoading(false);
-    }
+      setError(isStaff ? 'تعذر دخول الإدارة والموظفين. تحقق من البيانات ونوع الحساب.' : 'تعذر تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور.');
+    } finally { setLoading(false); }
   }
 
   return <main className="auth-page"><section className="auth-card">
@@ -53,7 +58,7 @@ function Login({ onLogin, portal = 'customer' }: { onLogin: (user: AuthUser) => 
 
 function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', email: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', countryCode: '966', phone: '', email: '', password: '', confirmPassword: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   function update(key: keyof typeof form, value: string) { setForm(prev => ({ ...prev, [key]: value })); }
@@ -62,27 +67,30 @@ function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
     event.preventDefault();
     setError('');
     if (!form.email.trim()) { setError('البريد الإلكتروني مطلوب'); return; }
-    if (form.phone && !/^\+9665\d{8}$/.test(form.phone.trim())) { setError('رقم الجوال يجب أن يكون بصيغة +9665XXXXXXXX'); return; }
+    const localPhone = form.phone.replace(/\D/g, '');
+    if (localPhone) {
+      if (form.countryCode === '966' && !/^5\d{8}$/.test(localPhone)) { setError('رقم الجوال السعودي يجب أن يتكون من 9 أرقام ويبدأ بـ 5'); return; }
+      if (localPhone.length < 6 || localPhone.length > 14) { setError('رقم الجوال غير صحيح'); return; }
+    }
     if (form.password !== form.confirmPassword) { setError('كلمتا المرور غير متطابقتين'); return; }
     setLoading(true);
     try {
-      const result = await apiFetch<{ user: AuthUser }>('/auth/register', { method: 'POST', body: JSON.stringify({ ...form, phone: form.phone.trim(), email: form.email.trim() }) });
+      const phone = localPhone ? `+${form.countryCode}${localPhone}` : '';
+      const result = await apiFetch<{ user: AuthUser }>('/auth/register', { method: 'POST', body: JSON.stringify({ firstName: form.firstName, lastName: form.lastName, phone, email: form.email.trim(), password: form.password, confirmPassword: form.confirmPassword }) });
       onLogin(result.user);
       navigate('/dashboard', { replace: true });
     } catch (error) {
       setError(error instanceof Error ? error.message : 'تعذر إنشاء الحساب. تحقق من البيانات.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
   return <main className="auth-page"><section className="auth-card register-card">
     <div className="brand-mark small">N</div>
-    <div className="brand-block"><span className="eyebrow">Nutrition & Fitness Center</span><h1>إنشاء حساب عميل</h1><p>أنشئ حسابك بالبريد الإلكتروني، وأضف رقم الجوال اختياريًا إذا رغبت.</p></div>
+    <div className="brand-block"><span className="eyebrow">Nutrition & Fitness Center</span><h1>إنشاء حساب عميل</h1><p>أنشئ حسابك بالبريد الإلكتروني، ويمكنك إضافة رقم الجوال اختياريًا.</p></div>
     <form onSubmit={submit} className="form-stack">
       <div className="form-row"><label>الاسم الأول<input value={form.firstName} onChange={e => update('firstName', e.target.value)} required /></label><label>اسم العائلة<input value={form.lastName} onChange={e => update('lastName', e.target.value)} required /></label></div>
       <label>البريد الإلكتروني <span>(مطلوب)</span><input type="email" dir="ltr" value={form.email} onChange={e => update('email', e.target.value)} autoComplete="email" required /></label>
-      <label>رقم الجوال <span>(اختياري)</span><input type="tel" dir="ltr" value={form.phone} onChange={e => update('phone', e.target.value)} autoComplete="tel" placeholder="+9665XXXXXXXX" pattern="\\+9665[0-9]{8}" /><small>إذا أضفته، استخدم الصيغة السعودية: +9665XXXXXXXX</small></label>
+      <label>رقم الجوال <span>(اختياري)</span><div className="phone-field" dir="ltr"><select aria-label="رمز الدولة" value={form.countryCode} onChange={e => update('countryCode', e.target.value)}>{countryCodes.map(([code, name]) => <option key={code} value={code}>+{code} — {name}</option>)}</select><input type="tel" inputMode="numeric" value={form.phone} onChange={e => update('phone', e.target.value)} autoComplete="tel-national" placeholder={form.countryCode === '966' ? '5XXXXXXXX' : 'رقم الجوال'} /></div><small>اختر رمز الدولة ثم اكتب رقم الجوال بدون رمز الدولة. السعودية هي الاختيار الافتراضي.</small></label>
       <label>كلمة المرور<input type="password" value={form.password} onChange={e => update('password', e.target.value)} autoComplete="new-password" minLength={10} required /><small>10 أحرف على الأقل</small></label>
       <label>تأكيد كلمة المرور<input type="password" value={form.confirmPassword} onChange={e => update('confirmPassword', e.target.value)} autoComplete="new-password" minLength={10} required /></label>
       {error && <div className="form-error" role="alert">{error}</div>}
@@ -97,23 +105,11 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  useEffect(() => {
-    apiFetch<CustomerAccountResponse>('/customer-account/me')
-      .then(r => setCustomer(r.customer))
-      .catch(() => setError('لا يوجد ملف عميل مرتبط بهذا الحساب حتى الآن.'))
-      .finally(() => setLoading(false));
-  }, []);
+  useEffect(() => { apiFetch<CustomerAccountResponse>('/customer-account/me').then(r => setCustomer(r.customer)).catch(() => setError('لا يوجد ملف عميل مرتبط بهذا الحساب حتى الآن.')).finally(() => setLoading(false)); }, []);
   async function logout() { try { await apiFetch<void>('/auth/logout', { method: 'POST' }); } finally { onLogout(); navigate('/login', { replace: true }); } }
   const displayName = customer ? `${customer.firstName} ${customer.lastName}`.trim() : '';
   const modules = [
-    ['العملاء', 'Customer 360', 'ملف العميل والبيانات الأساسية والمتابعة.', '/customers'],
-    ['المواعيد', 'Appointments', 'الحجوزات والمتابعة ومواعيد المركز.', ''],
-    ['القياسات', 'Measurements', 'القياسات والتغيرات والتقارير المرتبطة بالعميل.', ''],
-    ['الخطط الغذائية', 'Nutrition Plans', 'إعداد وإدارة الخطط الغذائية.', ''],
-    ['اللياقة', 'Fitness Plans', 'خطط التدريب واللياقة.', ''],
-    ['المبيعات', 'POS', 'المبيعات والفواتير والمرتجعات.', ''],
-    ['المخزون', 'Inventory', 'الأصناف وحركات المخزون والجرد.', ''],
-    ['التقارير', 'Reports', 'تقارير الإدارة والتحليل.', ''],
+    ['العملاء', 'Customer 360', 'ملف العميل والبيانات الأساسية والمتابعة.', '/customers'], ['المواعيد', 'Appointments', 'الحجوزات والمتابعة ومواعيد المركز.', ''], ['القياسات', 'Measurements', 'القياسات والتغيرات والتقارير المرتبطة بالعميل.', ''], ['الخطط الغذائية', 'Nutrition Plans', 'إعداد وإدارة الخطط الغذائية.', ''], ['اللياقة', 'Fitness Plans', 'خطط التدريب واللياقة.', ''], ['المبيعات', 'POS', 'المبيعات والفواتير والمرتجعات.', ''], ['المخزون', 'Inventory', 'الأصناف وحركات المخزون والجرد.', ''], ['التقارير', 'Reports', 'تقارير الإدارة والتحليل.', '']
   ] as const;
   return <main className="app-shell"><header className="app-header"><div className="brand-inline"><div className="brand-mark">N</div><div><span className="eyebrow">Nutrition & Fitness Center</span><h1>لوحة إدارة المركز</h1></div></div><button className="secondary-button" onClick={logout}>تسجيل الخروج</button></header>
     <section className="dashboard-intro"><p className="eyebrow">نظرة عامة</p><h2>{displayName ? `مرحبًا ${displayName}` : 'مرحبًا بك في نظام إدارة المركز'}</h2><p>مساحة تشغيل موحدة للعملاء والمواعيد والقياسات والخطط والمبيعات والمخزون.</p></section>

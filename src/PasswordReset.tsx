@@ -1,8 +1,8 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, ReactNode, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from './lib/api';
 
-function AuthShell({ children }: { children: React.ReactNode }) {
+function AuthShell({ children }: { children: ReactNode }) {
   return <main className="auth-page"><section className="auth-card">
     <div className="brand-mark small">N</div>
     <div className="brand-block"><span className="eyebrow">Nutrition & Fitness Center</span>{children}</div>

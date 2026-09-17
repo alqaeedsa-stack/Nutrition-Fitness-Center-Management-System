@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import Customers from './Customers';
+import { ForgotPassword, ResetPassword } from './PasswordReset';
 import { apiFetch } from './lib/api';
 
 type AuthUser = { id: string; centerId?: string | null; email?: string | null; phone?: string | null; status: string };
@@ -26,16 +27,10 @@ function Login({ onLogin, portal = 'customer' }: { onLogin: (user: AuthUser) => 
   const isStaff = portal === 'staff';
 
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError('');
-    setLoading(true);
+    event.preventDefault(); setError(''); setLoading(true);
     try {
-      const result = await apiFetch<{ user: AuthUser }>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ identifier, password, portal }),
-      });
-      onLogin(result.user);
-      navigate('/dashboard', { replace: true });
+      const result = await apiFetch<{ user: AuthUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ identifier, password, portal }) });
+      onLogin(result.user); navigate('/dashboard', { replace: true });
     } catch {
       setError(isStaff ? 'تعذر دخول الإدارة والموظفين. تحقق من البيانات ونوع الحساب.' : 'تعذر تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور.');
     } finally { setLoading(false); }
@@ -50,6 +45,7 @@ function Login({ onLogin, portal = 'customer' }: { onLogin: (user: AuthUser) => 
       {error && <div className="form-error" role="alert">{error}</div>}
       <button className="primary-action button" type="submit" disabled={loading}>{loading ? 'جارٍ التحقق...' : isStaff ? 'دخول مساحة العمل' : 'تسجيل الدخول'}</button>
     </form>
+    {!isStaff && <div className="auth-switch"><Link className="text-link" to="/forgot-password">نسيت كلمة المرور؟</Link></div>}
     {!isStaff && <div className="auth-switch">ليس لديك حساب؟ <Link className="text-link" to="/register">تسجيل عميل جديد</Link></div>}
     <div className="auth-switch">{isStaff ? <><span>عميل؟ </span><Link className="text-link" to="/login">دخول العملاء</Link></> : <><span>موظف أو مدير؟ </span><Link className="text-link" to="/staff/login">دخول الإدارة والموظفين</Link></>}</div>
     <Link className="text-link" to="/">العودة للرئيسية</Link>
@@ -59,13 +55,10 @@ function Login({ onLogin, portal = 'customer' }: { onLogin: (user: AuthUser) => 
 function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
   const navigate = useNavigate();
   const [form, setForm] = useState({ firstName: '', lastName: '', countryCode: '966', phone: '', email: '', password: '', confirmPassword: '' });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
   function update(key: keyof typeof form, value: string) { setForm(prev => ({ ...prev, [key]: value })); }
-
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError('');
+    event.preventDefault(); setError('');
     if (!form.email.trim()) { setError('البريد الإلكتروني مطلوب'); return; }
     const localPhone = form.phone.replace(/\D/g, '');
     if (localPhone) {
@@ -77,16 +70,12 @@ function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
     try {
       const phone = localPhone ? `+${form.countryCode}${localPhone}` : '';
       const result = await apiFetch<{ user: AuthUser }>('/auth/register', { method: 'POST', body: JSON.stringify({ firstName: form.firstName, lastName: form.lastName, phone, email: form.email.trim(), password: form.password, confirmPassword: form.confirmPassword }) });
-      onLogin(result.user);
-      navigate('/dashboard', { replace: true });
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'تعذر إنشاء الحساب. تحقق من البيانات.');
-    } finally { setLoading(false); }
+      onLogin(result.user); navigate('/dashboard', { replace: true });
+    } catch (err) { setError(err instanceof Error ? err.message : 'تعذر إنشاء الحساب. تحقق من البيانات.'); }
+    finally { setLoading(false); }
   }
-
   return <main className="auth-page"><section className="auth-card register-card">
-    <div className="brand-mark small">N</div>
-    <div className="brand-block"><span className="eyebrow">Nutrition & Fitness Center</span><h1>إنشاء حساب عميل</h1><p>أنشئ حسابك بالبريد الإلكتروني، ويمكنك إضافة رقم الجوال اختياريًا.</p></div>
+    <div className="brand-mark small">N</div><div className="brand-block"><span className="eyebrow">Nutrition & Fitness Center</span><h1>إنشاء حساب عميل</h1><p>أنشئ حسابك بالبريد الإلكتروني، ويمكنك إضافة رقم الجوال اختياريًا.</p></div>
     <form onSubmit={submit} className="form-stack">
       <div className="form-row"><label>الاسم الأول<input value={form.firstName} onChange={e => update('firstName', e.target.value)} required /></label><label>اسم العائلة<input value={form.lastName} onChange={e => update('lastName', e.target.value)} required /></label></div>
       <label>البريد الإلكتروني <span>(مطلوب)</span><input type="email" dir="ltr" value={form.email} onChange={e => update('email', e.target.value)} autoComplete="email" required /></label>
@@ -95,22 +84,16 @@ function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
       <label>تأكيد كلمة المرور<input type="password" value={form.confirmPassword} onChange={e => update('confirmPassword', e.target.value)} autoComplete="new-password" minLength={10} required /></label>
       {error && <div className="form-error" role="alert">{error}</div>}
       <button className="primary-action button" type="submit" disabled={loading}>{loading ? 'جارٍ إنشاء الحساب...' : 'إنشاء الحساب'}</button>
-    </form>
-    <div className="auth-switch">لديك حساب بالفعل؟ <Link className="text-link" to="/login">دخول العملاء</Link></div>
+    </form><div className="auth-switch">لديك حساب بالفعل؟ <Link className="text-link" to="/login">دخول العملاء</Link></div>
   </section></main>;
 }
 
 function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
-  const navigate = useNavigate();
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const navigate = useNavigate(); const [customer, setCustomer] = useState<Customer | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   useEffect(() => { apiFetch<CustomerAccountResponse>('/customer-account/me').then(r => setCustomer(r.customer)).catch(() => setError('لا يوجد ملف عميل مرتبط بهذا الحساب حتى الآن.')).finally(() => setLoading(false)); }, []);
   async function logout() { try { await apiFetch<void>('/auth/logout', { method: 'POST' }); } finally { onLogout(); navigate('/login', { replace: true }); } }
   const displayName = customer ? `${customer.firstName} ${customer.lastName}`.trim() : '';
-  const modules = [
-    ['العملاء', 'Customer 360', 'ملف العميل والبيانات الأساسية والمتابعة.', '/customers'], ['المواعيد', 'Appointments', 'الحجوزات والمتابعة ومواعيد المركز.', ''], ['القياسات', 'Measurements', 'القياسات والتغيرات والتقارير المرتبطة بالعميل.', ''], ['الخطط الغذائية', 'Nutrition Plans', 'إعداد وإدارة الخطط الغذائية.', ''], ['اللياقة', 'Fitness Plans', 'خطط التدريب واللياقة.', ''], ['المبيعات', 'POS', 'المبيعات والفواتير والمرتجعات.', ''], ['المخزون', 'Inventory', 'الأصناف وحركات المخزون والجرد.', ''], ['التقارير', 'Reports', 'تقارير الإدارة والتحليل.', '']
-  ] as const;
+  const modules = [['العملاء', 'Customer 360', 'ملف العميل والبيانات الأساسية والمتابعة.', '/customers'], ['المواعيد', 'Appointments', 'الحجوزات والمتابعة ومواعيد المركز.', ''], ['القياسات', 'Measurements', 'القياسات والتغيرات والتقارير المرتبطة بالعميل.', ''], ['الخطط الغذائية', 'Nutrition Plans', 'إعداد وإدارة الخطط الغذائية.', ''], ['اللياقة', 'Fitness Plans', 'خطط التدريب واللياقة.', ''], ['المبيعات', 'POS', 'المبيعات والفواتير والمرتجعات.', ''], ['المخزون', 'Inventory', 'الأصناف وحركات المخزون والجرد.', ''], ['التقارير', 'Reports', 'تقارير الإدارة والتحليل.', '']] as const;
   return <main className="app-shell"><header className="app-header"><div className="brand-inline"><div className="brand-mark">N</div><div><span className="eyebrow">Nutrition & Fitness Center</span><h1>لوحة إدارة المركز</h1></div></div><button className="secondary-button" onClick={logout}>تسجيل الخروج</button></header>
     <section className="dashboard-intro"><p className="eyebrow">نظرة عامة</p><h2>{displayName ? `مرحبًا ${displayName}` : 'مرحبًا بك في نظام إدارة المركز'}</h2><p>مساحة تشغيل موحدة للعملاء والمواعيد والقياسات والخطط والمبيعات والمخزون.</p></section>
     {loading && <div className="info-strip">جارٍ تحميل ملف العميل...</div>}{error && <div className="info-strip warning">{error}</div>}
@@ -144,6 +127,8 @@ export default function App() {
     <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login onLogin={setUser} />} />
     <Route path="/staff/login" element={user ? <Navigate to="/dashboard" replace /> : <Login portal="staff" onLogin={setUser} />} />
     <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register onLogin={setUser} />} />
+    <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} />
+    <Route path="/reset-password" element={user ? <Navigate to="/dashboard" replace /> : <ResetPassword />} />
     <Route path="/dashboard" element={user ? <Dashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" replace />} />
     <Route path="/customers" element={user ? <Customers /> : <Navigate to="/login" replace />} />
     <Route path="*" element={<NotFound />} />

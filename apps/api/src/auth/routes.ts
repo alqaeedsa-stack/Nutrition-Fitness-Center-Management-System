@@ -96,9 +96,6 @@ authRoutes.post('/register', async (c) => {
           .limit(1);
         const existing = existingRows[0];
 
-        let user;
-        const customerNumber = `C-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
-
         if (existing) {
           const customerAccount = await tx.select({ id: customerAccounts.id })
             .from(customerAccounts)
@@ -110,7 +107,27 @@ authRoutes.post('/register', async (c) => {
             .limit(1);
 
           if (customerAccount[0] || staffProfile[0]) return { error: 'ACCOUNT_EXISTS' as const };
+        }
 
+        // Phone numbers are unique when provided. Check before INSERT/UPDATE so the
+        // customer receives a clear validation error instead of a generic 500.
+        if (phone) {
+          stage = 'duplicate_phone_check';
+          const phoneRows = await tx.select({ id: users.id })
+            .from(users)
+            .where(eq(users.phone, phone))
+            .limit(1);
+          const phoneOwner = phoneRows[0];
+
+          if (phoneOwner && (!existing || phoneOwner.id !== existing.id)) {
+            return { error: 'PHONE_EXISTS' as const };
+          }
+        }
+
+        let user;
+        const customerNumber = `C-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
+
+        if (existing) {
           // Repair a legacy/incomplete user row left behind by an earlier failed registration.
           stage = 'orphan_user_recovery';
           const recoveredRows = await tx.update(users)
@@ -164,6 +181,9 @@ authRoutes.post('/register', async (c) => {
     if ('error' in created) {
       if (created.error === 'COMPANY_NOT_CONFIGURED') {
         return c.json({ error: { code: 'COMPANY_NOT_CONFIGURED', message: 'لم يتم إعداد بيانات الشركة في النظام بعد' } }, 503);
+      }
+      if (created.error === 'PHONE_EXISTS') {
+        return c.json({ error: { code: 'PHONE_ALREADY_EXISTS', message: 'رقم الجوال هذا مسجل مسبقًا. استخدم رقم جوال آخر أو اترك خانة الجوال فارغة.' } }, 409);
       }
       return c.json({ error: { code: 'ACCOUNT_EXISTS', message: 'يوجد حساب مسجل بهذا البريد الإلكتروني' } }, 409);
     }
@@ -281,48 +301,21 @@ authRoutes.post('/reset-password', async (c) => {
         .where(and(eq(passwordResetTokens.tokenHash, tokenHash), isNull(passwordResetTokens.usedAt)))
         .limit(1);
       const token = rows[0];
-      if (!token || token.expiresAt <= now) return { error: 'INVALID_TOKEN' as const };
+      if (!token || token.expiresAt <= now) return { error: 'INVALID_OR_EXPIRED_TOKEN' as const };
 
       const passwordHash = await hashPassword(body.data.password);
-      await tx.update(users).set({ passwordHash, updatedAt: now }).where(eq(users.id, token.userId));
-      await tx.update(passwordResetTokens).set({ usedAt: now }).where(eq(passwordResetTokens.id, token.id));
-      await tx.update(sessions).set({ revokedAt: now }).where(and(eq(sessions.userId, token.userId), isNull(sessions.revokedAt)));
-
-      const userRows = await tx.select({ centerId: users.centerId }).from(users).where(eq(users.id, token.userId)).limit(1);
-      await tx.insert(auditLogs).values({
-        centerId: userRows[0]?.centerId,
-        actorUserId: token.userId,
-        action: 'auth.password_reset',
-        resourceType: 'user',
-        resourceId: token.userId,
-        result: 'success',
-        ipAddress: c.req.header('CF-Connecting-IP') ?? undefined,
-        userAgent: c.req.header('User-Agent') ?? undefined,
-      });
+      await tx.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, token.userId));
+      await tx.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, token.id));
+      await tx.delete(sessions).where(eq(sessions.userId, token.userId));
       return { success: true as const };
     }));
 
-    if ('error' in result) return c.json({ error: { code: 'INVALID_RESET_TOKEN', message: 'رابط إعادة تعيين كلمة المرور غير صالح أو انتهت صلاحيته' } }, 400);
-    return c.json({ message: 'تم تغيير كلمة المرور بنجاح' });
+    if ('error' in result) return c.json({ error: { code: result.error, message: 'رابط إعادة تعيين كلمة المرور غير صالح أو انتهت صلاحيته' } }, 400);
+    return c.json({ message: 'تم تحديث كلمة المرور بنجاح' });
   } catch (error) {
     console.error('Password reset failed', { detail: error instanceof Error ? error.message : String(error) });
-    return c.json({ error: { code: 'PASSWORD_RESET_FAILED', message: 'تعذر تغيير كلمة المرور حاليًا' } }, 500);
+    return c.json({ error: { code: 'PASSWORD_RESET_FAILED', message: 'تعذر تحديث كلمة المرور حاليًا' } }, 500);
   }
 });
 
-authRoutes.post('/logout', async (c) => {
-  if (c.env.HYPERDRIVE || c.env.DATABASE_URL) {
-    const user = await getAuthenticatedUser(c.env, c.req.raw);
-    await revokeSession(c.env, c.req.raw);
-    if (user) await withDatabase(c.env, async (db) => db.insert(auditLogs).values({ centerId: user.centerId, actorUserId: user.userId, action: 'auth.logout', resourceType: 'session', resourceId: user.sessionId, result: 'success', ipAddress: c.req.header('CF-Connecting-IP') ?? undefined, userAgent: c.req.header('User-Agent') ?? undefined }));
-  }
-  c.header('Set-Cookie', clearSessionCookie());
-  return c.body(null, 204);
-});
-
-authRoutes.get('/me', async (c) => {
-  if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
-  const user = await getAuthenticatedUser(c.env, c.req.raw);
-  if (!user) return c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401);
-  return c.json({ user });
-});
+export default authRoutes;

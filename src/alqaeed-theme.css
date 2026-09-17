@@ -1,0 +1,215 @@
+/* Al Qaeed visual system — adapted for Nutrition & Fitness Center */
+:root {
+  --navy: #0F172A;
+  --navy-2: #1E293B;
+  --blue: #059669;
+  --gold: #C9A961;
+  --muted: #475569;
+  --line: #E2E8F0;
+  --surface: #FFFFFF;
+  --page-bg: #F8FAFC;
+  font-family: "Simplified Arabic", ui-sans-serif, system-ui, sans-serif;
+  color: #0F172A;
+  background: #F8FAFC;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+html,
+body,
+#root {
+  font-family: "Simplified Arabic", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+}
+
+body * {
+  font-weight: 700;
+}
+
+body {
+  background: #F8FAFC;
+}
+
+/* Keep the existing application structure, but give it the same restrained visual language. */
+.shell,
+.app-shell,
+.landing-nav,
+.hero,
+.closing,
+.landing-footer {
+  width: min(1180px, calc(100% - 32px));
+}
+
+.topbar,
+.app-header {
+  border-bottom-color: #E2E8F0;
+}
+
+.brand-mark {
+  background: #0F172A;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .14);
+}
+
+.status,
+.module-status {
+  border-color: #CBD5E1;
+  border-radius: 6px;
+  color: #475569;
+}
+
+.primary-action {
+  border-radius: 9px;
+  background: #0F172A;
+  box-shadow: none;
+}
+
+.primary-action:hover {
+  background: #1E293B;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .18);
+}
+
+.secondary-button,
+.nav-login {
+  border-color: #E2E8F0;
+  border-radius: 8px;
+  color: #0F172A;
+}
+
+.panel,
+.auth-card,
+.module-card,
+.feature-grid article,
+.customer-summary,
+.info-strip {
+  border-color: #E2E8F0;
+  border-radius: 13px;
+  background: #FFFFFF;
+  box-shadow: 0 16px 45px rgba(15, 23, 42, .06);
+}
+
+.panel {
+  border-radius: 14px;
+}
+
+.hero-kicker {
+  border-color: #DCE3F0;
+  background: #F7F9FC;
+  color: #059669;
+}
+
+.hero h1,
+.section-heading h2,
+.closing h2,
+.dashboard-intro h2,
+.module-card h3 {
+  color: #0F172A;
+}
+
+.hero h1 em {
+  color: #059669;
+}
+
+.hero-copy > p,
+.section-heading p,
+.dashboard-intro p:not(.eyebrow),
+.module-card p,
+.brand-block p,
+.closing p {
+  color: #475569;
+}
+
+.hero-visual::before {
+  background: #F1F5F9;
+}
+
+.features {
+  background: #F8FAFC;
+  border-top-color: #EDF1F5;
+  border-bottom-color: #EDF1F5;
+}
+
+.feature-grid article {
+  box-shadow: none;
+}
+
+.feature-number,
+.trust-row span::before {
+  color: #C9A961;
+  background: #C9A961;
+}
+
+.auth-page {
+  background: #F8FAFC;
+}
+
+.auth-card {
+  box-shadow: 0 20px 60px rgba(15, 23, 42, .09);
+}
+
+.form-stack input {
+  border-color: #CBD5E1;
+  border-radius: 8px;
+  color: #0F172A;
+}
+
+.form-stack input:focus {
+  border-color: #64748B;
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, .12);
+}
+
+/* Dashboard surfaces */
+.module-card:hover {
+  box-shadow: 0 10px 25px rgba(15, 23, 42, .07);
+}
+
+.customer-summary {
+  box-shadow: none;
+}
+
+.info-strip {
+  box-shadow: none;
+}
+
+.app-footer,
+.landing-footer {
+  border-top-color: #E2E8F0;
+  color: #64748B;
+}
+
+@media (max-width: 720px) {
+  .shell,
+  .app-shell,
+  .landing-nav,
+  .hero,
+  .closing,
+  .landing-footer {
+    width: min(100% - 24px, 1180px);
+  }
+
+  .hero {
+    padding: 36px 0 54px;
+    gap: 28px;
+  }
+
+  .hero h1 {
+    font-size: clamp(34px, 10vw, 48px);
+    line-height: 1.2;
+    letter-spacing: -.02em;
+  }
+
+  .hero-copy > p {
+    font-size: 16px;
+    line-height: 1.8;
+  }
+
+  .panel,
+  .auth-card {
+    padding: 24px;
+  }
+
+  .module-card,
+  .feature-grid article {
+    border-radius: 12px;
+  }
+}

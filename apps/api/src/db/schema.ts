@@ -105,7 +105,7 @@ export const customers = pgTable('customers', {
   customerNumber: varchar('customer_number', { length: 50 }).notNull(),
   firstName: varchar('first_name', { length: 100 }).notNull(),
   lastName: varchar('last_name', { length: 100 }).notNull(),
-  phone: varchar('phone', { length: 30 }).notNull(),
+  phone: varchar('phone', { length: 30 }),
   email: varchar('email', { length: 320 }),
   dateOfBirth: date('date_of_birth'),
   gender: varchar('gender', { length: 30 }),
@@ -118,18 +118,14 @@ export const customers = pgTable('customers', {
 }, (table) => [
   uniqueIndex('customers_center_number_uq').on(table.centerId, table.customerNumber),
   index('customers_center_phone_idx').on(table.centerId, table.phone),
-  index('customers_center_status_idx').on(table.centerId, table.status),
 ]);
 
 export const measurementTypes = pgTable('measurement_types', {
   id: uuid('id').defaultRandom().primaryKey(),
-  centerId: uuid('center_id').references(() => centers.id),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
   code: varchar('code', { length: 80 }).notNull(),
-  name: varchar('name', { length: 120 }).notNull(),
-  unit: varchar('unit', { length: 30 }).notNull(),
-  valueType: varchar('value_type', { length: 20 }).notNull().default('numeric'),
-  minValue: numeric('min_value'),
-  maxValue: numeric('max_value'),
+  name: varchar('name', { length: 150 }).notNull(),
+  unit: varchar('unit', { length: 30 }),
   active: boolean('active').notNull().default(true),
 }, (table) => [uniqueIndex('measurement_types_center_code_uq').on(table.centerId, table.code)]);
 
@@ -138,36 +134,25 @@ export const measurementRecords = pgTable('measurement_records', {
   centerId: uuid('center_id').notNull().references(() => centers.id),
   customerId: uuid('customer_id').notNull().references(() => customers.id),
   measurementTypeId: uuid('measurement_type_id').notNull().references(() => measurementTypes.id),
-  numericValue: numeric('numeric_value'),
-  textValue: text('text_value'),
+  value: numeric('value', { precision: 14, scale: 4 }).notNull(),
   measuredAt: timestamp('measured_at', { withTimezone: true }).notNull(),
-  source: varchar('source', { length: 50 }).notNull().default('staff'),
-  recordedBy: uuid('recorded_by').notNull().references(() => users.id),
   notes: text('notes'),
+  createdBy: uuid('created_by').notNull().references(() => users.id),
   ...auditTimestamps,
-}, (table) => [
-  index('measurements_customer_date_idx').on(table.customerId, table.measuredAt),
-  index('measurements_type_date_idx').on(table.measurementTypeId, table.measuredAt),
-]);
+});
 
 export const appointments = pgTable('appointments', {
   id: uuid('id').defaultRandom().primaryKey(),
   centerId: uuid('center_id').notNull().references(() => centers.id),
   customerId: uuid('customer_id').notNull().references(() => customers.id),
-  assignedStaffId: uuid('assigned_staff_id').notNull().references(() => users.id),
-  appointmentType: varchar('appointment_type', { length: 50 }).notNull(),
-  scheduledStart: timestamp('scheduled_start', { withTimezone: true }).notNull(),
-  scheduledEnd: timestamp('scheduled_end', { withTimezone: true }).notNull(),
+  staffId: uuid('staff_id').notNull().references(() => users.id),
+  startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  appointmentType: varchar('appointment_type', { length: 80 }).notNull(),
   status: varchar('status', { length: 30 }).notNull().default('scheduled'),
   notes: text('notes'),
   ...auditTimestamps,
-  createdBy: uuid('created_by').notNull().references(() => users.id),
-  updatedBy: uuid('updated_by').notNull().references(() => users.id),
-}, (table) => [
-  index('appointments_center_start_idx').on(table.centerId, table.scheduledStart),
-  index('appointments_staff_start_idx').on(table.assignedStaffId, table.scheduledStart),
-  index('appointments_customer_start_idx').on(table.customerId, table.scheduledStart),
-]);
+});
 
 export const nutritionPlans = pgTable('nutrition_plans', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -176,7 +161,6 @@ export const nutritionPlans = pgTable('nutrition_plans', {
   specialistId: uuid('specialist_id').notNull().references(() => users.id),
   title: varchar('title', { length: 200 }).notNull(),
   goals: text('goals'),
-  recommendations: text('recommendations'),
   startDate: date('start_date').notNull(),
   endDate: date('end_date'),
   status: varchar('status', { length: 30 }).notNull().default('draft'),
@@ -278,22 +262,20 @@ export const stockMovements = pgTable('stock_movements', {
 }, (table) => [
   index('stock_movements_product_date_idx').on(table.productId, table.occurredAt),
   index('stock_movements_reference_idx').on(table.referenceType, table.referenceId),
-  index('stock_movements_center_date_idx').on(table.centerId, table.occurredAt),
 ]);
 
 export const sales = pgTable('sales', {
   id: uuid('id').defaultRandom().primaryKey(),
   centerId: uuid('center_id').notNull().references(() => centers.id),
   customerId: uuid('customer_id').references(() => customers.id),
-  cashierId: uuid('cashier_id').notNull().references(() => users.id),
-  saleNumber: varchar('sale_number', { length: 60 }).notNull(),
+  soldBy: uuid('sold_by').notNull().references(() => users.id),
+  saleNumber: varchar('sale_number', { length: 80 }).notNull(),
   status: varchar('status', { length: 30 }).notNull().default('completed'),
-  currencyCode: varchar('currency_code', { length: 3 }).notNull().default('SAR'),
   subtotal: numeric('subtotal', { precision: 14, scale: 2 }).notNull().default('0'),
-  discountTotal: numeric('discount_total', { precision: 14, scale: 2 }).notNull().default('0'),
-  taxTotal: numeric('tax_total', { precision: 14, scale: 2 }).notNull().default('0'),
-  grandTotal: numeric('grand_total', { precision: 14, scale: 2 }).notNull().default('0'),
-  paymentStatus: varchar('payment_status', { length: 30 }).notNull().default('unpaid'),
+  discount: numeric('discount', { precision: 14, scale: 2 }).notNull().default('0'),
+  tax: numeric('tax', { precision: 14, scale: 2 }).notNull().default('0'),
+  total: numeric('total', { precision: 14, scale: 2 }).notNull().default('0'),
+  paymentMethod: varchar('payment_method', { length: 50 }).notNull(),
   ...auditTimestamps,
 }, (table) => [
   uniqueIndex('sales_center_number_uq').on(table.centerId, table.saleNumber),

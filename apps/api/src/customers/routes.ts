@@ -11,27 +11,18 @@ export type CustomerBindings = {
 
 export const customerRoutes = new Hono<{ Bindings: CustomerBindings }>();
 
-async function requireUser(c: any) {
-  const user = await getAuthenticatedUser(c.env, c.req.raw);
-  if (!user) {
-    return { response: c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401) };
-  }
-  if (!user.centerId) {
-    return { response: c.json({ error: { code: 'CENTER_NOT_ASSIGNED', message: 'المستخدم غير مرتبط بمركز' } }, 403) };
-  }
-  return { user };
-}
-
 customerRoutes.get('/', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) {
     return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
   }
-  const auth = await requireUser(c);
-  if (auth.response) return auth.response;
-  const user = auth.user;
+  const user = await getAuthenticatedUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401);
+  if (!user.centerId) return c.json({ error: { code: 'CENTER_NOT_ASSIGNED', message: 'المستخدم غير مرتبط بمركز' } }, 403);
+
   const search = c.req.query('search')?.trim();
   const status = c.req.query('status')?.trim();
-  const limit = Math.min(Math.max(Number(c.req.query('limit') ?? 50), 1), 100);
+  const parsedLimit = Number(c.req.query('limit') ?? 50);
+  const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 100) : 50;
 
   const rows = await withDatabase(c.env, (db) => db.select({
     id: customers.id,
@@ -66,11 +57,11 @@ customerRoutes.get('/:id', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) {
     return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
   }
-  const auth = await requireUser(c);
-  if (auth.response) return auth.response;
-  const user = auth.user;
-  const id = c.req.param('id');
+  const user = await getAuthenticatedUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401);
+  if (!user.centerId) return c.json({ error: { code: 'CENTER_NOT_ASSIGNED', message: 'المستخدم غير مرتبط بمركز' } }, 403);
 
+  const id = c.req.param('id');
   const customer = await withDatabase(c.env, async (db) => {
     const rows = await db.select().from(customers).where(and(eq(customers.id, id), eq(customers.centerId, user.centerId))).limit(1);
     return rows[0] ?? null;
@@ -84,9 +75,9 @@ customerRoutes.post('/', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) {
     return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
   }
-  const auth = await requireUser(c);
-  if (auth.response) return auth.response;
-  const user = auth.user;
+  const user = await getAuthenticatedUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401);
+  if (!user.centerId) return c.json({ error: { code: 'CENTER_NOT_ASSIGNED', message: 'المستخدم غير مرتبط بمركز' } }, 403);
 
   const body = await c.req.json<{
     customerNumber?: string;

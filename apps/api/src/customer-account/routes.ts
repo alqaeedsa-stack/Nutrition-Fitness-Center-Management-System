@@ -14,23 +14,11 @@ export const customerAccountRoutes = new Hono<{ Bindings: CustomerAccountBinding
 
 customerAccountRoutes.get('/me', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) {
-    return c.json({
-      error: {
-        code: 'DATABASE_NOT_CONFIGURED',
-        message: 'قاعدة البيانات غير مهيأة بعد',
-      },
-    }, 503);
+    return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
   }
 
   const user = await getAuthenticatedUser(c.env, c.req.raw);
-  if (!user) {
-    return c.json({
-      error: {
-        code: 'UNAUTHENTICATED',
-        message: 'يجب تسجيل الدخول',
-      },
-    }, 401);
-  }
+  if (!user) return c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401);
 
   const account = await withDatabase(c.env, async (db) => {
     const rows = await db.select({
@@ -50,31 +38,9 @@ customerAccountRoutes.get('/me', async (c) => {
     return rows[0] ?? null;
   });
 
-  if (!account) {
-    return c.json({
-      error: {
-        code: 'CUSTOMER_ACCOUNT_NOT_FOUND',
-        message: 'لا يوجد حساب عميل مرتبط بالمستخدم الحالي',
-      },
-    }, 404);
-  }
-
+  if (!account) return c.json({ error: { code: 'CUSTOMER_ACCOUNT_NOT_FOUND', message: 'لا يوجد حساب عميل مرتبط بالمستخدم الحالي' } }, 404);
   if (account.status !== 'active' || account.customer.status !== 'active') {
-    return c.json({
-      error: {
-        code: 'CUSTOMER_ACCOUNT_INACTIVE',
-        message: 'حساب العميل غير نشط',
-      },
-    }, 403);
-  }
-
-  if (account.customer.centerId !== user.centerId) {
-    return c.json({
-      error: {
-        code: 'CUSTOMER_ACCOUNT_SCOPE_MISMATCH',
-        message: 'حساب العميل لا ينتمي إلى المركز الحالي',
-      },
-    }, 403);
+    return c.json({ error: { code: 'CUSTOMER_ACCOUNT_INACTIVE', message: 'حساب العميل غير نشط' } }, 403);
   }
 
   return c.json({

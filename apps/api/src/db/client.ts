@@ -1,6 +1,7 @@
 import { Client } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from './schema';
+import { customerAccounts } from './customer-accounts';
 
 export type DatabaseBinding = {
   connectionString: string;
@@ -19,7 +20,7 @@ export function createDatabase(env: DatabaseEnv) {
   }
 
   const client = new Client({ connectionString });
-  const db = drizzle({ client, schema });
+  const db = drizzle({ client, schema: { ...schema, customerAccounts } });
 
   return { client, db };
 }

@@ -632,17 +632,21 @@ function StaffOperations({ user }: { user: AuthUser }) {
   const canManageOrders = can('orders.read');
   const canUpdateOrders = can('orders.update');
   type Product = { id: string; sku: string; name: string; purchaseCost: string; sellingPrice: string; reorderPoint: string; active: boolean; categoryName?: string | null; brandName?: string | null };
-  type Inventory = { productId: string; sku: string; name: string; quantity: string; reorderPoint: string; purchaseCost: string; sellingPrice: string };
+  type Inventory = { productId: string; sku: string; name: string; quantity: string; reorderPoint: string; purchaseCost: string; sellingPrice: string; lowStock: boolean };
+  type Movement = { id: string; movementType: string; quantity: string; unitCost: string; referenceType?: string | null; referenceId?: string | null; occurredAt: string; notes?: string | null };
   type Order = { id: string; orderNumber: string; customerId: string; status: string; total: string; paymentMethod?: string | null; paymentStatus: string; createdAt: string };
 
-  const [tab, setTab] = useState<'products'|'inventory'|'orders'>(canManageOrders && !canManageCatalog ? 'orders' : 'products');
+  const [tab, setTab] = useState<'products'|'inventory'|'orders'>(canManageOrders && !canManageCatalog && !canManageInventory ? 'orders' : canManageCatalog ? 'products' : 'inventory');
   const [products, setProducts] = useState<Product[]>([]);
   const [inventory, setInventory] = useState<Inventory[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [categories, setCategories] = useState<{id:string;name:string}[]>([]);
   const [brands, setBrands] = useState<{id:string;name:string}[]>([]);
   const [form, setForm] = useState({sku:'',name:'',categoryId:'',brandId:'',purchaseCost:'0',sellingPrice:'0',taxCode:'',reorderPoint:'0'});
-  const [adjust, setAdjust] = useState({productId:'',quantity:'',notes:''});
+  const [adjust, setAdjust] = useState({productId:'',quantity:'',movementType:'opening',unitCost:'',notes:''});
+  const [movementProduct, setMovementProduct] = useState<Inventory | null>(null);
+  const [movements, setMovements] = useState<Movement[]>([]);
+  const [movementLoading, setMovementLoading] = useState(false);
   const [error,setError]=useState(''); const [message,setMessage]=useState(''); const [saving,setSaving]=useState(false);
 
   async function load() {
@@ -655,6 +659,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
         ]);
         setProducts(p.products); setInventory(i.inventory); setCategories(opt.categories); setBrands(opt.brands);
         if (!form.categoryId && opt.categories[0]) setForm(v=>({...v,categoryId:opt.categories[0].id}));
+        if (!adjust.productId && i.inventory[0]) setAdjust(v=>({...v,productId:i.inventory[0].productId}));
       }
       if (canManageOrders) {
         const o = await apiFetch<{orders:Order[]}>('/staff/orders');
@@ -676,15 +681,34 @@ function StaffOperations({ user }: { user: AuthUser }) {
   async function adjustStock(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError(''); setMessage('');
     try {
-      await apiFetch('/staff/inventory/adjust',{method:'POST',body:JSON.stringify({productId:adjust.productId,quantity:Number(adjust.quantity),notes:adjust.notes})});
-      setAdjust({productId:'',quantity:'',notes:''}); setMessage('تم تسجيل حركة المخزون'); await load();
+      const result = await apiFetch<{currentStock:string|number}>('/staff/inventory/adjust',{method:'POST',body:JSON.stringify({
+        productId:adjust.productId, quantity:Number(adjust.quantity), movementType:adjust.movementType,
+        unitCost:adjust.unitCost ? Number(adjust.unitCost) : undefined, notes:adjust.notes
+      })});
+      setAdjust(v=>({...v,quantity:'',unitCost:'',notes:''}));
+      setMessage(`تم تسجيل الحركة. الرصيد الحالي: ${Number(result.currentStock).toFixed(3)}`);
+      await load();
     } catch(e){setError(e instanceof Error?e.message:'تعذر تسجيل الحركة');} finally{setSaving(false);}
+  }
+
+  async function openMovements(item: Inventory) {
+    setMovementProduct(item); setMovementLoading(true); setError('');
+    try {
+      const result = await apiFetch<{movements:Movement[]}>(`/staff/inventory/${item.productId}/movements`);
+      setMovements(result.movements);
+    } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل حركات المخزون'); setMovementProduct(null);}
+    finally{setMovementLoading(false);}
   }
 
   async function setOrderStatus(id:string,status:'confirmed'|'completed'|'cancelled') {
     try { await apiFetch(`/staff/orders/${id}/status`,{method:'PATCH',body:JSON.stringify({status})}); setMessage('تم تحديث حالة الطلب'); await load(); }
     catch(e){setError(e instanceof Error?e.message:'تعذر تحديث الطلب');}
   }
+
+  const movementLabels: Record<string,string> = {
+    opening:'رصيد افتتاحي', purchase:'شراء', adjustment_in:'تسوية إضافة', adjustment_out:'تسوية صرف',
+    return_in:'مرتجع وارد', return_out:'مرتجع صادر', sale:'بيع'
+  };
 
   return <main className="app-shell">
     <header className="app-header"><div><span className="eyebrow">OPERATIONS</span><h1>المنتجات والمخزون والطلبات</h1></div><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></header>
@@ -711,13 +735,28 @@ function StaffOperations({ user }: { user: AuthUser }) {
     </section>}
 
     {canManageInventory && tab==='inventory'&&<section className="staff-management-grid">
-      <section className="panel"><p className="eyebrow">STOCK MOVEMENT</p><h2>تسوية المخزون</h2><form className="form-stack" onSubmit={adjustStock}>
-        <label>المنتج<select required value={adjust.productId} onChange={e=>setAdjust({...adjust,productId:e.target.value})}><option value="">اختر المنتج</option>{products.filter(p=>p.active).map(p=><option key={p.id} value={p.id}>{p.sku} — {p.name}</option>)}</select></label>
-        <label>الكمية <small>موجب إضافة / سالب صرف</small><input type="number" step="0.001" required value={adjust.quantity} onChange={e=>setAdjust({...adjust,quantity:e.target.value})}/></label>
+      <section className="panel"><p className="eyebrow">STOCK MOVEMENT</p><h2>إدارة حركة المخزون</h2><form className="form-stack" onSubmit={adjustStock}>
+        <label>المنتج<select required value={adjust.productId} onChange={e=>setAdjust({...adjust,productId:e.target.value})}><option value="">اختر المنتج</option>{inventory.map(p=><option key={p.productId} value={p.productId}>{p.sku} — {p.name}</option>)}</select></label>
+        <label>نوع الحركة<select value={adjust.movementType} onChange={e=>setAdjust({...adjust,movementType:e.target.value})}>
+          <option value="opening">رصيد افتتاحي</option><option value="purchase">شراء</option><option value="adjustment_in">تسوية إضافة</option><option value="adjustment_out">تسوية صرف</option><option value="return_in">مرتجع وارد</option><option value="return_out">مرتجع صادر</option>
+        </select></label>
+        <label>الكمية<input type="number" min="0.001" step="0.001" required value={adjust.quantity} onChange={e=>setAdjust({...adjust,quantity:e.target.value})}/></label>
+        <label>تكلفة الوحدة <small>اختياري</small><input type="number" min="0" step="0.01" value={adjust.unitCost} onChange={e=>setAdjust({...adjust,unitCost:e.target.value})}/></label>
         <label>ملاحظة<textarea value={adjust.notes} onChange={e=>setAdjust({...adjust,notes:e.target.value})}/></label>
-        {canAdjustInventory && <button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'تسجيل الحركة'}</button>}
+        {canAdjustInventory && <button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'تسجيل حركة المخزون'}</button>}
       </form></section>
-      <section className="panel"><p className="eyebrow">ON HAND</p><h2>الأرصدة الحالية</h2><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>الرصيد</th><th>حد الطلب</th><th>قيمة التكلفة</th></tr></thead><tbody>{inventory.map(x=><tr key={x.productId}><td>{x.sku}</td><td>{x.name}</td><td>{x.quantity}</td><td>{x.reorderPoint}</td><td>{(Number(x.quantity)*Number(x.purchaseCost)).toFixed(2)} ر.س</td></tr>)}</tbody></table></div></section>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">STOCK CONTROL</p><h2>الأرصدة الحالية</h2></div><span className="module-status">{inventory.filter(x=>x.lowStock).length} تحت حد الطلب</span></div>
+        <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>الرصيد</th><th>حد الطلب</th><th>قيمة التكلفة</th><th>الحالة</th><th></th></tr></thead><tbody>
+        {inventory.map(x=><tr key={x.productId}><td>{x.sku}</td><td>{x.name}</td><td>{Number(x.quantity).toFixed(3)}</td><td>{Number(x.reorderPoint).toFixed(3)}</td><td>{(Number(x.quantity)*Number(x.purchaseCost)).toFixed(2)} ر.س</td><td>{x.lowStock?<span className="status-badge inactive">إعادة طلب</span>:<span className="status-badge active">متوفر</span>}</td><td><button className="secondary-button" type="button" onClick={()=>void openMovements(x)}>الحركات</button></td></tr>)}
+        </tbody></table></div>
+      </section>
+    </section>}
+
+    {movementProduct && <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">MOVEMENT HISTORY</p><h2>{movementProduct.name}</h2><small>{movementProduct.sku} · الرصيد الحالي {Number(movementProduct.quantity).toFixed(3)}</small></div><button className="secondary-button" type="button" onClick={()=>setMovementProduct(null)}>إغلاق</button></div>
+      {movementLoading ? <p className="empty-state">جارٍ تحميل الحركات...</p> : !movements.length ? <p className="empty-state">لا توجد حركات مسجلة لهذا المنتج.</p> :
+      <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الحركة</th><th>الكمية</th><th>تكلفة الوحدة</th><th>التاريخ</th><th>المرجع</th><th>الملاحظة</th></tr></thead><tbody>
+      {movements.map(m=><tr key={m.id}><td>{movementLabels[m.movementType]??m.movementType}</td><td>{Number(m.quantity)>0?'+':''}{Number(m.quantity).toFixed(3)}</td><td>{Number(m.unitCost).toFixed(2)} ر.س</td><td>{new Date(m.occurredAt).toLocaleString('ar-SA')}</td><td>{m.referenceType??'—'}</td><td>{m.notes??'—'}</td></tr>)}
+      </tbody></table></div>}
     </section>}
 
     {canManageOrders && tab==='orders'&&<section className="panel"><p className="eyebrow">CUSTOMER ORDERS</p><h2>طلبات العملاء</h2><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الطلب</th><th>الحالة</th><th>الإجمالي</th><th>الدفع</th><th>التاريخ</th><th>إجراء</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.orderNumber}</td><td>{o.status}</td><td>{o.total} ر.س</td><td>{o.paymentStatus}</td><td>{new Date(o.createdAt).toLocaleString('ar-SA')}</td><td>{canUpdateOrders && o.status==='pending'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'confirmed')}>تأكيد</button>}{canUpdateOrders && o.status==='confirmed'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'completed')}>إكمال</button>}{canUpdateOrders && o.status!=='completed'&&o.status!=='cancelled'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'cancelled')}>إلغاء</button>}</td></tr>)}</tbody></table></div></section>}

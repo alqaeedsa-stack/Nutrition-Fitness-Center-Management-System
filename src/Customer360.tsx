@@ -8,10 +8,10 @@ type Customer = {
 };
 type Measurement = { id: string; value: string; measuredAt: string; notes?: string | null; typeName: string; unit?: string | null };
 type Plan = { id: string; title: string; goals?: string | null; startDate: string; endDate?: string | null; status: string; version: number; specialistName?: string | null };
-type Appointment = { id: string; startsAt: string; endsAt: string; appointmentType: string; status: string; notes?: string | null; staffName?: string | null };
+type FollowUp = { id: string; followUpAt: string; nextFollowUpAt?: string | null; weight?: string | null; height?: string | null; adherenceScore?: number | null; nutritionAdherenceScore?: number | null; fitnessAdherenceScore?: number | null; notes?: string | null; recommendations?: string | null; staffName?: string | null };\ntype Appointment = { id: string; startsAt: string; endsAt: string; appointmentType: string; status: string; notes?: string | null; staffName?: string | null };
 type Sale = { id: string; saleNumber: string; status: string; subtotal: string; discount: string; tax: string; total: string; paymentMethod: string; createdAt: string };
 
-type Data = { customer: Customer; measurements: Measurement[]; nutrition: Plan[]; fitness: Plan[]; appointments: Appointment[]; sales: Sale[] };
+type Data = { customer: Customer; measurements: Measurement[]; nutrition: Plan[]; fitness: Plan[]; appointments: Appointment[]; sales: Sale[]; followUps: FollowUp[] };
 
 const statusLabel: Record<string, string> = {
   active: 'نشطة', draft: 'مسودة', completed: 'مكتملة', cancelled: 'ملغاة', scheduled: 'مجدول',
@@ -43,7 +43,7 @@ export default function Customer360() {
   if (loading) return <main className="app-shell"><div className="info-strip">جارٍ تحميل ملف العميل...</div></main>;
   if (error || !data) return <main className="app-shell"><div className="info-strip warning">{error || 'العميل غير موجود.'}</div><Link className="secondary-button" to="/admin/customers">العودة إلى العملاء</Link></main>;
 
-  const { customer, measurements, nutrition, fitness, appointments, sales } = data;
+  const { customer, measurements, nutrition, fitness, appointments, sales, followUps } = data;
   const upcoming = appointments.filter(a => new Date(a.startsAt).getTime() >= Date.now()).slice(0, 5);
 
   return (
@@ -72,6 +72,12 @@ export default function Customer360() {
       {customer.notes && <section className="panel"><div className="section-heading left"><span className="eyebrow">ملاحظات</span><h2>ملاحظات العميل</h2></div><p>{customer.notes}</p></section>}
 
       <section className="module-grid customer-live-grid">
+        <article className="module-card">
+          <span className="module-code">FOLLOW-UP</span><h3>المتابعات الدورية</h3>
+          {followUps.length ? <div className="portal-data-list">{followUps.slice(0, 5).map(f => <div className="portal-data-row" key={f.id}><strong>{new Date(f.followUpAt).toLocaleDateString('ar-SA')}</strong><span>{f.weight ? f.weight + ' كجم' : '—'}{f.adherenceScore == null ? '' : ' · ' + f.adherenceScore + '%'}</span><small>{f.staffName || '—'}{f.nextFollowUpAt ? ' · التالية ' + new Date(f.nextFollowUpAt).toLocaleDateString('ar-SA') : ''}</small></div>)}</div> : <div className="empty-state">لا توجد متابعات.</div>}
+          <Link className="text-link" to="/admin/follow-ups">إدارة المتابعات</Link>
+        </article>
+
         <article className="module-card">
           <span className="module-code">MEASUREMENTS</span><h3>آخر القياسات</h3>
           {measurements.length ? <div className="portal-data-list">{measurements.slice(0, 8).map(m => <div className="portal-data-row" key={m.id}><strong>{m.typeName}</strong><span>{m.value} {m.unit || ''}</span><small>{new Date(m.measuredAt).toLocaleString('ar-SA')}</small></div>)}</div> : <div className="empty-state">لا توجد قياسات.</div>}
@@ -108,7 +114,7 @@ export default function Customer360() {
             <div className="portal-data-row"><strong>الخطط الغذائية</strong><span>{nutrition.length}</span></div>
             <div className="portal-data-row"><strong>خطط اللياقة</strong><span>{fitness.length}</span></div>
             <div className="portal-data-row"><strong>المواعيد</strong><span>{appointments.length}</span></div>
-            <div className="portal-data-row"><strong>المبيعات</strong><span>{sales.length}</span></div>
+            <div className="portal-data-row"><strong>المتابعات</strong><span>{followUps.length}</span></div>\n            <div className="portal-data-row"><strong>المبيعات</strong><span>{sales.length}</span></div>
           </div>
         </article>
       </section>

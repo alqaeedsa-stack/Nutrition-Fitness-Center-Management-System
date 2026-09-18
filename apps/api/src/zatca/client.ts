@@ -20,6 +20,13 @@ function endpoint(environment: ZatcaEnvironment, mode: ZatcaSubmitInput['mode'])
   return `${baseUrl(environment)}/invoices/${mode}/single`;
 }
 
+function base64Utf8(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
 function basicAuth(username: string, password: string) {
   const bytes = new TextEncoder().encode(`${username}:${password}`);
   let binary = '';
@@ -41,7 +48,7 @@ export async function submitZatcaInvoice(input: ZatcaSubmitInput) {
     body: JSON.stringify({
       invoiceHash: input.invoiceHash,
       uuid: input.uuid,
-      invoice: btoa(unescape(encodeURIComponent(input.xml))),
+      invoice: base64Utf8(input.xml),
     }),
   });
 

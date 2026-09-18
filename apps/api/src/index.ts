@@ -10,6 +10,7 @@ import { customerPortalRoutes } from './customer-portal/routes';
 import { storeRoutes } from './store/routes';
 import { zatcaRoutes } from './zatca/routes';
 import { appointmentRoutes } from './appointments/routes';
+import { nutritionRoutes } from './nutrition/routes';
 
 type DatabaseBinding = {
   connectionString: string;
@@ -43,6 +44,7 @@ app.route('/api/v1/customer-portal', customerPortalRoutes);
 app.route('/api/v1/store', storeRoutes);
 app.route('/api/v1/zatca', zatcaRoutes);
 app.route('/api/v1/appointments', appointmentRoutes);
+app.route('/api/v1/nutrition', nutritionRoutes);
 
 app.get('/api/v1/health', (c) => {
   return c.json({

@@ -277,16 +277,81 @@ function Home() {
 }
 
 function CustomerStore() {
-  const [products, setProducts] = useState<Array<{ id: string; sku: string; name: string; sellingPrice: string; taxCode?: string | null }>>([]);
+  type Product = { id: string; sku: string; name: string; sellingPrice: string; taxCode?: string | null };
+  type CartItem = { id: string; productId: string; quantity: string; unitPrice: string; name: string; sku: string };
+  const [products, setProducts] = useState<Product[]>([]);
+  const [cart, setCart] = useState<{ id: string; items: CartItem[]; subtotal: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [busyProduct, setBusyProduct] = useState('');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    apiFetch<{ products: typeof products }>('/customer-portal/store/products')
-      .then(result => setProducts(result.products))
-      .catch(err => setError(err instanceof Error ? err.message : 'تعذر تحميل منتجات المتجر'))
-      .finally(() => setLoading(false));
-  }, []);
+  async function load() {
+    setLoading(true);
+    setError('');
+    try {
+      const [productResult, cartResult] = await Promise.all([
+        apiFetch<{ products: Product[] }>('/customer-portal/store/products'),
+        apiFetch<{ cart: { id: string; items: CartItem[]; subtotal: string } }>('/store/cart'),
+      ]);
+      setProducts(productResult.products);
+      setCart(cartResult.cart);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذر تحميل المتجر');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { void load(); }, []);
+
+  async function addToCart(product: Product) {
+    setBusyProduct(product.id);
+    setMessage('');
+    setError('');
+    try {
+      await apiFetch('/store/cart/items', {
+        method: 'POST',
+        body: JSON.stringify({ productId: product.id, quantity: 1 }),
+      });
+      setMessage(`تمت إضافة «${product.name}» إلى السلة.`);
+      const result = await apiFetch<{ cart: { id: string; items: CartItem[]; subtotal: string } }>('/store/cart');
+      setCart(result.cart);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذر إضافة المنتج');
+    } finally {
+      setBusyProduct('');
+    }
+  }
+
+  async function updateCartItem(item: CartItem, quantity: number) {
+    if (quantity < 1) {
+      await removeCartItem(item.id);
+      return;
+    }
+    setError('');
+    try {
+      await apiFetch(`/store/cart/items/${item.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ quantity }),
+      });
+      const result = await apiFetch<{ cart: { id: string; items: CartItem[]; subtotal: string } }>('/store/cart');
+      setCart(result.cart);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذر تحديث السلة');
+    }
+  }
+
+  async function removeCartItem(id: string) {
+    setError('');
+    try {
+      await apiFetch(`/store/cart/items/${id}`, { method: 'DELETE' });
+      const result = await apiFetch<{ cart: { id: string; items: CartItem[]; subtotal: string } }>('/store/cart');
+      setCart(result.cart);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذر حذف المنتج');
+    }
+  }
 
   return (
     <main className="app-shell customer-store-page">
@@ -297,19 +362,24 @@ function CustomerStore() {
         </div>
         <Link className="secondary-button" to="/customer/home">بوابة العميل</Link>
       </header>
+
       <section className="store-heading">
         <p className="eyebrow">منتجات المركز</p>
-        <h2>المنتجات المتاحة</h2>
-        <p>هذه واجهة المتجر الخاصة بالعملاء. الأسعار المعروضة من كتالوج المنتجات الفعلي في النظام.</p>
+        <h2>المتجر الإلكتروني</h2>
+        <p>كتالوج المنتجات الفعلي وسلة التسوق الخاصة بحسابك.</p>
       </section>
-      {loading && <div className="info-strip">جارٍ تحميل المنتجات...</div>}
+
+      {loading && <div className="info-strip">جارٍ تحميل المتجر...</div>}
       {error && <div className="info-strip warning">{error}</div>}
+      {message && <div className="info-strip">{message}</div>}
+
       {!loading && !error && !products.length && (
         <section className="store-empty">
           <h2>لا توجد منتجات منشورة حاليًا</h2>
           <p>سيظهر هنا كتالوج المنتجات بعد أن تضيف الإدارة المنتجات وتفعلها.</p>
         </section>
       )}
+
       {!!products.length && (
         <section className="store-product-grid" aria-label="منتجات المتجر">
           {products.map(product => (
@@ -317,15 +387,43 @@ function CustomerStore() {
               <span className="module-code">{product.sku}</span>
               <h3>{product.name}</h3>
               <strong>{product.sellingPrice} ر.س</strong>
-              <span className="module-status">متاح للشراء عند تفعيل الطلبات الإلكترونية</span>
+              <button className="primary-action button" type="button" onClick={() => void addToCart(product)} disabled={busyProduct === product.id}>
+                {busyProduct === product.id ? 'جارٍ الإضافة...' : 'إضافة للسلة'}
+              </button>
             </article>
           ))}
+        </section>
+      )}
+
+      {cart && (
+        <section className="store-cart">
+          <div className="panel-heading-row">
+            <div><span className="eyebrow">CART</span><h2>سلة التسوق</h2></div>
+            <strong>{cart.subtotal} ر.س</strong>
+          </div>
+          {!cart.items.length ? (
+            <p className="empty-state">السلة فارغة. أضف المنتجات التي تريدها.</p>
+          ) : (
+            <div className="cart-list">
+              {cart.items.map(item => (
+                <div className="cart-row" key={item.id}>
+                  <div><strong>{item.name}</strong><small>{item.sku} · {item.unitPrice} ر.س</small></div>
+                  <div className="cart-controls">
+                    <button type="button" onClick={() => void updateCartItem(item, Number(item.quantity) - 1)} aria-label={`تقليل ${item.name}`}>−</button>
+                    <span>{item.quantity}</span>
+                    <button type="button" onClick={() => void updateCartItem(item, Number(item.quantity) + 1)} aria-label={`زيادة ${item.name}`}>+</button>
+                    <button type="button" className="cart-remove" onClick={() => void removeCartItem(item.id)}>حذف</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="cart-note">الدفع وإتمام الطلب سيتم تفعيله بعد ربط طريقة الدفع وحساب الضريبة في المرحلة التجارية التالية.</div>
         </section>
       )}
     </main>
   );
 }
-
 function Health() {
   return <main className="shell narrow"><section className="panel"><p className="eyebrow">System Health</p><h1>النظام يعمل</h1><p>واجهة التطبيق الأساسية تعمل. حالة قاعدة البيانات وخدمات الإنتاج تُفحص من طبقة الـ API.</p><Link className="text-link" to="/">العودة</Link></section></main>;
 }

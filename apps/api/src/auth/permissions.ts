@@ -9,6 +9,8 @@ export type PermissionCode =
   | 'customers.create'
   | 'customers.update'
   | 'customers.delete'
+  | 'appointments.read'
+  | 'appointments.manage'
   | 'catalog.read'
   | 'catalog.write'
   | 'inventory.read'
@@ -18,6 +20,12 @@ export type PermissionCode =
   | 'pos.void'
   | 'orders.read'
   | 'orders.update'
+  | 'nutrition.read'
+  | 'nutrition.write'
+  | 'fitness.read'
+  | 'fitness.write'
+  | 'reports.read'
+  | 'reports.export'
   | 'zatca.manage';
 
 export const PERMISSIONS: Array<{ code: PermissionCode; resource: string; action: string; name: string }> = [
@@ -26,6 +34,8 @@ export const PERMISSIONS: Array<{ code: PermissionCode; resource: string; action
   { code: 'customers.create', resource: 'customers', action: 'create', name: 'إضافة العملاء' },
   { code: 'customers.update', resource: 'customers', action: 'update', name: 'تعديل العملاء' },
   { code: 'customers.delete', resource: 'customers', action: 'delete', name: 'حذف العملاء' },
+  { code: 'appointments.read', resource: 'appointments', action: 'read', name: 'عرض المواعيد' },
+  { code: 'appointments.manage', resource: 'appointments', action: 'manage', name: 'إدارة المواعيد' },
   { code: 'catalog.read', resource: 'catalog', action: 'read', name: 'عرض المنتجات والتصنيفات' },
   { code: 'catalog.write', resource: 'catalog', action: 'write', name: 'إضافة وتعديل المنتجات' },
   { code: 'inventory.read', resource: 'inventory', action: 'read', name: 'عرض المخزون' },
@@ -35,6 +45,12 @@ export const PERMISSIONS: Array<{ code: PermissionCode; resource: string; action
   { code: 'pos.void', resource: 'pos', action: 'void', name: 'إلغاء مبيعات' },
   { code: 'orders.read', resource: 'orders', action: 'read', name: 'عرض الطلبات' },
   { code: 'orders.update', resource: 'orders', action: 'update', name: 'تعديل حالات الطلبات' },
+  { code: 'nutrition.read', resource: 'nutrition', action: 'read', name: 'عرض الخطط الغذائية' },
+  { code: 'nutrition.write', resource: 'nutrition', action: 'write', name: 'إدارة الخطط الغذائية' },
+  { code: 'fitness.read', resource: 'fitness', action: 'read', name: 'عرض الخطط الرياضية' },
+  { code: 'fitness.write', resource: 'fitness', action: 'write', name: 'إدارة الخطط الرياضية' },
+  { code: 'reports.read', resource: 'reports', action: 'read', name: 'عرض التقارير' },
+  { code: 'reports.export', resource: 'reports', action: 'export', name: 'تصدير التقارير' },
   { code: 'zatca.manage', resource: 'zatca', action: 'manage', name: 'إدارة ZATCA والفوترة الإلكترونية' },
 ];
 

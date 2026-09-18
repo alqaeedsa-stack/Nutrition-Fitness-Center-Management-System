@@ -22,7 +22,7 @@ export default function Customer360() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [action, setAction] = useState<'measurement' | 'followUp' | 'appointment' | null>(null);
+  const [action, setAction] = useState<'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness' | null>(null);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
@@ -32,6 +32,9 @@ export default function Customer360() {
   const [measurement, setMeasurement] = useState({ typeId: '', value: '', measuredAt: '', notes: '' });
   const [followUp, setFollowUp] = useState({ staffId: '', followUpAt: '', nextFollowUpAt: '', weight: '', height: '', adherenceScore: '', nutritionScore: '', fitnessScore: '', notes: '', recommendations: '' });
   const [appointment, setAppointment] = useState({ staffId: '', startsAt: '', endsAt: '', appointmentType: 'استشارة', status: 'scheduled', notes: '' });
+  const [planOptions, setPlanOptions] = useState<Staff[]>([]);
+  const [nutritionPlan, setNutritionPlan] = useState({ specialistId: '', title: '', goals: '', startDate: new Date().toISOString().slice(0, 10), endDate: '', status: 'draft' });
+  const [fitnessPlan, setFitnessPlan] = useState({ specialistId: '', title: '', goals: '', startDate: new Date().toISOString().slice(0, 10), endDate: '', status: 'draft' });
 
   const load = useCallback(async (silent = false) => {
     if (!id) return;
@@ -52,9 +55,18 @@ export default function Customer360() {
     return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, [load]);
 
-  const openAction = async (next: 'measurement' | 'followUp' | 'appointment') => {
+  const openAction = async (next: 'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness') => {
     setAction(next); setActionError(''); setActionMessage('');
     try {
+      if (next === 'nutrition' || next === 'fitness') {
+        const endpoint = next === 'nutrition' ? '/nutrition/options' : '/fitness/options';
+        const options = await apiFetch<{ specialists: Staff[] }>(endpoint);
+        setPlanOptions(options.specialists);
+        const defaultStaff = options.specialists[0]?.id ?? '';
+        if (next === 'nutrition') setNutritionPlan(v => ({ ...v, specialistId: v.specialistId || defaultStaff }));
+        else setFitnessPlan(v => ({ ...v, specialistId: v.specialistId || defaultStaff }));
+        return;
+      }
       const [me, options] = await Promise.all([
         apiFetch<AuthMe>('/auth/me'),
         apiFetch<{ staff: Staff[]; customers?: unknown[] }>(next === 'appointment' ? '/appointments/options' : '/follow-ups/options'),
@@ -92,6 +104,31 @@ export default function Customer360() {
     finally { setSaving(false); }
   }
 
+  async function savePlan(kind: 'nutrition' | 'fitness', e: FormEvent) {
+    e.preventDefault(); setSaving(true); setActionError(''); setActionMessage('');
+    try {
+      const plan = kind === 'nutrition' ? nutritionPlan : fitnessPlan;
+      const endpoint = kind === 'nutrition' ? '/nutrition' : '/fitness';
+      await apiFetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId: id,
+          specialistId: plan.specialistId,
+          title: plan.title,
+          goals: plan.goals || null,
+          startDate: plan.startDate,
+          endDate: plan.endDate || null,
+          status: plan.status,
+        }),
+      });
+      if (kind === 'nutrition') setNutritionPlan(v => ({ ...v, title: '', goals: '', endDate: '', status: 'draft' }));
+      else setFitnessPlan(v => ({ ...v, title: '', goals: '', endDate: '', status: 'draft' }));
+      setActionMessage(kind === 'nutrition' ? 'تم إنشاء الخطة الغذائية وتحديث ملف العميل.' : 'تم إنشاء خطة اللياقة وتحديث ملف العميل.');
+      await load(true);
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر حفظ الخطة.'); }
+    finally { setSaving(false); }
+  }
+
   async function saveAppointment(e: FormEvent) {
     e.preventDefault(); setSaving(true); setActionError(''); setActionMessage('');
     try {
@@ -126,15 +163,15 @@ export default function Customer360() {
           {customer.phone && <a className="secondary-button" href={`https://wa.me/${customer.phone.replace(/\\D/g, '')}`} target="_blank" rel="noreferrer">واتساب</a>}
           <button className="secondary-button" type="button" onClick={() => void openAction('followUp')}>متابعة جديدة</button>
           <button className="secondary-button" type="button" onClick={() => void openAction('measurement')}>إضافة قياس</button>
-          <Link className="secondary-button" to="/admin/nutrition">خطة غذائية</Link>
-          <Link className="secondary-button" to="/admin/fitness">خطة لياقة</Link>
+          <button className="secondary-button" type="button" onClick={() => void openAction('nutrition')}>خطة غذائية</button>
+          <button className="secondary-button" type="button" onClick={() => void openAction('fitness')}>خطة لياقة</button>
           <button className="secondary-button" type="button" onClick={() => void openAction('appointment')}>موعد</button>
         </div>
       </section>
 
       {action && (
         <section className="customer-action-panel panel">
-          <div className="panel-heading-row"><div><span className="eyebrow">{action === 'measurement' ? 'NEW MEASUREMENT' : action === 'followUp' ? 'NEW FOLLOW-UP' : 'NEW APPOINTMENT'}</span><h2>{action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : 'حجز موعد للعميل'}</h2></div><button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button></div>
+          <div className="panel-heading-row"><div><span className="eyebrow">{action === 'measurement' ? 'NEW MEASUREMENT' : action === 'followUp' ? 'NEW FOLLOW-UP' : action === 'appointment' ? 'NEW APPOINTMENT' : action === 'nutrition' ? 'NEW NUTRITION PLAN' : 'NEW FITNESS PLAN'}</span><h2>{action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : 'إنشاء خطة لياقة للعميل'}</h2></div><button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button></div>
           {actionError && <div className="info-strip warning">{actionError}</div>}
           {actionMessage && <div className="info-strip">{actionMessage}</div>}
 
@@ -164,6 +201,20 @@ export default function Customer360() {
             <label>ملاحظات المتابعة<textarea value={followUp.notes} onChange={e => setFollowUp(v => ({ ...v, notes: e.target.value }))} /></label>
             <label>التوصيات للعميل<textarea value={followUp.recommendations} onChange={e => setFollowUp(v => ({ ...v, recommendations: e.target.value }))} /></label>
             <button className="primary-action button" disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ المتابعة'}</button>
+          </form>}
+
+          {(action === 'nutrition' || action === 'fitness') && <form className="form-stack" onSubmit={e => void savePlan(action, e)}>
+            <div className="form-row">
+              <label>الأخصائي / المدرب<select required value={action === 'nutrition' ? nutritionPlan.specialistId : fitnessPlan.specialistId} onChange={e => action === 'nutrition' ? setNutritionPlan(v => ({ ...v, specialistId: e.target.value })) : setFitnessPlan(v => ({ ...v, specialistId: e.target.value }))}>{planOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+              <label>اسم الخطة<input required minLength={2} value={action === 'nutrition' ? nutritionPlan.title : fitnessPlan.title} onChange={e => action === 'nutrition' ? setNutritionPlan(v => ({ ...v, title: e.target.value })) : setFitnessPlan(v => ({ ...v, title: e.target.value }))} placeholder={action === 'nutrition' ? 'خطة خفض الوزن — المرحلة الأولى' : 'خطة لياقة — المرحلة الأولى'} /></label>
+              <label>الحالة<select value={action === 'nutrition' ? nutritionPlan.status : fitnessPlan.status} onChange={e => action === 'nutrition' ? setNutritionPlan(v => ({ ...v, status: e.target.value })) : setFitnessPlan(v => ({ ...v, status: e.target.value }))}><option value="draft">مسودة</option><option value="active">نشطة</option><option value="completed">مكتملة</option><option value="cancelled">ملغاة</option></select></label>
+            </div>
+            <label>الأهداف<textarea value={action === 'nutrition' ? nutritionPlan.goals : fitnessPlan.goals} onChange={e => action === 'nutrition' ? setNutritionPlan(v => ({ ...v, goals: e.target.value })) : setFitnessPlan(v => ({ ...v, goals: e.target.value }))} /></label>
+            <div className="form-row">
+              <label>تاريخ البداية<input type="date" required value={action === 'nutrition' ? nutritionPlan.startDate : fitnessPlan.startDate} onChange={e => action === 'nutrition' ? setNutritionPlan(v => ({ ...v, startDate: e.target.value })) : setFitnessPlan(v => ({ ...v, startDate: e.target.value }))} /></label>
+              <label>تاريخ النهاية<input type="date" value={action === 'nutrition' ? nutritionPlan.endDate : fitnessPlan.endDate} onChange={e => action === 'nutrition' ? setNutritionPlan(v => ({ ...v, endDate: e.target.value })) : setFitnessPlan(v => ({ ...v, endDate: e.target.value }))} /></label>
+            </div>
+            <button className="primary-action button" disabled={saving}>{saving ? 'جارٍ الحفظ...' : action === 'nutrition' ? 'إنشاء الخطة الغذائية' : 'إنشاء خطة اللياقة'}</button>
           </form>}
 
           {action === 'appointment' && <form className="form-stack" onSubmit={saveAppointment}>
@@ -198,8 +249,8 @@ export default function Customer360() {
       <section className="module-grid customer-live-grid">
         <article className="module-card"><span className="module-code">FOLLOW-UP</span><h3>المتابعات الدورية</h3>{followUps.length ? <div className="portal-data-list">{followUps.slice(0, 5).map(f => <div className="portal-data-row" key={f.id}><strong>{new Date(f.followUpAt).toLocaleDateString('ar-SA')}</strong><span>{f.weight ? f.weight + ' كجم' : '—'}{f.adherenceScore == null ? '' : ' · ' + f.adherenceScore + '%'}</span><small>{f.staffName || '—'}{f.nextFollowUpAt ? ' · التالية ' + new Date(f.nextFollowUpAt).toLocaleDateString('ar-SA') : ''}</small></div>)}</div> : <div className="empty-state">لا توجد متابعات.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('followUp')}>إضافة متابعة</button></article>
         <article className="module-card"><span className="module-code">MEASUREMENTS</span><h3>آخر القياسات</h3>{measurements.length ? <div className="portal-data-list">{measurements.slice(0, 8).map(m => <div className="portal-data-row" key={m.id}><strong>{m.typeName}</strong><span>{m.value} {m.unit || ''}</span><small>{new Date(m.measuredAt).toLocaleString('ar-SA')}</small></div>)}</div> : <div className="empty-state">لا توجد قياسات.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('measurement')}>إضافة قياس</button></article>
-        <article className="module-card"><span className="module-code">NUTRITION</span><h3>الخطط الغذائية</h3>{nutrition.length ? <div className="portal-data-list">{nutrition.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد خطط غذائية.</div>}<Link className="text-link" to="/admin/nutrition">إدارة التغذية</Link></article>
-        <article className="module-card"><span className="module-code">FITNESS</span><h3>خطط اللياقة</h3>{fitness.length ? <div className="portal-data-list">{fitness.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد خطط لياقة.</div>}<Link className="text-link" to="/admin/fitness">إدارة اللياقة</Link></article>
+        <article className="module-card"><span className="module-code">NUTRITION</span><h3>الخطط الغذائية</h3>{nutrition.length ? <div className="portal-data-list">{nutrition.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد خطط غذائية.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('nutrition')}>إنشاء خطة غذائية</button></article>
+        <article className="module-card"><span className="module-code">FITNESS</span><h3>خطط اللياقة</h3>{fitness.length ? <div className="portal-data-list">{fitness.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد خطط لياقة.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('fitness')}>إنشاء خطة لياقة</button></article>
         <article className="module-card"><span className="module-code">APPOINTMENTS</span><h3>المواعيد القادمة</h3>{upcoming.length ? <div className="portal-data-list">{upcoming.map(a => <div className="portal-data-row" key={a.id}><strong>{a.appointmentType}</strong><span>{label(a.status)}</span><small>{new Date(a.startsAt).toLocaleString('ar-SA')}{a.staffName ? ` · ${a.staffName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد مواعيد قادمة.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('appointment')}>حجز موعد</button></article>
         <article className="module-card"><span className="module-code">SALES</span><h3>مشتريات العميل</h3>{sales.length ? <div className="portal-data-list">{sales.slice(0, 8).map(s => <div className="portal-data-row" key={s.id}><strong>{s.saleNumber}</strong><span>{s.total} ر.س</span><small>{label(s.status)} · {new Date(s.createdAt).toLocaleDateString('ar-SA')} · {label(s.paymentStatus)}</small></div>)}</div> : <div className="empty-state">لا توجد مشتريات مرتبطة بالعميل.</div>}</article>
         <article className="module-card"><span className="module-code">ACTIVITY</span><h3>ملخص العميل</h3><div className="portal-data-list"><div className="portal-data-row"><strong>القياسات</strong><span>{measurements.length}</span></div><div className="portal-data-row"><strong>الخطط الغذائية</strong><span>{nutrition.length}</span></div><div className="portal-data-row"><strong>خطط اللياقة</strong><span>{fitness.length}</span></div><div className="portal-data-row"><strong>المواعيد</strong><span>{appointments.length}</span></div><div className="portal-data-row"><strong>المتابعات</strong><span>{followUps.length}</span></div><div className="portal-data-row"><strong>المبيعات</strong><span>{sales.length}</span></div></div></article>

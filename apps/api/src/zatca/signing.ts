@@ -146,7 +146,6 @@ export function buildZatcaQrCryptography(input: {
   signedTlvPayload: Uint8Array;
 }) {
   const privateKey = extractP256PrivateKey(input.privateKeyPem);
-  const signature = p256.sign(input.signedTlvPayload, privateKey, { prehash: false });
   const certificateDer = pemToDer(input.certificatePem, 'CERTIFICATE');
   const publicKey = extractCertificatePublicKeyInfo(certificateDer);
   const signature = rawEcdsaToDer(new Uint8Array(p256.sign(input.signedTlvPayload, privateKey, { prehash: false })));

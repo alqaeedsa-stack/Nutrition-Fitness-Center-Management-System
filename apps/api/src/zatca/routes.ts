@@ -224,7 +224,6 @@ zatcaRoutes.post('/sales/:saleId/prepare', async c => {
 
     await tx.update(zatcaSettings).set({
       lastIcv: nextIcv,
-      pih: generated.invoiceHash,
       updatedAt: new Date(),
     }).where(eq(zatcaSettings.id, settings.id));
 

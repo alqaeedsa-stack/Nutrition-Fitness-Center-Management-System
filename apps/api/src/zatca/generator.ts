@@ -212,4 +212,4 @@ export async function generateZatcaInvoice(
   return { xml, invoiceHash, qrCode };
 }
 
-export const firstInvoicePreviousHash = 'NWZlY2ViNjZmZmM4NmYzOGQ5NTI3ODZjNmQ2OTZjNzljMmRiYzIzOWRkNGU5MWI0NjcyOWQ3M2EyN2ZiNTdlOQ==';
+export const firstInvoicePreviousHash = 'NWZlY2ViNjZmZmM4NmYzOGQ5NTI3ODZiNmQ2OTZiNzljMmRiYzIzOWRkNGU5MWI0NjcyOWQ3M2EyY2ZiNTdlOQ==';

@@ -313,6 +313,26 @@ function Home() {
   );
 }
 
+function CustomerStore() {
+  return (
+    <main className="app-shell customer-store-page">
+      <header className="app-header">
+        <div>
+          <span className="eyebrow">CUSTOMER STORE</span>
+          <h1>المتجر الإلكتروني</h1>
+        </div>
+        <Link className="secondary-button" to="/customer/home">بوابة العميل</Link>
+      </header>
+      <section className="store-empty">
+        <span className="eyebrow">المتجر</span>
+        <h2>المتجر الإلكتروني داخل بوابة العملاء</h2>
+        <p>هذه الصفحة مخصصة للعميل لتصفح المنتجات وإنشاء الطلبات ومتابعة مشترياته. لم يتم إضافة منتجات تجريبية أو بيانات وهمية.</p>
+        <span className="module-status">بانتظار ربط كتالوج المنتجات وطلبات المتجر</span>
+      </section>
+    </main>
+  );
+}
+
 function Health() {
   return <main className="shell narrow"><section className="panel"><p className="eyebrow">System Health</p><h1>النظام يعمل</h1><p>واجهة التطبيق الأساسية تعمل. حالة قاعدة البيانات وخدمات الإنتاج تُفحص من طبقة الـ API.</p><Link className="text-link" to="/">العودة</Link></section></main>;
 }
@@ -348,6 +368,7 @@ export default function App() {
       <Route path="/customer/forgot-password" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/staff/dashboard'} replace /> : <ForgotPassword />} />
       <Route path="/customer/reset-password" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/staff/dashboard'} replace /> : <ResetPassword />} />
       <Route path="/customer/home" element={customerGuard ? <CustomerPortal onLogout={() => setUser(null)} /> : user ? <Navigate to="/staff/dashboard" replace /> : <Navigate to="/customer" replace />} />
+      <Route path="/customer/store" element={customerGuard ? <CustomerStore /> : user ? <Navigate to="/staff/dashboard" replace /> : <Navigate to="/customer" replace />} />
 
       <Route path="/staff" element={<PortalEntry portal="staff" user={user} />} />
       <Route path="/staff/login" element={user ? <Navigate to={user.role === 'staff' ? '/staff/dashboard' : '/customer/home'} replace /> : <Login portal="staff" onLogin={setUser} />} />

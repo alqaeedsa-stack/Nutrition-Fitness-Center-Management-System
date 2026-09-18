@@ -17,8 +17,14 @@ export default function ZatcaSettings() {
  const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [message,setMessage]=useState(''); const [error,setError]=useState('');
 
  async function load(){ setLoading(true); setError(''); try {
-  const [s,t,i,sales]=await Promise.all([apiFetch<{settings:ZatcaSettings|null}>('/zatca/settings'),apiFetch<{taxRates:TaxRate[]}>('/zatca/tax-rates'),apiFetch<{invoices:EInvoice[]}>('/zatca/invoices'),apiFetch<{sales:EligibleSale[]}>('/zatca/sales/eligible')]);
-  setSettings(s.settings); setTaxRates(t.taxRates); setInvoices(i.invoices); setEligibleSales(sales.sales);
+  const [s,t,i,sales,ready]=await Promise.all([
+   apiFetch<{settings:ZatcaSettings|null}>('/zatca/settings'),
+   apiFetch<{taxRates:TaxRate[]}>('/zatca/tax-rates'),
+   apiFetch<{invoices:EInvoice[]}>('/zatca/invoices'),
+   apiFetch<{sales:EligibleSale[]}>('/zatca/sales/eligible'),
+   apiFetch<ZatcaReadiness>('/zatca/readiness')
+  ]);
+  setSettings(s.settings); setTaxRates(t.taxRates); setInvoices(i.invoices); setEligibleSales(sales.sales); setReadiness(ready);
   if(s.settings)setForm({environment:s.settings.environment,vatNumber:s.settings.vatNumber??'',legalName:s.settings.legalName??'',invoiceTypeCode:s.settings.invoiceTypeCode,deviceSerial:s.settings.deviceSerial??'',sellerStreet:s.settings.sellerStreet??'',sellerBuildingNumber:s.settings.sellerBuildingNumber??'',sellerCity:s.settings.sellerCity??'',sellerPostalCode:s.settings.sellerPostalCode??'',sellerCountryCode:s.settings.sellerCountryCode??'SA',pih:s.settings.pih??''});
  } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل إعدادات ZATCA');} finally{setLoading(false);} }
  useEffect(()=>{void load()},[]);
@@ -45,6 +51,13 @@ export default function ZatcaSettings() {
   <header className='app-header'><div><span className='eyebrow'>ZATCA / FATOORA</span><h1>إعدادات الفوترة الإلكترونية والضرائب</h1><p>إدارة البيئة الضريبية وأكواد الضرائب ومتابعة حالة الفواتير الإلكترونية.</p></div><Link className='secondary-button' to='/admin/dashboard'>لوحة الإدارة</Link></header>
   {error&&<div className='info-strip warning'>{error}</div>}{message&&<div className='info-strip'>{message}</div>}
   {loading?<section className='panel'><p>جارٍ تحميل الإعدادات...</p></section>:<>
+   {readiness&&<section className='panel'>
+    <div className='panel-heading-row'><div><p className='eyebrow'>ZATCA READINESS</p><h2>حالة الجاهزية</h2><small>فحص الإعدادات والأسرار المطلوبة قبل تفعيل التوقيع والإرسال.</small></div><span className={readiness.readyForSigning?'status-badge active':'status-badge'}>{readiness.readyForSigning?'جاهز للفحص النهائي':'غير جاهز'}</span></div>
+    <div className='stats-grid'>
+     {Object.entries({sellerConfiguration:'بيانات المنشأة',sellerAddress:'عنوان المنشأة',binarySecurityToken:'رمز الربط',secret:'سر الربط',privateKey:'المفتاح الخاص',certificate:'الشهادة',signingEngine:'محرك XAdES'}).map(([key,label])=><div className='stat-card' key={key}><span>{label}</span><strong>{readiness.checks[key]?'مكتمل':'غير مكتمل'}</strong></div>)}
+    </div>
+    <p className='cart-note'>{readiness.note}</p>
+   </section>}
    <section className='staff-management-grid'>
     <section className='panel'><p className='eyebrow'>ZATCA CONFIGURATION</p><h2>إعدادات المنشأة</h2><form className='form-stack' onSubmit={saveSettings}>
      <label>بيئة الإرسال<select value={form.environment} onChange={e=>setForm(v=>({...v,environment:e.target.value as 'simulation'|'production'}))}><option value='simulation'>المحاكاة — Simulation</option><option value='production'>الإنتاج — Production</option></select></label>

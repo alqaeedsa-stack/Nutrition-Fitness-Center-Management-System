@@ -9,7 +9,7 @@ export const storeCarts = pgTable('store_carts', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, table => [
-  uniqueIndex('store_carts_customer_active_uq').on(table.customerId, table.status),
+  index('store_carts_customer_status_idx').on(table.customerId, table.status),
   index('store_carts_center_status_idx').on(table.centerId, table.status),
 ]);
 

@@ -3,32 +3,32 @@ import { Link } from 'react-router-dom';
 import { apiFetch } from './lib/api';
 
 type TaxRate = { id:string; code:string; name:string; rate:string; categoryCode:string; exemptionReasonCode?:string|null; active:boolean };
-type ZatcaSettings = { id:string; environment:'simulation'|'production'; vatNumber?:string|null; legalName?:string|null; invoiceTypeCode:string; deviceSerial?:string|null; pih?:string|null; lastIcv:number; status:string; lastError?:string|null };
+type ZatcaSettings = { id:string; environment:'simulation'|'production'; vatNumber?:string|null; legalName?:string|null; invoiceTypeCode:string; deviceSerial?:string|null; sellerStreet?:string|null; sellerBuildingNumber?:string|null; sellerCity?:string|null; sellerPostalCode?:string|null; sellerCountryCode?:string|null; pih?:string|null; lastIcv:number; status:string; lastError?:string|null };
 type EInvoice = { id:string; invoiceNumber:string; invoiceType:string; status:string; responseCode?:string|null; createdAt:string; submittedAt?:string|null };
 
 export default function ZatcaSettings() {
  const [settings,setSettings]=useState<ZatcaSettings|null>(null);
  const [taxRates,setTaxRates]=useState<TaxRate[]>([]);
  const [invoices,setInvoices]=useState<EInvoice[]>([]);
- const [form,setForm]=useState({environment:'simulation' as 'simulation'|'production',vatNumber:'',legalName:'',invoiceTypeCode:'0200000',deviceSerial:'',pih:''});
- const [taxForm,setTaxForm]=useState({code:'',name:'',rate:'15',categoryCode:'S',exemptionReasonCode:''});
+ const [form,setForm]=useState({environment:'simulation' as 'simulation'|'production',vatNumber:'',legalName:'',invoiceTypeCode:'0200000',deviceSerial:'',sellerStreet:'',sellerBuildingNumber:'',sellerCity:'',sellerPostalCode:'',sellerCountryCode:'SA',pih:''});
+ const [taxForm,setTaxForm]=useState({code:'',name:'',rate:'',categoryCode:'S',exemptionReasonCode:''});
  const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [message,setMessage]=useState(''); const [error,setError]=useState('');
 
  async function load(){ setLoading(true); setError(''); try {
   const [s,t,i]=await Promise.all([apiFetch<{settings:ZatcaSettings|null}>('/zatca/settings'),apiFetch<{taxRates:TaxRate[]}>('/zatca/tax-rates'),apiFetch<{invoices:EInvoice[]}>('/zatca/invoices')]);
   setSettings(s.settings); setTaxRates(t.taxRates); setInvoices(i.invoices);
-  if(s.settings)setForm({environment:s.settings.environment,vatNumber:s.settings.vatNumber??'',legalName:s.settings.legalName??'',invoiceTypeCode:s.settings.invoiceTypeCode,deviceSerial:s.settings.deviceSerial??'',pih:s.settings.pih??''});
+  if(s.settings)setForm({environment:s.settings.environment,vatNumber:s.settings.vatNumber??'',legalName:s.settings.legalName??'',invoiceTypeCode:s.settings.invoiceTypeCode,deviceSerial:s.settings.deviceSerial??'',sellerStreet:s.settings.sellerStreet??'',sellerBuildingNumber:s.settings.sellerBuildingNumber??'',sellerCity:s.settings.sellerCity??'',sellerPostalCode:s.settings.sellerPostalCode??'',sellerCountryCode:s.settings.sellerCountryCode??'SA',pih:s.settings.pih??''});
  } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل إعدادات ZATCA');} finally{setLoading(false);} }
  useEffect(()=>{void load()},[]);
 
  async function saveSettings(e:FormEvent){ e.preventDefault(); setSaving(true); setError(''); setMessage(''); try {
-  const r=await apiFetch<{settings:ZatcaSettings}>('/zatca/settings',{method:'PUT',body:JSON.stringify({...form,vatNumber:form.vatNumber.trim()||null,legalName:form.legalName.trim()||null,deviceSerial:form.deviceSerial.trim()||null,pih:form.pih.trim()||null})});
+  const r=await apiFetch<{settings:ZatcaSettings}>('/zatca/settings',{method:'PUT',body:JSON.stringify({...form,vatNumber:form.vatNumber.trim()||null,legalName:form.legalName.trim()||null,deviceSerial:form.deviceSerial.trim()||null,sellerStreet:form.sellerStreet.trim()||null,sellerBuildingNumber:form.sellerBuildingNumber.trim()||null,sellerCity:form.sellerCity.trim()||null,sellerPostalCode:form.sellerPostalCode.trim()||null,sellerCountryCode:form.sellerCountryCode.trim().toUpperCase()||'SA',pih:form.pih.trim()||null})});
   setSettings(r.settings); setMessage('تم حفظ إعدادات ZATCA');
  } catch(e){setError(e instanceof Error?e.message:'تعذر حفظ الإعدادات');} finally{setSaving(false);} }
 
  async function createTaxRate(e:FormEvent){ e.preventDefault(); setSaving(true); setError(''); setMessage(''); try {
   await apiFetch('/zatca/tax-rates',{method:'POST',body:JSON.stringify({...taxForm,rate:Number(taxForm.rate),exemptionReasonCode:taxForm.exemptionReasonCode.trim()||null,active:true})});
-  setTaxForm({code:'',name:'',rate:'15',categoryCode:'S',exemptionReasonCode:''}); setMessage('تمت إضافة كود الضريبة'); await load();
+  setTaxForm({code:'',name:'',rate:'',categoryCode:'S',exemptionReasonCode:''}); setMessage('تمت إضافة كود الضريبة'); await load();
  } catch(e){setError(e instanceof Error?e.message:'تعذر إضافة كود الضريبة');} finally{setSaving(false);} }
 
  async function toggleTaxRate(rate:TaxRate){setError('');setMessage('');try{await apiFetch('/zatca/tax-rates/'+rate.id,{method:'PATCH',body:JSON.stringify({active:!rate.active})});await load();setMessage('تم تحديث حالة كود الضريبة')}catch(e){setError(e instanceof Error?e.message:'تعذر تحديث الضريبة')}}
@@ -44,6 +44,9 @@ export default function ZatcaSettings() {
      <label>الاسم القانوني للمنشأة<input value={form.legalName} onChange={e=>setForm(v=>({...v,legalName:e.target.value}))}/></label>
      <label>Invoice Type Code<input dir='ltr' value={form.invoiceTypeCode} onChange={e=>setForm(v=>({...v,invoiceTypeCode:e.target.value}))}/></label>
      <label>الرقم التسلسلي للجهاز<input dir='ltr' value={form.deviceSerial} onChange={e=>setForm(v=>({...v,deviceSerial:e.target.value}))}/></label>
+     <div className='form-row'><label>الشارع<input value={form.sellerStreet} onChange={e=>setForm(v=>({...v,sellerStreet:e.target.value}))}/></label><label>رقم المبنى<input dir='ltr' value={form.sellerBuildingNumber} onChange={e=>setForm(v=>({...v,sellerBuildingNumber:e.target.value}))}/></label></div>
+     <div className='form-row'><label>المدينة<input value={form.sellerCity} onChange={e=>setForm(v=>({...v,sellerCity:e.target.value}))}/></label><label>الرمز البريدي<input dir='ltr' value={form.sellerPostalCode} onChange={e=>setForm(v=>({...v,sellerPostalCode:e.target.value}))}/></label></div>
+     <label>رمز الدولة<input dir='ltr' maxLength={2} value={form.sellerCountryCode} onChange={e=>setForm(v=>({...v,sellerCountryCode:e.target.value}))}/></label>
      <label>PIH السابق<input dir='ltr' value={form.pih} onChange={e=>setForm(v=>({...v,pih:e.target.value}))}/></label>
      <button className='primary-action button' disabled={saving}>{saving?'جارٍ الحفظ...':'حفظ الإعدادات'}</button>
     </form>{settings&&<div className='cart-note'>الحالة: <strong>{settings.status}</strong> · ICV الحالي: <strong>{settings.lastIcv}</strong>{settings.lastError?' · آخر خطأ: '+settings.lastError:''}</div>}</section>

@@ -752,9 +752,9 @@ staffRoutes.get('/reports/summary', async c => {
 
   const [summaryRows, dailyRows, inventoryRows] = await Promise.all([
     withDatabase(c.env, db => db.select({
-      salesCount: sql<number>.raw('count(*)'),
-      salesTotal: sql<string>.raw('coalesce(sum(grand_total), 0)'),
-      taxTotal: sql<string>.raw('coalesce(sum(tax_total), 0)'),
+      salesCount: sql.raw('count(*)'),
+      salesTotal: sql.raw('coalesce(sum(grand_total), 0)'),
+      taxTotal: sql.raw('coalesce(sum(tax_total), 0)'),
     }).from(sales).where(and(
       eq(sales.centerId, auth.user.centerId!),
       eq(sales.status, 'completed'),
@@ -762,9 +762,9 @@ staffRoutes.get('/reports/summary', async c => {
       lt(sales.createdAt, end),
     ))),
     withDatabase(c.env, db => db.select({
-      date: sql<string>.raw("to_char(date_trunc('day', created_at), 'YYYY-MM-DD')"),
-      count: sql<number>.raw('count(*)'),
-      total: sql<string>.raw('coalesce(sum(grand_total), 0)'),
+      date: sql.raw("to_char(date_trunc('day', created_at), 'YYYY-MM-DD')"),
+      count: sql.raw('count(*)'),
+      total: sql.raw('coalesce(sum(grand_total), 0)'),
     }).from(sales).where(and(
       eq(sales.centerId, auth.user.centerId!),
       eq(sales.status, 'completed'),
@@ -775,7 +775,7 @@ staffRoutes.get('/reports/summary', async c => {
       productId: products.id,
       sku: products.sku,
       name: products.name,
-      quantity: sql<number>.raw('coalesce(sum(quantity), 0)'),
+      quantity: sql.raw('coalesce(sum(quantity), 0)'),
       reorderPoint: products.reorderPoint,
       purchaseCost: products.purchaseCost,
     }).from(products).leftJoin(stockMovements, eq(stockMovements.productId, products.id))

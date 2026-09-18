@@ -351,7 +351,7 @@ staffRoutes.get('/pos/products', async c => {
     .where(and(
       eq(products.centerId, auth.user.centerId!), eq(products.active, true),
       or(eq(products.sku, query), eq(productBarcodes.barcode, query),
-        sql`lower(${products.name}) like lower(${`%\${query}%`})`),
+        sql`lower(${products.name}) like lower(concat('%', ${query}, '%'))`),
     ))
     .groupBy(products.id, productBarcodes.barcode)
     .orderBy(asc(products.name)).limit(20));
@@ -368,7 +368,7 @@ staffRoutes.get('/pos/customers', async c => {
   }).from(customers).where(and(
     eq(customers.centerId, auth.user.centerId!), eq(customers.status, 'active'),
     or(eq(customers.customerNumber, query), eq(customers.phone, query),
-      sql`lower(concat(${customers.firstName}, ' ', ${customers.lastName})) like lower(${`%\${query}%`})`),
+      sql`lower(concat(${customers.firstName}, ' ', ${customers.lastName})) like lower(concat('%', ${query}, '%'))`),
   )).orderBy(asc(customers.firstName)).limit(20));
   return c.json({ customers: rows });
 });

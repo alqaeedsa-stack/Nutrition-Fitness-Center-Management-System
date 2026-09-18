@@ -205,7 +205,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
     ['الموظفون والأطباء والأخصائيون', 'STAFF', 'إدارة حسابات الطاقم الداخلي والأدوار.', '/admin/staff'],
     ['العملاء', 'CUSTOMERS', 'ملفات العملاء والمتابعة والبيانات الأساسية.', '/customers'],
     ['المواعيد', 'APPOINTMENTS', 'حجوزات المركز ومواعيد الأطباء والأخصائيين.', ''],
-    ['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', ''],
+    ['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', '/admin/pos'],
     ['المخزون والمنتجات والطلبات', 'OPERATIONS', 'المنتجات والأرصدة وحركات المخزون وطلبات المتجر.', '/admin/operations'],
     ['الخطط الغذائية', 'NUTRITION', 'إعداد ومتابعة الخطط الغذائية.', ''],
     ['الخطط الرياضية', 'FITNESS', 'إعداد ومتابعة خطط اللياقة.', ''],
@@ -522,6 +522,33 @@ function CustomerStore() {
     </main>
   );
 }
+function StaffPOS() {
+  type Product = { id:string; sku:string; name:string; sellingPrice:string; purchaseCost:string; barcode?:string|null; quantity:string };
+  type Customer = { id:string; customerNumber:string; firstName:string; lastName:string; phone?:string|null };
+  type CartItem = Product & { cartQuantity:number; price:number; discount:number };
+  const [query,setQuery]=useState(''); const [products,setProducts]=useState<Product[]>([]);
+  const [cart,setCart]=useState<CartItem[]>([]); const [customerQuery,setCustomerQuery]=useState(''); const [customers,setCustomers]=useState<Customer[]>([]);
+  const [customer,setCustomer]=useState<Customer|null>(null); const [paymentMethod,setPaymentMethod]=useState<'cash'|'mada'|'card'|'bank_transfer'>('cash');
+  const [loading,setLoading]=useState(false); const [message,setMessage]=useState(''); const [error,setError]=useState('');
+  async function searchProducts(value:string) { setQuery(value); setError(''); if(!value.trim()){setProducts([]);return;} try { const r=await apiFetch<{products:Product[]}>('/staff/pos/products?q='+encodeURIComponent(value.trim())); setProducts(r.products); } catch(e){setError(e instanceof Error?e.message:'تعذر البحث عن المنتج');} }
+  function addProduct(p:Product) { if(Number(p.quantity)<=0){setError('المنتج غير متوفر في المخزون');return;} setCart(v=>{const x=v.find(i=>i.id===p.id); return x?v.map(i=>i.id===p.id?{...i,cartQuantity:Math.min(Number(p.quantity),i.cartQuantity+1)}:i):[...v,{...p,cartQuantity:1,price:Number(p.sellingPrice),discount:0}];}); setQuery('');setProducts([]);setError(''); }
+  async function searchCustomers(value:string) { setCustomerQuery(value); if(!value.trim()){setCustomers([]);return;} try { const r=await apiFetch<{customers:Customer[]}>('/staff/pos/customers?q='+encodeURIComponent(value.trim()));setCustomers(r.customers); } catch(e){setError(e instanceof Error?e.message:'تعذر البحث عن العميل');} }
+  const subtotal=cart.reduce((s,x)=>s+x.cartQuantity*x.price,0); const discount=cart.reduce((s,x)=>s+x.discount,0); const total=Math.max(0,subtotal-discount);
+  async function completeSale(){ if(!cart.length){setError('السلة فارغة');return;} setLoading(true);setError('');setMessage(''); try { const r=await apiFetch<{sale:{saleNumber:string;total:string}}>('/staff/pos/sales',{method:'POST',body:JSON.stringify({customerId:customer?.id??null,paymentMethod,items:cart.map(x=>({productId:x.id,quantity:x.cartQuantity,unitPrice:x.price,discount:x.discount}))})}); setMessage('تم تسجيل البيع '+r.sale.saleNumber+' بإجمالي '+r.sale.total+' ر.س');setCart([]);setCustomer(null);setCustomerQuery(''); } catch(e){setError(e instanceof Error?e.message:'تعذر إتمام البيع');} finally{setLoading(false);} }
+  return <main className="app-shell"><header className="app-header"><div><span className="eyebrow">POINT OF SALE</span><h1>نقطة البيع</h1></div><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></header>
+    {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
+    <section className="staff-management-grid"><section className="panel"><p className="eyebrow">PRODUCT SEARCH</p><h2>إضافة المنتجات</h2>
+      <input autoFocus dir="ltr" value={query} onChange={e=>void searchProducts(e.target.value)} placeholder="SKU أو باركود أو اسم المنتج" />
+      {!!products.length&&<div className="cart-list">{products.map(p=><button type="button" className="cart-row" key={p.id} onClick={()=>addProduct(p)}><span><strong>{p.name}</strong><small>{p.sku}{p.barcode?' · '+p.barcode:''} · المتاح {p.quantity}</small></span><strong>{p.sellingPrice} ر.س</strong></button>)}</div>}
+      <div className="panel-heading-row"><div><p className="eyebrow">CUSTOMER</p><h3>{customer?customer.firstName+' '+customer.lastName:'عميل اختياري'}</h3></div></div>
+      <input value={customerQuery} onChange={e=>void searchCustomers(e.target.value)} placeholder="بحث بالرقم أو الجوال أو الاسم" />
+      {!!customers.length&&!customer&&<div className="cart-list">{customers.map(c=><button type="button" className="cart-row" key={c.id} onClick={()=>{setCustomer(c);setCustomers([]);setCustomerQuery(c.customerNumber);}}><span><strong>{c.firstName} {c.lastName}</strong><small>{c.customerNumber} · {c.phone??'بدون جوال'}</small></span></button>)}</div>}
+      {customer&&<button className="secondary-button" type="button" onClick={()=>{setCustomer(null);setCustomerQuery('');}}>إزالة العميل</button>}</section>
+    <section className="panel"><p className="eyebrow">CURRENT SALE</p><h2>السلة</h2>{!cart.length?<p className="empty-state">لم تتم إضافة منتجات.</p>:<div className="cart-list">{cart.map(item=><div className="cart-row" key={item.id}><div><strong>{item.name}</strong><small>{item.price.toFixed(2)} ر.س · الكمية {item.cartQuantity}</small></div><div className="cart-controls"><button type="button" onClick={()=>setCart(v=>v.map(x=>x.id===item.id?{...x,cartQuantity:Math.max(1,x.cartQuantity-1)}:x)}>−</button><span>{item.cartQuantity}</span><button type="button" onClick={()=>setCart(v=>v.map(x=>x.id===item.id?{...x,cartQuantity:Math.min(Number(x.quantity),x.cartQuantity+1)}:x)}>+</button><button type="button" className="cart-remove" onClick={()=>setCart(v=>v.filter(x=>x.id!==item.id))}>حذف</button></div></div>)}</div>}
+      <div className="checkout-panel"><div><span className="eyebrow">PAYMENT</span><h3>الإجمالي: {total.toFixed(2)} ر.س</h3><small>قبل الضريبة — محرك الضريبة لم يتم ربطه بعد.</small></div>
+        <label>طريقة الدفع<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value as typeof paymentMethod)}><option value="cash">نقدي</option><option value="mada">مدى</option><option value="card">بطاقة</option><option value="bank_transfer">تحويل بنكي</option></select></label>
+        <button className="primary-action button" type="button" onClick={()=>void completeSale()} disabled={loading||!cart.length}>{loading?'جارٍ تسجيل البيع...':'إتمام البيع'}</button><div className="cart-note">البيع يُسجل ذريًا في المبيعات وعناصر البيع وحركة المخزون. لا يتم إنشاء قيد دفع إلكتروني وهمي.</div></div></section></section></main>;
+}
 function StaffOperations() {
   type Product = { id: string; sku: string; name: string; purchaseCost: string; sellingPrice: string; reorderPoint: string; active: boolean; categoryName?: string | null; brandName?: string | null };
   type Inventory = { productId: string; sku: string; name: string; quantity: string; reorderPoint: string; purchaseCost: string; sellingPrice: string };
@@ -652,6 +679,7 @@ export default function App() {
       <Route path="/admin/login" element={<Navigate to="/admin" replace />} />
       <Route path="/admin/dashboard" element={staffGuard ? <StaffDashboard user={user} onLogout={() => setUser(null)} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/staff" element={staffGuard ? <StaffManagement /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/pos" element={staffGuard ? <StaffPOS /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/operations" element={staffGuard ? <StaffOperations /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
 

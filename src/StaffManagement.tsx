@@ -48,9 +48,13 @@ export default function StaffManagement() {
   useEffect(() => { void Promise.all([loadStaff(), loadPermissions()]); }, []);
 
   function togglePermission(code: string, checked: boolean, target: 'new' | 'existing') {
-    const setter = target === 'new' ? (value: string[]) => setForm(prev => ({ ...prev, permissionCodes: value })) : setSelectedPermissions;
-    const current = target === 'new' ? form.permissionCodes : selectedPermissions;
-    setter(checked ? [...new Set([...current, code])] : current.filter(x => x !== code));
+    if (target === 'new') {
+      setForm(prev => ({ ...prev, permissionCodes: checked
+        ? [...new Set([...prev.permissionCodes, code])]
+        : prev.permissionCodes.filter(x => x !== code) }));
+      return;
+    }
+    setSelectedPermissions(prev => checked ? [...new Set([...prev, code])] : prev.filter(x => x !== code));
   }
 
   function selectAll(target: 'new' | 'existing') {

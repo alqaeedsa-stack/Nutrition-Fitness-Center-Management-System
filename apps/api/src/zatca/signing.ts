@@ -1,13 +1,13 @@
 import { p256 } from '@noble/curves/nist.js';
 
 function pemToDer(pem: string, label: string) {
-  const normalized = pem.replace(/\\r?\\n/g, '').trim();
+  const normalized = pem.replace(/\r?\n/g, '').trim();
   const begin = `-----BEGIN ${label}-----`;
   const end = `-----END ${label}-----`;
   if (!normalized.startsWith(begin) || !normalized.endsWith(end)) {
     throw new Error(`Invalid PEM: expected ${label}`);
   }
-  const body = normalized.slice(begin.length, -end.length).replace(/\\s+/g, '');
+  const body = normalized.slice(begin.length, -end.length).replace(/\s+/g, '');
   const binary = atob(body);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);

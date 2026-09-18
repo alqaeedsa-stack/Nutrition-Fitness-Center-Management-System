@@ -414,6 +414,62 @@ staffRoutes.get('/inventory/:productId/movements', async c => {
   return c.json({ product: product[0], movements });
 });
 
+const stockReceiptSchema = z.object({
+  reference: z.string().trim().max(120).optional(),
+  notes: z.string().trim().max(500).optional(),
+  items: z.array(z.object({
+    productId: z.string().uuid(),
+    quantity: z.coerce.number().positive().max(999999),
+    unitCost: z.coerce.number().min(0).optional(),
+  })).min(1).max(100),
+});
+
+staffRoutes.post('/inventory/receipt', async c => {
+  const auth = await requirePermission(c, 'inventory.adjust'); if ('error' in auth) return auth.error;
+  const body = stockReceiptSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: body.error.issues[0]?.message ?? 'بيانات الاستلام غير صحيحة' } }, 400);
+
+  const result = await withDatabase(c.env, db => db.transaction(async tx => {
+    const productIds = [...new Set(body.data.items.map(item => item.productId))];
+    const productRows = await tx.select({
+      id: products.id, sku: products.sku, name: products.name, purchaseCost: products.purchaseCost, active: products.active,
+    }).from(products).where(and(
+      eq(products.centerId, auth.user.centerId!),
+      inArray(products.id, productIds),
+    ));
+    const productMap = new Map(productRows.map(product => [product.id, product]));
+    for (const item of body.data.items) {
+      const product = productMap.get(item.productId);
+      if (!product || !product.active) return { error: 'PRODUCT_NOT_FOUND' as const };
+    }
+
+    const reference = body.data.reference?.trim() || null;
+    const now = new Date();
+    const inserted = await tx.insert(stockMovements).values(body.data.items.map(item => {
+      const product = productMap.get(item.productId)!;
+      return {
+        centerId: auth.user.centerId!,
+        productId: item.productId,
+        movementType: 'purchase' as const,
+        quantity: item.quantity.toString(),
+        unitCost: (item.unitCost ?? Number(product.purchaseCost)).toFixed(2),
+        referenceType: 'purchase_receipt',
+        referenceId: reference,
+        occurredAt: now,
+        createdBy: auth.user.userId,
+        notes: body.data.notes?.trim() || null,
+      };
+    })).returning({ id: stockMovements.id });
+
+    return { receivedLines: inserted.length, reference };
+  }));
+
+  if ('error' in result) {
+    return c.json({ error: { code: result.error, message: result.error === 'PRODUCT_NOT_FOUND' ? 'أحد المنتجات غير موجود أو موقوف' : 'تعذر تسجيل الاستلام' } }, 409);
+  }
+  return c.json({ ok: true, ...result }, 201);
+});
+
 staffRoutes.post('/inventory/adjust', async c => {
   const auth = await requirePermission(c, 'inventory.adjust'); if ('error' in auth) return auth.error;
   const body = stockAdjustmentSchema.safeParse(await c.req.json().catch(() => null));

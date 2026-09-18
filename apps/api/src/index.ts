@@ -6,6 +6,7 @@ import { customerAccountRoutes } from './customer-account/routes';
 import { customerRoutes } from './customers/routes';
 import { staffRoutes } from './staff/routes';
 import { customerPortalRoutes } from './customer-portal/routes';
+import { storeRoutes } from './store/routes';
 
 type DatabaseBinding = {
   connectionString: string;
@@ -32,6 +33,7 @@ app.route('/api/v1/customer-account', customerAccountRoutes);
 app.route('/api/v1/customers', customerRoutes);
 app.route('/api/v1/staff', staffRoutes);
 app.route('/api/v1/customer-portal', customerPortalRoutes);
+app.route('/api/v1/store', storeRoutes);
 
 app.get('/api/v1/health', (c) => {
   return c.json({

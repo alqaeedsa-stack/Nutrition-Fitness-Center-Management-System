@@ -12,6 +12,8 @@ type Data = { customer: Customer; measurements: Measurement[]; nutrition: Plan[]
 type Staff = { id: string; name: string; staffType: string };
 type MeasurementType = { id: string; code: string; name: string; unit?: string | null };
 type AuthMe = { user: { id: string } };
+type StoreProduct = { id: string; sku: string; name: string; sellingPrice: string; purchaseCost: string; taxCode?: string | null; stock: number; active: boolean };
+type SaleCartItem = StoreProduct & { quantity: number };
 
 const statusLabel: Record<string, string> = { active: 'نشطة', draft: 'مسودة', completed: 'مكتملة', cancelled: 'ملغاة', scheduled: 'مجدول', confirmed: 'مؤكد', no_show: 'لم يحضر', pending: 'قيد المعالجة', completed_sale: 'مكتمل' };
 function label(value: string) { return statusLabel[value] ?? value; }
@@ -22,7 +24,7 @@ export default function Customer360() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [action, setAction] = useState<'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness' | 'nutritionItems' | 'fitnessExercises' | null>(null);
+  const [action, setAction] = useState<'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness' | 'nutritionItems' | 'fitnessExercises' | 'sale' | null>(null);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
@@ -38,6 +40,10 @@ export default function Customer360() {
   const [detailPlan, setDetailPlan] = useState<{ kind: 'nutrition' | 'fitness'; id: string; title: string; items: any[] } | null>(null);
   const [itemForm, setItemForm] = useState({ mealType: 'وجبة رئيسية', itemName: '', quantity: '', unit: '', calories: '', notes: '' });
   const [exerciseForm, setExerciseForm] = useState({ exerciseName: '', sets: '', repetitions: '', durationSeconds: '', restSeconds: '', targetNotes: '' });
+  const [storeProducts, setStoreProducts] = useState<StoreProduct[]>([]);
+  const [saleCart, setSaleCart] = useState<SaleCartItem[]>([]);
+  const [salePaymentMethod, setSalePaymentMethod] = useState('cash');
+  const [salePaymentStatus, setSalePaymentStatus] = useState('paid');
 
   const load = useCallback(async (silent = false) => {
     if (!id) return;
@@ -58,9 +64,15 @@ export default function Customer360() {
     return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, [load]);
 
-  const openAction = async (next: 'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness') => {
+  const openAction = async (next: 'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness' | 'sale') => {
     setAction(next); setActionError(''); setActionMessage('');
     try {
+      if (next === 'sale') {
+        const result = await apiFetch<{ products: StoreProduct[] }>('/store/admin/products');
+        setStoreProducts(result.products.filter(product => product.active));
+        setSaleCart([]);
+        return;
+      }
       if (next === 'nutrition' || next === 'fitness') {
         const endpoint = next === 'nutrition' ? '/nutrition/options' : '/fitness/options';
         const options = await apiFetch<{ specialists: Staff[] }>(endpoint);
@@ -86,6 +98,48 @@ export default function Customer360() {
       }
     } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر تحميل بيانات النموذج.'); }
   };
+
+  function addSaleProduct(product: StoreProduct) {
+    setSaleCart(current => {
+      const existing = current.find(item => item.id === product.id);
+      const nextQuantity = (existing?.quantity ?? 0) + 1;
+      if (nextQuantity > product.stock) return current;
+      return existing ? current.map(item => item.id === product.id ? { ...item, quantity: nextQuantity } : item) : [...current, { ...product, quantity: 1 }];
+    });
+  }
+
+  function changeSaleQuantity(productId: string, delta: number) {
+    setSaleCart(current => current.flatMap(item => {
+      if (item.id !== productId) return [item];
+      const quantity = item.quantity + delta;
+      if (quantity <= 0) return [];
+      if (quantity > item.stock) return [item];
+      return [{ ...item, quantity }];
+    }));
+  }
+
+  async function saveSale(e: FormEvent) {
+    e.preventDefault();
+    if (!saleCart.length) { setActionError('أضف منتجًا واحدًا على الأقل إلى البيع.'); return; }
+    setSaving(true); setActionError(''); setActionMessage('');
+    try {
+      const result = await apiFetch<{ sale: { saleNumber: string; total: string } }>('/store/admin/sales', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId: id,
+          paymentMethod: salePaymentMethod,
+          paymentStatus: salePaymentStatus,
+          items: saleCart.map(item => ({ productId: item.id, quantity: item.quantity })),
+        }),
+      });
+      setSaleCart([]);
+      setActionMessage(`تم إنشاء البيع ${result.sale.saleNumber} بقيمة ${result.sale.total} ريال وتحديث مخزون المنتجات وملف العميل.`);
+      await load(true);
+      const refreshed = await apiFetch<{ products: StoreProduct[] }>('/store/admin/products');
+      setStoreProducts(refreshed.products.filter(product => product.active));
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر إنشاء البيع.'); }
+    finally { setSaving(false); }
+  }
 
   async function saveMeasurement(e: FormEvent) {
     e.preventDefault(); setSaving(true); setActionError(''); setActionMessage('');
@@ -219,16 +273,36 @@ export default function Customer360() {
           <button className="secondary-button" type="button" onClick={() => void openAction('measurement')}>إضافة قياس</button>
           <button className="secondary-button" type="button" onClick={() => void openAction('nutrition')}>خطة غذائية</button>
           <button className="secondary-button" type="button" onClick={() => void openAction('fitness')}>خطة لياقة</button>
-          <button className="secondary-button" type="button" onClick={() => void openAction('appointment')}>موعد</button>
+          <button className="secondary-button" type="button" onClick={() => void openAction('appointment')}>موعد</button><button className="primary-action" type="button" onClick={() => void openAction('sale')}>بيع للعميل</button>
         </div>
       </section>
 
       {action && (
         <section className="customer-action-panel panel">
-          <div className="panel-heading-row"><div><span className="eyebrow">{action === 'measurement' ? 'NEW MEASUREMENT' : action === 'followUp' ? 'NEW FOLLOW-UP' : action === 'appointment' ? 'NEW APPOINTMENT' : action === 'nutrition' ? 'NEW NUTRITION PLAN' : action === 'fitness' ? 'NEW FITNESS PLAN' : detailPlan?.kind === 'nutrition' ? 'NUTRITION ITEMS' : 'FITNESS EXERCISES'}</span><h2>{action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}</h2></div><button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button></div>
+          <div className="panel-heading-row"><div><span className="eyebrow">{action === 'measurement' ? 'NEW MEASUREMENT' : action === 'followUp' ? 'NEW FOLLOW-UP' : action === 'appointment' ? 'NEW APPOINTMENT' : action === 'nutrition' ? 'NEW NUTRITION PLAN' : action === 'fitness' ? 'NEW FITNESS PLAN' : action === 'sale' ? 'CUSTOMER SALE' : detailPlan?.kind === 'nutrition' ? 'NUTRITION ITEMS' : 'FITNESS EXERCISES'}</span><h2>{action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : action === 'sale' ? 'إنشاء بيع للعميل' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}</h2></div><button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button></div>
           {actionError && <div className="info-strip warning">{actionError}</div>}
           {actionMessage && <div className="info-strip">{actionMessage}</div>}
 
+          {action === 'sale' && <form className="form-stack" onSubmit={saveSale}>
+            <div className="store-product-grid">
+              {storeProducts.map(product => <article className="store-product-card" key={product.id}>
+                <span className="module-code">{product.sku}</span><h3>{product.name}</h3>
+                <strong>{Number(product.sellingPrice).toFixed(2)} ريال</strong>
+                <span className="module-status">المخزون: {product.stock}</span>
+                {product.taxCode && <small>الضريبة: {product.taxCode}</small>}
+                <button className="secondary-button" type="button" disabled={product.stock <= 0} onClick={() => addSaleProduct(product)}>إضافة للبيع</button>
+              </article>)}
+            </div>
+            <div className="store-cart">
+              <div className="panel-heading-row"><div><h3>سلة البيع</h3><p className="panel-description">البيع مرتبط مباشرة بهذا العميل. لا يتم تجاوز المخزون المتاح.</p></div></div>
+              {saleCart.length ? <div className="cart-list">{saleCart.map(item => <div className="cart-row" key={item.id}><div><strong>{item.name}</strong><small>{item.quantity} × {Number(item.sellingPrice).toFixed(2)} ريال</small></div><div className="cart-controls"><button type="button" onClick={() => changeSaleQuantity(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={() => changeSaleQuantity(item.id,1)}>+</button><button className="cart-remove" type="button" onClick={() => changeSaleQuantity(item.id,-item.quantity)}>حذف</button></div></div>)}</div> : <div className="empty-state">لم تتم إضافة منتجات للبيع.</div>}
+              <div className="form-row">
+                <label>طريقة الدفع<select value={salePaymentMethod} onChange={e => setSalePaymentMethod(e.target.value)}><option value="cash">نقدي</option><option value="mada">مدى</option><option value="card">بطاقة</option><option value="bank_transfer">تحويل بنكي</option><option value="apple_pay">Apple Pay</option></select></label>
+                <label>حالة الدفع<select value={salePaymentStatus} onChange={e => setSalePaymentStatus(e.target.value)}><option value="paid">مدفوع</option><option value="unpaid">غير مدفوع</option><option value="partial">جزئي</option></select></label>
+              </div>
+              <button className="primary-action" type="submit" disabled={saving || !saleCart.length}>{saving ? 'جارٍ الحفظ...' : 'حفظ البيع وصرف المخزون'}</button>
+            </div>
+          </form>}
           {action === 'measurement' && <form className="form-stack" onSubmit={saveMeasurement}>
             <div className="form-row">
               <label>نوع القياس<select required value={measurement.typeId} onChange={e => setMeasurement(v => ({ ...v, typeId: e.target.value }))}>{measurementTypes.map(t => <option key={t.id} value={t.id}>{t.name}{t.unit ? ` (${t.unit})` : ''}</option>)}</select></label>

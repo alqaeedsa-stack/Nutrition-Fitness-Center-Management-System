@@ -11,9 +11,8 @@ import {
   nutritionPlanItems,
   nutritionPlans,
   products,
-  saleItems,
-  sales,
 } from '../db/schema';
+import { storeOrderItems, storeOrders } from '../db/store';
 import { customerAccounts } from '../db/customer-accounts';
 
 export type CustomerPortalBindings = {
@@ -142,32 +141,20 @@ customerPortalRoutes.get('/orders', async c => {
   if ('error' in auth) return auth.error;
 
   const orderRows = await withDatabase(c.env, db => db.select()
-    .from(sales)
-    .where(eq(sales.customerId, auth.customerId))
-    .orderBy(desc(sales.createdAt)));
+    .from(storeOrders)
+    .where(eq(storeOrders.customerId, auth.customerId))
+    .orderBy(desc(storeOrders.createdAt)));
 
   const orderIds = orderRows.map(order => order.id);
   const items = orderIds.length
-    ? await withDatabase(c.env, db => db.select({
-      id: saleItems.id,
-      saleId: saleItems.saleId,
-      productId: saleItems.productId,
-      productName: products.name,
-      sku: products.sku,
-      quantity: saleItems.quantity,
-      unitPrice: saleItems.unitPrice,
-      discount: saleItems.discount,
-      tax: saleItems.tax,
-      lineTotal: saleItems.lineTotal,
-    })
-      .from(saleItems)
-      .innerJoin(products, eq(products.id, saleItems.productId))
-      .where(inArray(saleItems.saleId, orderIds)))
+    ? await withDatabase(c.env, db => db.select()
+      .from(storeOrderItems)
+      .where(inArray(storeOrderItems.orderId, orderIds)))
     : [];
 
   return c.json({ orders: orderRows.map(order => ({
     ...order,
-    items: items.filter(item => item.saleId === order.id),
+    items: items.filter(item => item.orderId === order.id),
   })) });
 });
 

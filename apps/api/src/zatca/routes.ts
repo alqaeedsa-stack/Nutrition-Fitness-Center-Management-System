@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { getAuthenticatedUser } from '../auth/session';
+import { requirePermission } from '../auth/permissions';
 import { withDatabase } from '../db/client';
 import { eInvoices, products, saleItems, sales, staffProfiles, taxRates, zatcaSettings } from '../db/schema';
 import { submitZatcaInvoice } from './client';
@@ -15,19 +15,6 @@ export type ZatcaBindings = {
 };
 
 export const zatcaRoutes = new Hono<{ Bindings: ZatcaBindings }>();
-
-async function requireAdmin(c: any) {
-  const user = await getAuthenticatedUser(c.env, c.req.raw);
-  if (!user) return { error: c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401) };
-  const profile = await withDatabase(c.env, db => db.select({
-    id: staffProfiles.id, staffType: staffProfiles.staffType, active: staffProfiles.active,
-  }).from(staffProfiles).where(eq(staffProfiles.userId, user.userId)).limit(1));
-  if (!profile[0]?.active) return { error: c.json({ error: { code: 'STAFF_ACCESS_REQUIRED', message: 'هذه الوحدة للموظفين فقط' } }, 403) };
-  if (profile[0].staffType !== 'admin') {
-    return { error: c.json({ error: { code: 'ADMIN_ACCESS_REQUIRED', message: 'إعدادات وفواتير ZATCA متاحة لحسابات الإدارة فقط' } }, 403) };
-  }
-  return { user, profile: profile[0] };
-}
 
 const taxRateSchema = z.object({
   code: z.string().trim().min(1).max(50),

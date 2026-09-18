@@ -112,7 +112,7 @@ function taxCategory(line: ZatcaInvoiceLine) {
   return '<cac:ClassifiedTaxCategory><cbc:ID>S</cbc:ID><cbc:Percent>' + money(line.taxRate) + '</cbc:Percent></cac:ClassifiedTaxCategory>';
 }
 
-function buildInvoiceXml(input: ZatcaInvoiceInput, qrCode: string) {
+function buildInvoiceXml(input: ZatcaInvoiceInput, qrCode: string | null) {
   const issueDate = input.issueDate.toISOString();
   const date = issueDate.slice(0, 10);
   const time = issueDate.slice(11, 19) + 'Z';
@@ -155,7 +155,7 @@ function buildInvoiceXml(input: ZatcaInvoiceInput, qrCode: string) {
     '<cbc:TaxCurrencyCode>SAR</cbc:TaxCurrencyCode>' +
     '<cac:AdditionalDocumentReference><cbc:ID>ICV</cbc:ID><cbc:UUID>' + input.icv + '</cbc:UUID></cac:AdditionalDocumentReference>' +
     '<cac:AdditionalDocumentReference><cbc:ID>PIH</cbc:ID><cac:Attachment><cbc:EmbeddedDocumentBinaryObject mimeCode="text/plain">' + xml(input.previousInvoiceHash) + '</cbc:EmbeddedDocumentBinaryObject></cac:Attachment></cac:AdditionalDocumentReference>' +
-    '<cac:AdditionalDocumentReference><cbc:ID>QR</cbc:ID><cac:Attachment><cbc:EmbeddedDocumentBinaryObject mimeCode="text/plain">' + xml(qrCode) + '</cbc:EmbeddedDocumentBinaryObject></cac:Attachment></cac:AdditionalDocumentReference>' +
+    (qrCode !== null ? '<cac:AdditionalDocumentReference><cbc:ID>QR</cbc:ID><cac:Attachment><cbc:EmbeddedDocumentBinaryObject mimeCode="text/plain">' + xml(qrCode) + '</cbc:EmbeddedDocumentBinaryObject></cac:Attachment></cac:AdditionalDocumentReference>' : '') +
     '<cac:AccountingSupplierParty><cac:Party><cac:PartyIdentification><cbc:ID schemeID="VAT">' + xml(input.seller.vatNumber) + '</cbc:ID></cac:PartyIdentification><cac:PostalAddress>' +
     '<cbc:StreetName>' + xml(input.seller.street) + '</cbc:StreetName>' +
     '<cbc:BuildingNumber>' + xml(input.seller.buildingNumber) + '</cbc:BuildingNumber>' +
@@ -173,7 +173,7 @@ function buildInvoiceXml(input: ZatcaInvoiceInput, qrCode: string) {
 
 export async function generateZatcaInvoice(input: ZatcaInvoiceInput) {
   const issueDate = input.issueDate.toISOString();
-  const unsignedWithoutQr = buildInvoiceXml(input, '');
+  const unsignedWithoutQr = buildInvoiceXml(input, null);
   const invoiceHash = await sha256Base64(unsignedWithoutQr);
   // Tags 7-9 require the cryptographic stamp generated from the EGS certificate.
   // Until a real CSID/certificate and XAdES signer are configured, do not fabricate
@@ -193,4 +193,4 @@ export async function generateZatcaInvoice(input: ZatcaInvoiceInput) {
   return { xml, invoiceHash, qrCode };
 }
 
-export const firstInvoicePreviousHash = base64Text('0');
+export const firstInvoicePreviousHash = 'NWZlY2ViNjZmZmM4NmYzOGQ5NTI3ODZjNmQ2OTZjNzljMmRiYzIzOWRkNGU5MWI0NjcyOWQ3M2EyN2ZiNTdlOQ==';

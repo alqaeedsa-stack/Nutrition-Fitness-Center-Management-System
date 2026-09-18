@@ -12,8 +12,8 @@ import {
   uniqueIndex,
   uuid,
   varchar,
-  sql,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 const auditTimestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

@@ -1,6 +1,6 @@
 import { and, desc, eq, ilike, or } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { customers } from '../db/schema';
+import { appointments, customers, fitnessPlans, measurementRecords, measurementTypes, nutritionPlans, sales, staffProfiles } from '../db/schema';
 import { customerAccounts } from '../db/customer-accounts';
 import { withDatabase } from '../db/client';
 import { requirePermission } from '../auth/permissions';
@@ -56,6 +56,88 @@ customerRoutes.get('/:id', async (c) => {
   const rows = await withDatabase(c.env, db => db.select().from(customers).where(and(eq(customers.id, c.req.param('id')), eq(customers.centerId, auth.user.centerId!))).limit(1));
   if (!rows[0]) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);
   return c.json({ customer: rows[0] });
+});
+
+customerRoutes.get('/:id/360', async (c) => {
+  if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
+  const auth = await requirePermission(c, 'customers.read'); if ('error' in auth) return auth.error;
+  const customerId = c.req.param('id');
+
+  const result = await withDatabase(c.env, async db => {
+    const customerRows = await db.select().from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.centerId, auth.user.centerId!))).limit(1);
+    if (!customerRows[0]) return { notFound: true as const };
+
+    const [measurements, nutrition, fitness, appointmentsRows, salesRows] = await Promise.all([
+      db.select({
+        id: measurementRecords.id,
+        value: measurementRecords.value,
+        measuredAt: measurementRecords.measuredAt,
+        notes: measurementRecords.notes,
+        typeName: measurementTypes.name,
+        unit: measurementTypes.unit,
+      }).from(measurementRecords)
+        .innerJoin(measurementTypes, eq(measurementTypes.id, measurementRecords.measurementTypeId))
+        .where(and(eq(measurementRecords.customerId, customerId), eq(measurementRecords.centerId, auth.user.centerId!)))
+        .orderBy(desc(measurementRecords.measuredAt)).limit(50),
+      db.select({
+        id: nutritionPlans.id,
+        title: nutritionPlans.title,
+        goals: nutritionPlans.goals,
+        startDate: nutritionPlans.startDate,
+        endDate: nutritionPlans.endDate,
+        status: nutritionPlans.status,
+        version: nutritionPlans.version,
+        specialistName: staffProfiles.displayName,
+      }).from(nutritionPlans)
+        .leftJoin(staffProfiles, eq(staffProfiles.userId, nutritionPlans.specialistId))
+        .where(and(eq(nutritionPlans.customerId, customerId), eq(nutritionPlans.centerId, auth.user.centerId!)))
+        .orderBy(desc(nutritionPlans.createdAt)).limit(20),
+      db.select({
+        id: fitnessPlans.id,
+        title: fitnessPlans.title,
+        goals: fitnessPlans.goals,
+        startDate: fitnessPlans.startDate,
+        endDate: fitnessPlans.endDate,
+        status: fitnessPlans.status,
+        version: fitnessPlans.version,
+        specialistName: staffProfiles.displayName,
+      }).from(fitnessPlans)
+        .leftJoin(staffProfiles, eq(staffProfiles.userId, fitnessPlans.specialistId))
+        .where(and(eq(fitnessPlans.customerId, customerId), eq(fitnessPlans.centerId, auth.user.centerId!)))
+        .orderBy(desc(fitnessPlans.createdAt)).limit(20),
+      db.select({
+        id: appointments.id,
+        startsAt: appointments.startsAt,
+        endsAt: appointments.endsAt,
+        appointmentType: appointments.appointmentType,
+        status: appointments.status,
+        notes: appointments.notes,
+        staffName: staffProfiles.displayName,
+      }).from(appointments)
+        .leftJoin(staffProfiles, eq(staffProfiles.userId, appointments.staffId))
+        .where(and(eq(appointments.customerId, customerId), eq(appointments.centerId, auth.user.centerId!)))
+        .orderBy(desc(appointments.startsAt)).limit(30),
+      db.select({
+        id: sales.id,
+        saleNumber: sales.saleNumber,
+        status: sales.status,
+        subtotal: sales.subtotal,
+        discount: sales.discount,
+        tax: sales.tax,
+        total: sales.total,
+        paymentMethod: sales.paymentMethod,
+        createdAt: sales.createdAt,
+      }).from(sales)
+        .where(and(eq(sales.customerId, customerId), eq(sales.centerId, auth.user.centerId!)))
+        .orderBy(desc(sales.createdAt)).limit(30),
+    ]);
+
+    return { customer: customerRows[0], measurements, nutrition, fitness, appointments: appointmentsRows, sales: salesRows };
+  });
+
+  if ('notFound' in result) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);
+  return c.json(result);
 });
 
 customerRoutes.post('/', async (c) => {

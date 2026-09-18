@@ -97,6 +97,37 @@ zatcaRoutes.get('/settings', async c => {
   return c.json({ settings: rows[0] ?? null });
 });
 
+zatcaRoutes.get('/readiness', async c => {
+  const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
+  const rows = await withDatabase(c.env, db => db.select({
+    environment: zatcaSettings.environment,
+    vatNumber: zatcaSettings.vatNumber,
+    legalName: zatcaSettings.legalName,
+    sellerStreet: zatcaSettings.sellerStreet,
+    sellerBuildingNumber: zatcaSettings.sellerBuildingNumber,
+    sellerCity: zatcaSettings.sellerCity,
+    sellerPostalCode: zatcaSettings.sellerPostalCode,
+  }).from(zatcaSettings).where(eq(zatcaSettings.centerId, auth.user.centerId!)).limit(1));
+  const current = rows[0];
+  const checks = {
+    sellerConfiguration: Boolean(current?.vatNumber && current?.legalName),
+    sellerAddress: Boolean(current?.sellerStreet && current?.sellerBuildingNumber && current?.sellerCity && current?.sellerPostalCode),
+    binarySecurityToken: Boolean(c.env.ZATCA_BINARY_SECURITY_TOKEN),
+    secret: Boolean(c.env.ZATCA_SECRET),
+    privateKey: Boolean(c.env.ZATCA_PRIVATE_KEY_PEM),
+    certificate: Boolean(c.env.ZATCA_CERTIFICATE_PEM),
+    signingEngine: false,
+  };
+  return c.json({
+    environment: current?.environment ?? 'simulation',
+    checks,
+    readyForSigning: Object.values(checks).every(Boolean),
+    note: checks.signingEngine
+      ? 'بيئة التوقيع جاهزة للفحص النهائي.'
+      : 'محرك XAdES والتوقيع التشفيري لم يُفعّل بعد؛ لا يتم إرسال فواتير إلى FATOORA.',
+  });
+});
+
 zatcaRoutes.put('/settings', async c => {
   const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
   const body = settingsSchema.safeParse(await c.req.json().catch(() => null));

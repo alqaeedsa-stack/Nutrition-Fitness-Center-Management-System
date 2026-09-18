@@ -269,6 +269,7 @@ storeRoutes.post('/admin/sales/:saleId/return', async c => {
   }));
 
   if ('error' in result) {
+    const errorCode = result.error;
     const messages: Record<string, string> = {
       SALE_NOT_FOUND: 'عملية البيع غير موجودة',
       SALE_ALREADY_RETURNED: 'تم إرجاع هذه العملية مسبقًا',
@@ -276,7 +277,13 @@ storeRoutes.post('/admin/sales/:saleId/return', async c => {
       SALE_ITEMS_NOT_FOUND: 'لا توجد بنود مرتبطة بعملية البيع',
       PRODUCT_NOT_FOUND: 'أحد المنتجات المرتبطة بالبيع غير موجود في المركز',
     };
-    return c.json({ error: { code: result.error, message: messages[result.error] ?? 'تعذر إرجاع البيع' } }, result.error === 'SALE_NOT_FOUND' ? 404 : 409);
+    if (!errorCode) {
+      return c.json({ error: { code: 'SALE_RETURN_FAILED', message: 'تعذر إرجاع البيع' } }, 500);
+    }
+    return c.json(
+      { error: { code: errorCode, message: messages[errorCode] ?? 'تعذر إرجاع البيع' } },
+      errorCode === 'SALE_NOT_FOUND' ? 404 : 409,
+    );
   }
 
   return c.json({ ok: true, saleNumber: result.saleNumber });

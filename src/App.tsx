@@ -526,16 +526,24 @@ function StaffPOS() {
   type Product = { id:string; sku:string; name:string; sellingPrice:string; purchaseCost:string; barcode?:string|null; quantity:string };
   type Customer = { id:string; customerNumber:string; firstName:string; lastName:string; phone?:string|null };
   type CartItem = Product & { cartQuantity:number; price:number; discount:number };
+  type Sale = { id:string; saleNumber:string; status:string; subtotal:string; discount:string; tax:string; total:string; paymentMethod:string; createdAt:string; customerName?:string|null };
+  type SaleDetail = Sale & { items:{id:string; productId:string; productName:string; sku:string; quantity:string; unitPrice:string; discount:string; tax:string; lineTotal:string}[] };
+
   const [query,setQuery]=useState(''); const [products,setProducts]=useState<Product[]>([]);
   const [cart,setCart]=useState<CartItem[]>([]); const [customerQuery,setCustomerQuery]=useState(''); const [customers,setCustomers]=useState<Customer[]>([]);
   const [customer,setCustomer]=useState<Customer|null>(null); const [paymentMethod,setPaymentMethod]=useState<'cash'|'mada'|'card'|'bank_transfer'>('cash');
   const [loading,setLoading]=useState(false); const [message,setMessage]=useState(''); const [error,setError]=useState('');
+  const [salesHistory,setSalesHistory]=useState<Sale[]>([]); const [selectedSale,setSelectedSale]=useState<SaleDetail|null>(null); const [historyLoading,setHistoryLoading]=useState(false);
+
   async function searchProducts(value:string) { setQuery(value); setError(''); if(!value.trim()){setProducts([]);return;} try { const r=await apiFetch<{products:Product[]}>('/staff/pos/products?q='+encodeURIComponent(value.trim())); setProducts(r.products); } catch(e){setError(e instanceof Error?e.message:'تعذر البحث عن المنتج');} }
   function addProduct(p:Product) { if(Number(p.quantity)<=0){setError('المنتج غير متوفر في المخزون');return;} setCart(v=>{const x=v.find(i=>i.id===p.id); return x?v.map(i=>i.id===p.id?{...i,cartQuantity:Math.min(Number(p.quantity),i.cartQuantity+1)}:i):[...v,{...p,cartQuantity:1,price:Number(p.sellingPrice),discount:0}];}); setQuery('');setProducts([]);setError(''); }
   async function searchCustomers(value:string) { setCustomerQuery(value); if(!value.trim()){setCustomers([]);return;} try { const r=await apiFetch<{customers:Customer[]}>('/staff/pos/customers?q='+encodeURIComponent(value.trim()));setCustomers(r.customers); } catch(e){setError(e instanceof Error?e.message:'تعذر البحث عن العميل');} }
+  async function loadSalesHistory(){ setHistoryLoading(true); try { const r=await apiFetch<{sales:Sale[]}>('/staff/pos/sales'); setSalesHistory(r.sales); } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل المبيعات');} finally{setHistoryLoading(false);} }
+  async function openSale(id:string){ try { const r=await apiFetch<{sale:SaleDetail}>('/staff/pos/sales/'+id); setSelectedSale(r.sale); } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل تفاصيل البيع');} }
   const subtotal=cart.reduce((s,x)=>s+x.cartQuantity*x.price,0); const discount=cart.reduce((s,x)=>s+x.discount,0); const total=Math.max(0,subtotal-discount);
-  async function completeSale(){ if(!cart.length){setError('السلة فارغة');return;} setLoading(true);setError('');setMessage(''); try { const r=await apiFetch<{sale:{saleNumber:string;total:string}}>('/staff/pos/sales',{method:'POST',body:JSON.stringify({customerId:customer?.id??null,paymentMethod,items:cart.map(x=>({productId:x.id,quantity:x.cartQuantity,unitPrice:x.price,discount:x.discount}))})}); setMessage('تم تسجيل البيع '+r.sale.saleNumber+' بإجمالي '+r.sale.total+' ر.س');setCart([]);setCustomer(null);setCustomerQuery(''); } catch(e){setError(e instanceof Error?e.message:'تعذر إتمام البيع');} finally{setLoading(false);} }
-  return <main className="app-shell"><header className="app-header"><div><span className="eyebrow">POINT OF SALE</span><h1>نقطة البيع</h1></div><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></header>
+  async function completeSale(){ if(!cart.length){setError('السلة فارغة');return;} setLoading(true);setError('');setMessage(''); try { const r=await apiFetch<{sale:{id:string;saleNumber:string;total:string}}>('/staff/pos/sales',{method:'POST',body:JSON.stringify({customerId:customer?.id??null,paymentMethod,items:cart.map(x=>({productId:x.id,quantity:x.cartQuantity,unitPrice:x.price,discount:x.discount}))})}); setMessage('تم تسجيل البيع '+r.sale.saleNumber+' بإجمالي '+r.sale.total+' ر.س');setCart([]);setCustomer(null);setCustomerQuery(''); await loadSalesHistory(); await openSale(r.sale.id); } catch(e){setError(e instanceof Error?e.message:'تعذر إتمام البيع');} finally{setLoading(false);} }
+
+  return <main className="app-shell"><header className="app-header"><div><span className="eyebrow">POINT OF SALE</span><h1>نقطة البيع</h1></div><div className="portal-choice-actions"><button className="secondary-button" type="button" onClick={()=>void loadSalesHistory()}>المبيعات السابقة</button><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></div></header>
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
     <section className="staff-management-grid"><section className="panel"><p className="eyebrow">PRODUCT SEARCH</p><h2>إضافة المنتجات</h2>
       <input autoFocus dir="ltr" value={query} onChange={e=>void searchProducts(e.target.value)} placeholder="SKU أو باركود أو اسم المنتج" />
@@ -558,7 +566,21 @@ function StaffPOS() {
       </div>}
       <div className="checkout-panel"><div><span className="eyebrow">PAYMENT</span><h3>الإجمالي: {total.toFixed(2)} ر.س</h3><small>قبل الضريبة — محرك الضريبة لم يتم ربطه بعد.</small></div>
         <label>طريقة الدفع<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value as typeof paymentMethod)}><option value="cash">نقدي</option><option value="mada">مدى</option><option value="card">بطاقة</option><option value="bank_transfer">تحويل بنكي</option></select></label>
-        <button className="primary-action button" type="button" onClick={()=>void completeSale()} disabled={loading||!cart.length}>{loading?'جارٍ تسجيل البيع...':'إتمام البيع'}</button><div className="cart-note">البيع يُسجل ذريًا في المبيعات وعناصر البيع وحركة المخزون. لا يتم إنشاء قيد دفع إلكتروني وهمي.</div></div></section></section></main>;
+        <button className="primary-action button" type="button" onClick={()=>void completeSale()} disabled={loading||!cart.length}>{loading?'جارٍ تسجيل البيع...':'إتمام البيع'}</button><div className="cart-note">البيع يُسجل ذريًا في المبيعات وعناصر البيع وحركة المخزون. لا يتم إنشاء قيد دفع إلكتروني وهمي.</div></div></section></section>
+
+    <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">SALES HISTORY</p><h2>آخر المبيعات</h2></div><button className="secondary-button" type="button" onClick={()=>void loadSalesHistory()} disabled={historyLoading}>{historyLoading?'جارٍ التحميل...':'تحديث'}</button></div>
+      {!salesHistory.length ? <p className="empty-state">اضغط «المبيعات السابقة» لعرض آخر 100 عملية بيع.</p> :
+      <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>رقم البيع</th><th>العميل</th><th>الإجمالي</th><th>الدفع</th><th>التاريخ</th><th></th></tr></thead><tbody>
+        {salesHistory.map(s=><tr key={s.id}><td>{s.saleNumber}</td><td>{s.customerName??'عميل نقدي'}</td><td>{s.total} ر.س</td><td>{s.paymentMethod}</td><td>{new Date(s.createdAt).toLocaleString('ar-SA')}</td><td><button className="secondary-button" type="button" onClick={()=>void openSale(s.id)}>التفاصيل</button></td></tr>)}
+      </tbody></table></div>}
+    </section>
+
+    {selectedSale&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">SALE RECEIPT</p><h2>{selectedSale.saleNumber}</h2></div><button className="secondary-button" type="button" onClick={()=>window.print()}>طباعة</button></div>
+      <p>{selectedSale.customerName??'عميل نقدي'} · {new Date(selectedSale.createdAt).toLocaleString('ar-SA')}</p>
+      <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المنتج</th><th>SKU</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>{selectedSale.items.map(i=><tr key={i.id}><td>{i.productName}</td><td>{i.sku}</td><td>{i.quantity}</td><td>{i.unitPrice} ر.س</td><td>{i.lineTotal} ر.س</td></tr>)}</tbody></table></div>
+      <div className="checkout-panel"><strong>الإجمالي: {selectedSale.total} ر.س</strong><small>الضريبة المسجلة حاليًا: {selectedSale.tax} ر.س</small></div>
+    </section>}
+  </main>;
 }
 function StaffOperations() {
   type Product = { id: string; sku: string; name: string; purchaseCost: string; sellingPrice: string; reorderPoint: string; active: boolean; categoryName?: string | null; brandName?: string | null };

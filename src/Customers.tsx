@@ -20,6 +20,7 @@ type Customer = {
 export default function Customers({ user }: { user: { staffType?: string | null; permissions?: string[] } }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -31,11 +32,11 @@ export default function Customers({ user }: { user: { staffType?: string | null;
   const canDelete = isAdmin || (user.permissions ?? []).includes('customers.delete');
   const [form, setForm] = useState({ customerNumber: '', firstName: '', lastName: '', phone: '', email: '', dateOfBirth: '', gender: '', source: '', notes: '' });
 
-  async function loadCustomers(term = '') {
+  async function loadCustomers(term = search, status = statusFilter) {
     setLoading(true);
     setError('');
     try {
-      const result = await apiFetch<{ customers: Customer[] }>(`/customers?limit=100${term ? `&search=${encodeURIComponent(term)}` : ''}`);
+      const result = await apiFetch<{ customers: Customer[] }>(`/customers?limit=100${term ? `&search=${encodeURIComponent(term)}` : ''}${status ? `&status=${encodeURIComponent(status)}` : ''}`);
       setCustomers(result.customers);
     } catch {
       setError('تعذر تحميل العملاء. تحقق من اتصال خدمة النظام.');
@@ -57,7 +58,7 @@ export default function Customers({ user }: { user: { staffType?: string | null;
     setError('');
     try {
       await apiFetch(`/customers/${customer.id}`, { method: 'DELETE' });
-      await loadCustomers(search);
+      await loadCustomers(search, statusFilter);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'تعذر حذف العميل. قد توجد بيانات مرتبطة به.');
     }
@@ -83,6 +84,9 @@ export default function Customers({ user }: { user: { staffType?: string | null;
       setSaving(false);
     }
   }
+
+  const activeCount = customers.filter((customer) => customer.status === 'active').length;
+  const inactiveCount = customers.filter((customer) => customer.status !== 'active').length;
 
   return (
     <main className="app-shell">
@@ -119,10 +123,19 @@ export default function Customers({ user }: { user: { staffType?: string | null;
 
       {error && <div className="info-strip warning">{error}</div>}
 
+      <section className="customer-stats-grid">
+        <div className="customer-stat"><span>إجمالي العملاء</span><strong>{customers.length}</strong></div>
+        <div className="customer-stat"><span>العملاء النشطون</span><strong>{activeCount}</strong></div>
+        <div className="customer-stat"><span>غير النشطين</span><strong>{inactiveCount}</strong></div>
+      </section>
+
       <section className="panel customers-panel">
         <div className="customer-toolbar">
-          <input aria-label="البحث عن عميل" placeholder="ابحث بالاسم أو الجوال أو رقم العميل" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void loadCustomers(search); }} />
-          <button className="secondary-button" onClick={() => void loadCustomers(search)}>بحث</button>
+          <input aria-label="البحث عن عميل" placeholder="ابحث بالاسم أو الجوال أو رقم العميل" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void loadCustomers(e.currentTarget.value, statusFilter); }} />
+          <select aria-label="تصفية حالة العميل" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); void loadCustomers(search, e.target.value); }}>
+            <option value="">كل الحالات</option><option value="active">نشط</option><option value="inactive">غير نشط</option>
+          </select>
+          <button className="secondary-button" onClick={() => void loadCustomers(search, statusFilter)}>بحث</button>
         </div>
         {loading ? <p className="empty-state">جارٍ تحميل العملاء...</p> : customers.length === 0 ? <p className="empty-state">لا يوجد عملاء مطابقون للبحث.</p> : (
           <div className="customer-table-wrap">
@@ -134,7 +147,7 @@ export default function Customers({ user }: { user: { staffType?: string | null;
                   <td><strong>{customer.firstName} {customer.lastName}</strong></td>
                   <td dir="ltr">{customer.phone}</td>
                   <td>{customer.email ?? '—'}</td>
-                  <td><span className="active-dot">{customer.status === 'active' ? 'نشط' : customer.status}</span></td>
+                  <td><span className={`status-badge ${customer.status === 'active' ? 'active' : 'inactive'}`}>{customer.status === 'active' ? 'نشط' : 'غير نشط'}</span></td>
                   <td><div className="header-actions"><Link className="secondary-button" to={`/admin/customers/${customer.id}`}>الملف الكامل</Link>{canUpdate && <button className="secondary-button" type="button" onClick={() => startEdit(customer)}>تعديل</button>}{canDelete && <button className="secondary-button" type="button" onClick={() => void removeCustomer(customer)}>حذف</button>}</div></td>
                 </tr>
               ))}</tbody>

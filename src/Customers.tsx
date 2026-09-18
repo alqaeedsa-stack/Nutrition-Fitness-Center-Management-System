@@ -71,7 +71,7 @@ export default function Customers({ user }: { user: { staffType?: string | null;
       if (editing) {
         await apiFetch<{ customer: Customer }>(`/customers/${editing.id}`, { method: 'PATCH', body: JSON.stringify(form) });
       } else {
-        await apiFetch<{ customer: Customer }>('/customers', { method: 'POST', body: JSON.stringify(form) });
+        await apiFetch<{ customer: Customer }>('/customers', { method: 'POST', body: JSON.stringify({ ...form, customerNumber: undefined }) });
       }
       setForm({ customerNumber: '', firstName: '', lastName: '', phone: '', email: '', dateOfBirth: '', gender: '', source: '', notes: '' });
       setShowForm(false);
@@ -103,7 +103,7 @@ export default function Customers({ user }: { user: { staffType?: string | null;
         <section className="panel customer-form-panel">
           <div className="section-heading left"><span className="eyebrow">{editing ? 'تعديل العميل' : 'إضافة عميل'}</span><h2>{editing ? 'تعديل بيانات العميل' : 'بيانات العميل الأساسية'}</h2></div>
           <form onSubmit={submit} className="customer-form">
-            <label>رقم العميل<input value={form.customerNumber} onChange={(e) => setForm({ ...form, customerNumber: e.target.value })} required /></label>
+            <label>رقم العميل<input value={editing?.customerNumber ?? ''} readOnly placeholder="يُنشأ تلقائيًا عند حفظ العميل" /><small>يتم إنشاء رقم تسلسلي تلقائيًا ولا يمكن إدخاله يدويًا.</small></label>
             <label>الاسم الأول<input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required /></label>
             <label>اسم العائلة<input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} required /></label>
             <label>الجوال<input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required /></label>

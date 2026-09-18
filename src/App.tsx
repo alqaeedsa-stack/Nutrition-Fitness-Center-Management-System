@@ -710,12 +710,12 @@ export default function App() {
       <Route path="/customer/register" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/admin/dashboard'} replace /> : <Register onLogin={setUser} />} />
       <Route path="/customer/forgot-password" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/admin/dashboard'} replace /> : <ForgotPassword />} />
       <Route path="/customer/reset-password" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/admin/dashboard'} replace /> : <ResetPassword />} />
-      <Route path="/customer/home" element={customerGuard ? <CustomerPortal onLogout={() => setUser(null)} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/customer" replace />} />
+      <Route path="/customer/home" element={customerGuard ? <CustomerPortal onLogout={async () => { try { await apiFetch('/auth/logout', { method: 'POST' }); } finally { setUser(null); } }} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/customer" replace />} />
       <Route path="/customer/store" element={customerGuard ? <CustomerStore /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/customer" replace />} />
 
       <Route path="/admin" element={user ? <Navigate to={user.role === 'staff' ? '/admin/dashboard' : '/customer/home'} replace /> : <Login portal="staff" onLogin={setUser} />} />
       <Route path="/admin/login" element={<Navigate to="/admin" replace />} />
-      <Route path="/admin/dashboard" element={staffGuard ? <StaffDashboard user={user} onLogout={() => setUser(null)} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/dashboard" element={staffGuard ? <StaffDashboard user={user} onLogout={async () => { try { await apiFetch('/auth/logout', { method: 'POST' }); } finally { setUser(null); } }} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/staff" element={staffGuard ? <StaffManagement /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/pos" element={staffGuard ? <StaffPOS /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/operations" element={staffGuard ? <StaffOperations /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />

@@ -7,6 +7,7 @@ import { storeOrderItems, storeOrders } from '../db/store';
 import { getCompany } from '../db/company';
 import { getAuthenticatedUser } from '../auth/session';
 import { hashPassword } from '../auth/password';
+import { calculateTax } from '../tax/engine';
 
 export type StaffBindings = {
   HYPERDRIVE?: { connectionString: string };
@@ -383,7 +384,7 @@ staffRoutes.post('/pos/sales', async c => {
     const ids = [...new Set(data.items.map(item => item.productId))].sort();
     const locked = await tx.select({
       id: products.id, sku: products.sku, name: products.name,
-      purchaseCost: products.purchaseCost, sellingPrice: products.sellingPrice, active: products.active,
+      purchaseCost: products.purchaseCost, sellingPrice: products.sellingPrice, taxCode: products.taxCode, active: products.active,
     }).from(products).where(and(
       eq(products.centerId, auth.user.centerId!), inArray(products.id, ids), eq(products.active, true),
     ));
@@ -413,22 +414,45 @@ staffRoutes.post('/pos/sales', async c => {
 
     const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     const discount = data.items.reduce((sum, item) => sum + item.discount, 0);
-    const total = Math.max(0, subtotal - discount);
+    const taxLines = [];
+    for (const item of data.items) {
+      const product = productMap.get(item.productId)!;
+      try {
+        taxLines.push(await calculateTax(tx, auth.user.centerId!, {
+          taxCode: product.taxCode,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+        }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (message.startsWith('TAX_RATE_NOT_CONFIGURED:')) {
+          return { error: 'TAX_RATE_NOT_CONFIGURED' as const, taxCode: product.taxCode };
+        }
+        throw error;
+      }
+    }
+    const tax = taxLines.reduce((sum, line) => sum + line.taxAmount, 0);
+    const total = Math.max(0, subtotal - discount + tax);
     const saleNumber = `POS-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 
     const saleRows = await tx.insert(sales).values({
       centerId: auth.user.centerId!, customerId: data.customerId ?? null, soldBy: auth.user.userId,
       saleNumber, status: 'completed', subtotal: subtotal.toFixed(2), discount: discount.toFixed(2),
-      tax: '0', total: total.toFixed(2), paymentMethod: data.paymentMethod,
+      tax: tax.toFixed(2), total: total.toFixed(2), paymentMethod: data.paymentMethod,
     }).returning();
     const sale = saleRows[0];
     if (!sale) return { error: 'SALE_CREATE_FAILED' as const };
 
-    await tx.insert(saleItems).values(data.items.map(item => ({
-      saleId: sale.id, productId: item.productId, quantity: item.quantity.toFixed(3),
-      unitPrice: item.unitPrice.toFixed(2), discount: item.discount.toFixed(2),
-      tax: '0', lineTotal: (item.quantity * item.unitPrice - item.discount).toFixed(2),
-    })));
+    await tx.insert(saleItems).values(data.items.map((item, index) => {
+      const taxLine = taxLines[index];
+      return {
+        saleId: sale.id, productId: item.productId, quantity: item.quantity.toFixed(3),
+        unitPrice: item.unitPrice.toFixed(2), discount: item.discount.toFixed(2),
+        tax: taxLine.taxAmount.toFixed(2),
+        lineTotal: taxLine.totalAmount.toFixed(2),
+      };
+    }));
 
     await tx.insert(stockMovements).values(data.items.map(item => ({
       centerId: auth.user.centerId!, productId: item.productId, movementType: 'sale',
@@ -446,6 +470,7 @@ staffRoutes.post('/pos/sales', async c => {
       BELOW_COST: ['BELOW_COST', 'لا يمكن بيع منتج بسعر أقل من تكلفة الشراء', 409],
       INSUFFICIENT_STOCK: ['INSUFFICIENT_STOCK', 'المخزون الحالي غير كافٍ لإتمام البيع', 409],
       SALE_CREATE_FAILED: ['SALE_CREATE_FAILED', 'تعذر إنشاء عملية البيع', 500],
+      TAX_RATE_NOT_CONFIGURED: ['TAX_RATE_NOT_CONFIGURED', 'كود الضريبة للمنتج غير مُهيأ في إعدادات الضرائب', 409],
     };
     const errorCode = result.error ?? 'POS_ERROR';
     const [code, message, status] = messages[errorCode] ?? ['POS_ERROR', 'تعذر إتمام البيع', 500];

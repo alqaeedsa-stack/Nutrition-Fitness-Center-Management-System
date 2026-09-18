@@ -189,9 +189,8 @@ customerRoutes.post('/', async (c) => {
 customerRoutes.patch('/:id', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
   const auth = await requirePermission(c, 'customers.update'); if ('error' in auth) return auth.error;
-  const body = await c.req.json<{ customerNumber?: string; firstName?: string; lastName?: string; phone?: string; email?: string | null; dateOfBirth?: string | null; gender?: string | null; status?: string; source?: string | null; notes?: string | null }>();
+  const body = await c.req.json<{ firstName?: string; lastName?: string; phone?: string; email?: string | null; dateOfBirth?: string | null; gender?: string | null; status?: string; source?: string | null; notes?: string | null }>();
   const data = {
-    ...(body.customerNumber !== undefined ? { customerNumber: body.customerNumber.trim() } : {}),
     ...(body.firstName !== undefined ? { firstName: body.firstName.trim() } : {}),
     ...(body.lastName !== undefined ? { lastName: body.lastName.trim() } : {}),
     ...(body.phone !== undefined ? { phone: body.phone.trim() } : {}),
@@ -213,16 +212,10 @@ customerRoutes.patch('/:id', async (c) => {
     const current = await db.select({ id: customers.id }).from(customers)
       .where(and(eq(customers.id, c.req.param('id')), eq(customers.centerId, auth.user.centerId!))).limit(1);
     if (!current[0]) return { notFound: true as const };
-    if (data.customerNumber !== undefined) {
-      const any = await db.select({ id: customers.id }).from(customers)
-        .where(and(eq(customers.centerId, auth.user.centerId!), eq(customers.customerNumber, data.customerNumber))).limit(1);
-      if (any[0] && any[0].id !== c.req.param('id')) return { conflict: true as const };
-    }
     const rows = await db.update(customers).set(data).where(and(eq(customers.id, c.req.param('id')), eq(customers.centerId, auth.user.centerId!))).returning();
     return rows[0] ? { customer: rows[0] } : { notFound: true as const };
   });
   if ('notFound' in result) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);
-  if ('conflict' in result) return c.json({ error: { code: 'CUSTOMER_NUMBER_EXISTS', message: 'رقم العميل مستخدم بالفعل' } }, 409);
   return c.json({ customer: result.customer });
 });
 

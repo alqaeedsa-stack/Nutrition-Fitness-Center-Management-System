@@ -218,7 +218,7 @@ async function requireStaff(c: any) {
 async function requireStaffTypes(c: any, allowed: Array<z.infer<typeof staffTypeSchema>>) {
   const auth = await requireStaff(c);
   if ('error' in auth) return auth;
-  if (!allowed.includes(auth.profile.staffType)) {
+  if (!allowed.includes(auth.profile.staffType as z.infer<typeof staffTypeSchema>)) {
     return { error: c.json({ error: { code: 'STAFF_PERMISSION_REQUIRED', message: 'لا تملك صلاحية تنفيذ هذا الإجراء' } }, 403) };
   }
   return auth;

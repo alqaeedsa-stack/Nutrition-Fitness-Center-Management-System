@@ -12,7 +12,74 @@ const staffTypes = [
   ['admin', 'إدارة'], ['doctor', 'طبيب'], ['nutritionist', 'أخصائي تغذية'], ['trainer', 'مدرب'],
   ['employee', 'موظف'], ['cashier', 'كاشير'], ['warehouse', 'مخازن'],
 ] as const;
-const typeLabel = Object.fromEntries(staffTypes);
+const typeLabel = Object.fromEntries(staffTypes);;
+const permissionGroups = [
+  { key: 'store', label: 'المتجر', resources: ['catalog', 'pos', 'orders'] },
+  { key: 'inventory', label: 'المخزون', resources: ['inventory'] },
+  { key: 'customers', label: 'العملاء', resources: ['customers'] },
+  { key: 'appointments', label: 'المواعيد', resources: ['appointments'] },
+  { key: 'nutrition', label: 'التغذية', resources: ['nutrition'] },
+  { key: 'fitness', label: 'اللياقة', resources: ['fitness'] },
+  { key: 'reports', label: 'التقارير', resources: ['reports'] },
+  { key: 'staff', label: 'إدارة الموظفين', resources: ['staff'] },
+  { key: 'zatca', label: 'الفوترة الإلكترونية', resources: ['zatca'] },
+] as const;
+
+function getGroupPermissions(group: typeof permissionGroups[number], permissions: Permission[]) {
+  return permissions.filter(permission => group.resources.includes(permission.resource as never));
+}
+
+type PermissionSelectorProps = {
+  permissions: Permission[];
+  selected: string[];
+  disabled?: boolean;
+  onToggle: (code: string, checked: boolean) => void;
+};
+
+function PermissionSelector({ permissions, selected, disabled = false, onToggle }: PermissionSelectorProps) {
+  function toggleGroup(group: typeof permissionGroups[number]) {
+    const items = getGroupPermissions(group, permissions);
+    const allSelected = items.length > 0 && items.every(permission => selected.includes(permission.code));
+    items.forEach(permission => onToggle(permission.code, !allSelected));
+  }
+
+  return (
+    <div className="permission-groups">
+      {permissionGroups.map(group => {
+        const items = getGroupPermissions(group, permissions);
+        if (!items.length) return null;
+        const selectedCount = items.filter(permission => selected.includes(permission.code)).length;
+        const allSelected = selectedCount === items.length;
+        const partiallySelected = selectedCount > 0 && !allSelected;
+        return (
+          <section className="permission-group" key={group.key}>
+            <div className="permission-group-heading">
+              <label className="permission-group-master">
+                <input type="checkbox" checked={allSelected}
+                  ref={input => { if (input) input.indeterminate = partiallySelected; }}
+                  disabled={disabled} onChange={() => toggleGroup(group)} />
+                <span>{group.label}</span><small>{selectedCount}/{items.length}</small>
+              </label>
+              <button type="button" className="permission-group-toggle" disabled={disabled} onClick={() => toggleGroup(group)}>
+                {allSelected ? 'إلغاء القسم' : 'تحديد القسم'}
+              </button>
+            </div>
+            <div className="permission-group-items">
+              {items.map(permission => (
+                <label key={permission.code}>
+                  <input type="checkbox" checked={selected.includes(permission.code)} disabled={disabled}
+                    onChange={event => onToggle(permission.code, event.target.checked)} />
+                  <span>{permission.name}</span>
+                </label>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 
 export default function StaffManagement() {
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -136,9 +203,10 @@ export default function StaffManagement() {
 
             <div className="panel-heading-row"><div><p className="eyebrow">PERMISSIONS</p><h3>صلاحيات الحساب</h3></div><div className="portal-choice-actions"><button type="button" className="secondary-button" onClick={() => selectAll('new')} disabled={!permissions.length}>تحديد الكل</button><button type="button" className="secondary-button" onClick={() => clearAll('new')}>إلغاء الكل</button></div></div>
             {form.staffType === 'admin' && <div className="form-success">حساب الإدارة يحصل على الصلاحيات الكاملة تلقائيًا لحماية إدارة النظام.</div>}
-            <div className="permission-list">
-              {permissions.map(permission => <label key={permission.code}><input type="checkbox" checked={form.staffType === 'admin' || form.permissionCodes.includes(permission.code)} disabled={form.staffType === 'admin'} onChange={e => togglePermission(permission.code, e.target.checked, 'new')} /> {permission.name}</label>)}
-            </div>
+            <PermissionSelector permissions={permissions}
+              selected={form.staffType === 'admin' ? permissions.map(permission => permission.code) : form.permissionCodes}
+              disabled={form.staffType === 'admin'}
+              onToggle={(code, checked) => togglePermission(code, checked, 'new')} />
             <button className="primary-action button" type="submit" disabled={saving}>{saving ? 'جارٍ إنشاء الحساب...' : 'إنشاء الحساب'}</button>
           </form>
         </section>
@@ -154,9 +222,8 @@ export default function StaffManagement() {
 
       {selectedStaffId && <section className="panel">
         <div className="panel-heading-row"><div><p className="eyebrow">ACCESS CONTROL</p><h2>تعديل صلاحيات الموظف</h2><p className="panel-description">{staff.find(x => x.id === selectedStaffId)?.displayName ?? ''}</p></div><div className="portal-choice-actions"><button type="button" className="secondary-button" onClick={() => clearAll('existing')}>إلغاء الكل</button><button type="button" className="secondary-button" onClick={() => selectAll('existing')}>تحديد الكل</button><button type="button" className="primary-action" onClick={() => void saveSelectedPermissions()} disabled={permissionSaving}>{permissionSaving ? 'جارٍ الحفظ...' : 'حفظ الصلاحيات'}</button></div></div>
-        <div className="permission-list">
-          {permissions.map(permission => <label key={permission.code}><input type="checkbox" checked={selectedPermissions.includes(permission.code)} onChange={e => togglePermission(permission.code, e.target.checked, 'existing')} /> {permission.name}</label>)}
-        </div>
+        <PermissionSelector permissions={permissions} selected={selectedPermissions}
+          onToggle={(code, checked) => togglePermission(code, checked, 'existing')} />
       </section>}
     </main>
   );

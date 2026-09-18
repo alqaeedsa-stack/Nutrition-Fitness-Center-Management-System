@@ -177,14 +177,29 @@ storeRoutes.post('/admin/sales', async c => {
   }));
 
   if ('error' in result) {
+    const errorCode = result.error;
+    if (!errorCode) {
+      return c.json({ error: { code: 'SALE_CREATE_FAILED', message: 'تعذر إنشاء عملية البيع' } }, 500);
+    }
+
     const messages: Record<string, string> = {
       CUSTOMER_NOT_FOUND: 'العميل غير موجود أو غير نشط',
       PRODUCT_NOT_FOUND: 'أحد المنتجات غير موجود أو غير نشط',
       TAX_CONFIGURATION_REQUIRED: 'يوجد منتج عليه رمز ضريبة ولم يتم ربط محرك الضريبة بعد. لم يتم إنشاء البيع.',
       SALE_CREATE_FAILED: 'تعذر إنشاء عملية البيع',
     };
-    if (result.error === 'INSUFFICIENT_STOCK') return c.json({ error: { code: result.error, message: 'الكمية المطلوبة أكبر من المخزون المتاح', details: { productId: result.productId, available: result.available, requested: result.requested } } }, 409);
-    return c.json({ error: { code: result.error, message: messages[result.error] ?? 'تعذر إنشاء البيع' } }, result.error === 'TAX_CONFIGURATION_REQUIRED' ? 409 : 400);
+    if (errorCode === 'INSUFFICIENT_STOCK') {
+      return c.json({
+        error: {
+          code: errorCode,
+          message: 'الكمية المطلوبة أكبر من المخزون المتاح',
+          details: { productId: result.productId, available: result.available, requested: result.requested },
+        },
+      }, 409);
+    }
+    return c.json({
+      error: { code: errorCode, message: messages[errorCode] ?? 'تعذر إنشاء البيع' },
+    }, errorCode === 'TAX_CONFIGURATION_REQUIRED' ? 409 : 400);
   }
 
   return c.json({ sale: result.sale }, 201);

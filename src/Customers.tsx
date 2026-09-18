@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from './lib/api';
 import './customers.css';
@@ -46,6 +46,14 @@ export default function Customers({ user }: { user: { staffType?: string | null;
   }
 
   useEffect(() => { void loadCustomers(); }, []);
+
+  // بحث لحظي أثناء الكتابة مع تأخير قصير لتقليل طلبات API.
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => { void loadCustomers(search, statusFilter); }, 300);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [search, statusFilter]);
 
   function startEdit(customer: Customer) {
     setEditing(customer);
@@ -131,11 +139,11 @@ export default function Customers({ user }: { user: { staffType?: string | null;
 
       <section className="panel customers-panel">
         <div className="customer-toolbar">
-          <input aria-label="البحث عن عميل" placeholder="ابحث بالاسم أو الجوال أو رقم العميل" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void loadCustomers(e.currentTarget.value, statusFilter); }} />
+          <input aria-label="البحث عن عميل" placeholder="ابحث بالاسم أو الجوال أو رقم العميل" value={search} onChange={(e) => setSearch(e.target.value)} />
           <select aria-label="تصفية حالة العميل" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); void loadCustomers(search, e.target.value); }}>
             <option value="">كل الحالات</option><option value="active">نشط</option><option value="inactive">غير نشط</option>
           </select>
-          <button className="secondary-button" onClick={() => void loadCustomers(search, statusFilter)}>بحث</button>
+          <span className="live-search-status">{loading ? 'جاري التحديث...' : 'تحديث لحظي'}</span>
         </div>
         {loading ? <p className="empty-state">جارٍ تحميل العملاء...</p> : customers.length === 0 ? <p className="empty-state">لا يوجد عملاء مطابقون للبحث.</p> : (
           <div className="customer-table-wrap">

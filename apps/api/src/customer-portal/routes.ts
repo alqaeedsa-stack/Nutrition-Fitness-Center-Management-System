@@ -65,7 +65,7 @@ customerPortalRoutes.get('/measurements', async c => {
   })
     .from(measurementRecords)
     .innerJoin(measurementTypes, eq(measurementTypes.id, measurementRecords.measurementTypeId))
-    .where(eq(measurementRecords.customerId, auth.customerId))
+    .where(and(eq(measurementRecords.customerId, auth.customerId), eq(measurementRecords.centerId, auth.user.centerId!)))
     .orderBy(desc(measurementRecords.measuredAt)));
 
   return c.json({ measurements: rows });
@@ -77,7 +77,7 @@ customerPortalRoutes.get('/nutrition', async c => {
 
   const plans = await withDatabase(c.env, db => db.select()
     .from(nutritionPlans)
-    .where(eq(nutritionPlans.customerId, auth.customerId))
+    .where(and(eq(nutritionPlans.customerId, auth.customerId), eq(nutritionPlans.centerId, auth.user.centerId!)))
     .orderBy(desc(nutritionPlans.startDate), desc(nutritionPlans.version)));
 
   const planIds = plans.map(plan => plan.id);
@@ -100,7 +100,7 @@ customerPortalRoutes.get('/fitness', async c => {
 
   const plans = await withDatabase(c.env, db => db.select()
     .from(fitnessPlans)
-    .where(eq(fitnessPlans.customerId, auth.customerId))
+    .where(and(eq(fitnessPlans.customerId, auth.customerId), eq(fitnessPlans.centerId, auth.user.centerId!)))
     .orderBy(desc(fitnessPlans.startDate), desc(fitnessPlans.version)));
 
   const planIds = plans.map(plan => plan.id);
@@ -130,7 +130,7 @@ customerPortalRoutes.get('/appointments', async c => {
     notes: appointments.notes,
   })
     .from(appointments)
-    .where(eq(appointments.customerId, auth.customerId))
+    .where(and(eq(appointments.customerId, auth.customerId), eq(appointments.centerId, auth.user.centerId!)))
     .orderBy(desc(appointments.startsAt)));
 
   return c.json({ appointments: rows });
@@ -142,7 +142,7 @@ customerPortalRoutes.get('/orders', async c => {
 
   const orderRows = await withDatabase(c.env, db => db.select()
     .from(storeOrders)
-    .where(eq(storeOrders.customerId, auth.customerId))
+    .where(and(eq(storeOrders.customerId, auth.customerId), eq(storeOrders.centerId, auth.user.centerId!)))
     .orderBy(desc(storeOrders.createdAt)));
 
   const orderIds = orderRows.map(order => order.id);

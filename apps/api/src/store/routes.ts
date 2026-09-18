@@ -124,15 +124,6 @@ storeRoutes.patch('/cart/items/:id', async c => {
   const parsed = quantitySchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'الكمية غير صحيحة' } }, 400);
 
-  const updated = await withDatabase(c.env, db => db.update(storeCartItems)
-    .set({ quantity: parsed.data.quantity.toString(), updatedAt: new Date() })
-    .where(and(
-      eq(storeCartItems.id, c.req.param('id')),
-      eq(storeCartItems.cartId, storeCarts.id),
-    )));
-
-  // The relation-safe ownership check is performed below; the update above cannot
-  // prove ownership because Drizzle does not join UPDATE predicates here.
   const cart = await withDatabase(c.env, db => db.select({ id: storeCarts.id })
     .from(storeCarts).where(and(eq(storeCarts.customerId, auth.customerId), eq(storeCarts.status, 'active'))).limit(1));
   if (!cart[0]) return c.json({ error: { code: 'CART_NOT_FOUND', message: 'السلة غير موجودة' } }, 404);
@@ -141,9 +132,12 @@ storeRoutes.patch('/cart/items/:id', async c => {
     .from(storeCartItems).where(and(eq(storeCartItems.id, c.req.param('id')), eq(storeCartItems.cartId, cart[0].id))).limit(1));
   if (!item[0]) return c.json({ error: { code: 'CART_ITEM_NOT_FOUND', message: 'عنصر السلة غير موجود' } }, 404);
 
-  return c.json({ ok: true, updated: Boolean(updated) });
-});
+  await withDatabase(c.env, db => db.update(storeCartItems)
+    .set({ quantity: parsed.data.quantity.toString(), updatedAt: new Date() })
+    .where(eq(storeCartItems.id, item[0].id)));
 
+  return c.json({ ok: true });
+});
 storeRoutes.delete('/cart/items/:id', async c => {
   const auth = await customerContext(c);
   if ('error' in auth) return auth.error;

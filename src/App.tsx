@@ -644,6 +644,8 @@ function StaffOperations({ user }: { user: AuthUser }) {
   const [brands, setBrands] = useState<{id:string;name:string}[]>([]);
   const [form, setForm] = useState({sku:'',name:'',categoryId:'',brandId:'',purchaseCost:'0',sellingPrice:'0',taxCode:'',reorderPoint:'0'});
   const [adjust, setAdjust] = useState({productId:'',quantity:'',movementType:'opening',unitCost:'',notes:''});
+  const [receipt, setReceipt] = useState({reference:'',notes:''});
+  const [receiptItems, setReceiptItems] = useState<{productId:string;quantity:string;unitCost:string}[]>([]);
   const [movementProduct, setMovementProduct] = useState<Inventory | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [movementLoading, setMovementLoading] = useState(false);
@@ -676,6 +678,30 @@ function StaffOperations({ user }: { user: AuthUser }) {
       setForm(v=>({...v,sku:'',name:'',purchaseCost:'0',sellingPrice:'0',taxCode:'',reorderPoint:'0'}));
       setMessage('تم إنشاء المنتج'); await load();
     } catch(e){setError(e instanceof Error?e.message:'تعذر إنشاء المنتج');} finally{setSaving(false);}
+  }
+
+  function addReceiptItem() {
+    const productId = inventory[0]?.productId ?? '';
+    if (!productId) return;
+    setReceiptItems(items => [...items, { productId, quantity: '', unitCost: '' }]);
+  }
+
+  async function receivePurchase(e: FormEvent) {
+    e.preventDefault(); setSaving(true); setError(''); setMessage('');
+    const items = receiptItems.filter(item => item.productId && Number(item.quantity) > 0).map(item => ({
+      productId: item.productId, quantity: Number(item.quantity), unitCost: item.unitCost ? Number(item.unitCost) : undefined,
+    }));
+    if (!items.length) { setError('أضف منتجًا واحدًا على الأقل إلى الاستلام.'); setSaving(false); return; }
+    try {
+      const result = await apiFetch<{receivedLines:number}>('/staff/inventory/receipt', {
+        method:'POST',
+        body:JSON.stringify({ reference: receipt.reference || undefined, notes: receipt.notes || undefined, items }),
+      });
+      setReceipt({reference:'',notes:''}); setReceiptItems([]);
+      setMessage(`تم استلام ${result.receivedLines} صنف وتحديث المخزون بالكامل.`);
+      await load();
+    } catch(e){setError(e instanceof Error?e.message:'تعذر تسجيل استلام الشراء');}
+    finally{setSaving(false);}
   }
 
   async function adjustStock(e: FormEvent) {
@@ -735,6 +761,21 @@ function StaffOperations({ user }: { user: AuthUser }) {
     </section>}
 
     {canManageInventory && tab==='inventory'&&<section className="staff-management-grid">
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">PURCHASE RECEIPT</p><h2>استلام شراء</h2><small>استلام عدة منتجات في عملية واحدة وبشكل ذري.</small></div></div>
+        <form className="form-stack" onSubmit={receivePurchase}>
+          <label>رقم الفاتورة / المرجع<input value={receipt.reference} onChange={e=>setReceipt({...receipt,reference:e.target.value})} placeholder="اختياري"/></label>
+          {receiptItems.map((item,index)=><div className="form-row" key={index}>
+            <label>المنتج<select required value={item.productId} onChange={e=>setReceiptItems(items=>items.map((x,i)=>i===index?{...x,productId:e.target.value}:x))}>{inventory.map(p=><option key={p.productId} value={p.productId}>{p.sku} — {p.name}</option>)}</select></label>
+            <label>الكمية<input type="number" min="0.001" step="0.001" required value={item.quantity} onChange={e=>setReceiptItems(items=>items.map((x,i)=>i===index?{...x,quantity:e.target.value}:x))}/></label>
+            <label>تكلفة الوحدة<input type="number" min="0" step="0.01" value={item.unitCost} onChange={e=>setReceiptItems(items=>items.map((x,i)=>i===index?{...x,unitCost:e.target.value}:x))}/></label>
+            <button className="secondary-button" type="button" onClick={()=>setReceiptItems(items=>items.filter((_,i)=>i!==index))}>حذف</button>
+          </div>)}
+          <button className="secondary-button" type="button" onClick={addReceiptItem}>إضافة صنف</button>
+          <label>ملاحظات<textarea value={receipt.notes} onChange={e=>setReceipt({...receipt,notes:e.target.value})}/></label>
+          <button className="primary-action button" disabled={saving || !receiptItems.length}>{saving?'جارٍ الحفظ...':'تسجيل استلام الشراء'}</button>
+        </form>
+      </section>
+
       <section className="panel"><p className="eyebrow">STOCK MOVEMENT</p><h2>إدارة حركة المخزون</h2><form className="form-stack" onSubmit={adjustStock}>
         <label>المنتج<select required value={adjust.productId} onChange={e=>setAdjust({...adjust,productId:e.target.value})}><option value="">اختر المنتج</option>{inventory.map(p=><option key={p.productId} value={p.productId}>{p.sku} — {p.name}</option>)}</select></label>
         <label>نوع الحركة<select value={adjust.movementType} onChange={e=>setAdjust({...adjust,movementType:e.target.value})}>

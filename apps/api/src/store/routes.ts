@@ -367,7 +367,7 @@ storeRoutes.post('/checkout', async c => {
     }, 409);
   }
 
-  if ('shortages' in result && result.shortages.length) {
+  if ('shortages' in result && Array.isArray(result.shortages) && result.shortages.length) {
     return c.json({
       error: {
         code: 'INSUFFICIENT_STOCK',

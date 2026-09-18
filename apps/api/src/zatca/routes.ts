@@ -79,15 +79,15 @@ zatcaRoutes.patch('/tax-rates/:id', async c => {
 
 const settingsSchema = z.object({
   environment: z.enum(['simulation', 'production']),
-  vatNumber: z.string().trim().max(20).nullable().optional(),
+  vatNumber: z.string().trim().regex(/^\d{15}$/, 'VAT number must contain exactly 15 digits').nullable().optional(),
   legalName: z.string().trim().max(200).nullable().optional(),
   invoiceTypeCode: z.string().trim().min(1).max(10).optional(),
   deviceSerial: z.string().trim().max(200).nullable().optional(),
   sellerStreet: z.string().trim().max(200).nullable().optional(),
-  sellerBuildingNumber: z.string().trim().max(50).nullable().optional(),
+  sellerBuildingNumber: z.string().trim().regex(/^\d{4}$/, 'Building number must contain exactly 4 digits').nullable().optional(),
   sellerCity: z.string().trim().max(100).nullable().optional(),
   sellerPostalCode: z.string().trim().max(20).nullable().optional(),
-  sellerCountryCode: z.string().trim().length(2).optional(),
+  sellerCountryCode: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/).optional(),
   pih: z.string().trim().max(1000).nullable().optional(),
 });
 
@@ -114,7 +114,9 @@ zatcaRoutes.put('/settings', async c => {
     centerId: auth.user.centerId!, environment: d.environment,
     vatNumber: d.vatNumber ?? null, legalName: d.legalName ?? null,
     invoiceTypeCode: d.invoiceTypeCode ?? '0200000', deviceSerial: d.deviceSerial ?? null,
-    pih: d.pih ?? null, status: 'configured',
+    sellerStreet: d.sellerStreet ?? null, sellerBuildingNumber: d.sellerBuildingNumber ?? null,
+    sellerCity: d.sellerCity ?? null, sellerPostalCode: d.sellerPostalCode ?? null,
+    sellerCountryCode: d.sellerCountryCode ?? 'SA', pih: d.pih ?? null, status: 'configured',
   }).onConflictDoUpdate({
     target: zatcaSettings.centerId,
     set: {

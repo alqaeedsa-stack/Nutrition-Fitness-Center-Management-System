@@ -12,6 +12,7 @@ import { zatcaRoutes } from './zatca/routes';
 import { appointmentRoutes } from './appointments/routes';
 import { nutritionRoutes } from './nutrition/routes';
 import { fitnessRoutes } from './fitness/routes';
+import { measurementRoutes } from './measurements/routes';
 
 type DatabaseBinding = {
   connectionString: string;
@@ -47,6 +48,7 @@ app.route('/api/v1/zatca', zatcaRoutes);
 app.route('/api/v1/appointments', appointmentRoutes);
 app.route('/api/v1/nutrition', nutritionRoutes);
 app.route('/api/v1/fitness', fitnessRoutes);
+app.route('/api/v1/measurements', measurementRoutes);
 
 app.get('/api/v1/health', (c) => {
   return c.json({

@@ -52,7 +52,7 @@ async function getOrCreateCart(c: any, customerId: string, centerId: string) {
 
 
 
-async function staffContext(c: any, permission: 'catalog.read' | 'inventory.read' | 'inventory.adjust' | 'pos.read' | 'pos.sell') {
+async function staffContext(c: any, permission: 'catalog.read' | 'inventory.read' | 'inventory.adjust' | 'pos.read' | 'pos.sell' | 'pos.void') {
   return requirePermission(c, permission);
 }
 
@@ -203,6 +203,83 @@ storeRoutes.post('/admin/sales', async c => {
   }
 
   return c.json({ sale: result.sale }, 201);
+});
+
+storeRoutes.post('/admin/sales/:saleId/return', async c => {
+  const auth = await staffContext(c, 'pos.void');
+  if ('error' in auth) return auth.error;
+
+  const saleId = c.req.param('saleId');
+  if (!z.string().uuid().safeParse(saleId).success) {
+    return c.json({ error: { code: 'INVALID_SALE_ID', message: 'رقم عملية البيع غير صحيح' } }, 400);
+  }
+
+  const result = await withDatabase(c.env, db => db.transaction(async tx => {
+    const saleRows = await tx.select({
+      id: sales.id,
+      status: sales.status,
+      customerId: sales.customerId,
+      saleNumber: sales.saleNumber,
+    }).from(sales).where(and(eq(sales.id, saleId), eq(sales.centerId, auth.user.centerId!))).limit(1);
+
+    if (!saleRows[0]) return { error: 'SALE_NOT_FOUND' as const };
+    if (saleRows[0].status === 'returned') return { error: 'SALE_ALREADY_RETURNED' as const };
+    if (saleRows[0].status !== 'completed') return { error: 'SALE_NOT_RETURNABLE' as const };
+
+    const items = await tx.select({
+      productId: saleItems.productId,
+      quantity: saleItems.quantity,
+      unitPrice: saleItems.unitPrice,
+    }).from(saleItems).where(eq(saleItems.saleId, saleId));
+
+    if (!items.length) return { error: 'SALE_ITEMS_NOT_FOUND' as const };
+
+    const productIds = [...new Set(items.map(item => item.productId))];
+    const productRows = await tx.select({
+      id: products.id,
+      purchaseCost: products.purchaseCost,
+      active: products.active,
+    }).from(products).where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds)));
+
+    const productMap = new Map(productRows.map(product => [product.id, product]));
+    for (const item of items) {
+      const product = productMap.get(item.productId);
+      if (!product) return { error: 'PRODUCT_NOT_FOUND' as const };
+      await tx.insert(stockMovements).values({
+        centerId: auth.user.centerId!,
+        productId: item.productId,
+        movementType: 'return_in',
+        quantity: Number(item.quantity).toString(),
+        unitCost: product.purchaseCost,
+        referenceType: 'sale_return',
+        referenceId: saleId,
+        occurredAt: new Date(),
+        createdBy: auth.user.userId,
+        notes: 'عكس البيع ' + saleRows[0].saleNumber,
+      });
+    }
+
+    await tx.update(sales).set({
+      status: 'returned',
+      paymentStatus: 'refunded',
+      updatedAt: new Date(),
+    }).where(and(eq(sales.id, saleId), eq(sales.centerId, auth.user.centerId!)));
+
+    return { saleNumber: saleRows[0].saleNumber, customerId: saleRows[0].customerId };
+  }));
+
+  if ('error' in result) {
+    const messages: Record<string, string> = {
+      SALE_NOT_FOUND: 'عملية البيع غير موجودة',
+      SALE_ALREADY_RETURNED: 'تم إرجاع هذه العملية مسبقًا',
+      SALE_NOT_RETURNABLE: 'لا يمكن إرجاع عملية البيع بحالتها الحالية',
+      SALE_ITEMS_NOT_FOUND: 'لا توجد بنود مرتبطة بعملية البيع',
+      PRODUCT_NOT_FOUND: 'أحد المنتجات المرتبطة بالبيع غير موجود في المركز',
+    };
+    return c.json({ error: { code: result.error, message: messages[result.error] ?? 'تعذر إرجاع البيع' } }, result.error === 'SALE_NOT_FOUND' ? 404 : 409);
+  }
+
+  return c.json({ ok: true, saleNumber: result.saleNumber });
 });
 
 const itemSchema = z.object({

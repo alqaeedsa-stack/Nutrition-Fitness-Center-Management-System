@@ -135,7 +135,7 @@ export default function Customers({ user }: { user: { staffType?: string | null;
                   <td dir="ltr">{customer.phone}</td>
                   <td>{customer.email ?? '—'}</td>
                   <td><span className="active-dot">{customer.status === 'active' ? 'نشط' : customer.status}</span></td>
-                  <td><div className="header-actions">{canUpdate && <button className="secondary-button" type="button" onClick={() => startEdit(customer)}>تعديل</button>}{canDelete && <button className="secondary-button" type="button" onClick={() => void removeCustomer(customer)}>حذف</button>}</div></td>
+                  <td><div className="header-actions"><Link className="secondary-button" to={`/admin/customers/${customer.id}`}>الملف الكامل</Link>{canUpdate && <button className="secondary-button" type="button" onClick={() => startEdit(customer)}>تعديل</button>}{canDelete && <button className="secondary-button" type="button" onClick={() => void removeCustomer(customer)}>حذف</button>}</div></td>
                 </tr>
               ))}</tbody>
             </table>

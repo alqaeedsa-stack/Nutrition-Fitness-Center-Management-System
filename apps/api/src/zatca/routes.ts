@@ -244,7 +244,8 @@ zatcaRoutes.post('/sales/:saleId/prepare', async c => {
       STANDARD_BUYER_DATA_REQUIRED: ['STANDARD_BUYER_DATA_REQUIRED', 'الفاتورة القياسية تحتاج بيانات مشتري كاملة قبل تفعيل هذا المسار', 409],
       EMPTY_SALE: ['EMPTY_SALE', 'لا يمكن إصدار فاتورة لعملية بيع بدون أصناف', 409],
     };
-    const [code, message, status] = messages[result.error] ?? ['ZATCA_PREPARE_ERROR', 'تعذر تجهيز الفاتورة الإلكترونية', 500];
+    const errorCode = result.error ?? 'ZATCA_PREPARE_ERROR';
+    const [code, message, status] = messages[errorCode] ?? ['ZATCA_PREPARE_ERROR', 'تعذر تجهيز الفاتورة الإلكترونية', 500];
     return c.json({ error: { code, message } }, status as any);
   }
   return c.json({ invoice: result.invoice }, 201);

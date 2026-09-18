@@ -360,6 +360,27 @@ export const eInvoices = pgTable('e_invoices', {
   index('e_invoices_center_status_idx').on(table.centerId, table.status),
 ]);
 
+export const customerFollowUps = pgTable('customer_follow_ups', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
+  customerId: uuid('customer_id').notNull().references(() => customers.id),
+  staffId: uuid('staff_id').notNull().references(() => users.id),
+  followUpAt: timestamp('follow_up_at', { withTimezone: true }).notNull(),
+  nextFollowUpAt: timestamp('next_follow_up_at', { withTimezone: true }),
+  weight: numeric('weight', { precision: 14, scale: 4 }),
+  height: numeric('height', { precision: 14, scale: 4 }),
+  adherenceScore: integer('adherence_score'),
+  nutritionAdherenceScore: integer('nutrition_adherence_score'),
+  fitnessAdherenceScore: integer('fitness_adherence_score'),
+  notes: text('notes'),
+  recommendations: text('recommendations'),
+  createdBy: uuid('created_by').notNull().references(() => users.id),
+  ...auditTimestamps,
+}, (table) => [
+  index('customer_follow_ups_center_customer_date_idx').on(table.centerId, table.customerId, table.followUpAt),
+  index('customer_follow_ups_center_date_idx').on(table.centerId, table.followUpAt),
+]);
+
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').defaultRandom().primaryKey(),
   centerId: uuid('center_id').references(() => centers.id),

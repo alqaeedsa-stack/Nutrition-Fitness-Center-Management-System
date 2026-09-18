@@ -217,3 +217,58 @@ h2 { font-size: clamp(25px, 5vw, 42px); line-height: 1.25; }
   .customer-store-entry .primary-action { width: 100%; }
   .store-empty { padding: 28px 22px; }
 }
+
+
+/* Staff management */
+.staff-management-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, .8fr) minmax(0, 1.2fr);
+  gap: 18px;
+  align-items: start;
+}
+.staff-form-panel, .staff-list-panel { margin-top: 32px; }
+.staff-form-panel h2, .staff-list-panel h2 { margin-bottom: 10px; }
+.panel-description { color: var(--muted); line-height: 1.8; }
+.form-stack select {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--navy);
+}
+.form-success {
+  padding: 10px 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #166534;
+  line-height: 1.6;
+}
+.panel-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.empty-state { color: var(--muted); line-height: 1.8; }
+.staff-table-wrap { overflow-x: auto; }
+.staff-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 620px;
+}
+.staff-table th, .staff-table td {
+  padding: 13px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+.staff-table th { color: #475569; font-size: 13px; background: #f8fafc; }
+.staff-table td { color: var(--navy); font-size: 14px; }
+
+@media (max-width: 900px) {
+  .staff-management-grid { grid-template-columns: 1fr; }
+}

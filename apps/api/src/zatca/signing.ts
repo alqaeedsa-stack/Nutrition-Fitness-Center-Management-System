@@ -1,4 +1,4 @@
-import { secp256k1 } from '@noble/curves/secp256k1.js';
+import { p256 } from '@noble/curves/nist.js';
 
 function pemToDer(pem: string, label: string) {
   const normalized = pem.replace(/\\r?\\n/g, '').trim();
@@ -80,8 +80,8 @@ export function extractSecp256k1PrivateKey(privateKeyPem: string) {
   }
   if (!der) throw new Error('Unsupported private key PEM format');
   const secret = findOctetString(der);
-  if (!secret || secret.length !== 32 || !secp256k1.utils.isValidSecretKey(secret)) {
-    throw new Error('Private key is not a valid secp256k1 key');
+  if (!secret || secret.length !== 32 || !p256.utils.isValidSecretKey(secret)) {
+    throw new Error('Private key is not a valid p256 key');
   }
   return secret;
 }
@@ -92,18 +92,18 @@ export function buildZatcaQrCryptography(input: {
   signedTlvPayload: Uint8Array;
 }) {
   const privateKey = extractSecp256k1PrivateKey(input.privateKeyPem);
-  const signature = secp256k1.sign(input.signedTlvPayload, privateKey).toBytes();
-  const publicKey = secp256k1.getPublicKey(privateKey, false).slice(1);
+  const signature = p256.sign(input.signedTlvPayload, privateKey).toBytes();
+  const publicKey = p256.getPublicKey(privateKey, false).slice(1);
   const certificateSignature = extractCertificateSignature(pemToDer(input.certificatePem, 'CERTIFICATE'));
   return { signature, publicKey, certificateSignature };
 }
 
 export function validateZatcaSigningMaterial(privateKeyPem: string, certificatePem: string) {
   const privateKey = extractSecp256k1PrivateKey(privateKeyPem);
-  const publicKey = secp256k1.getPublicKey(privateKey, false).slice(1);
+  const publicKey = p256.getPublicKey(privateKey, false).slice(1);
   const certificateSignature = extractCertificateSignature(pemToDer(certificatePem, 'CERTIFICATE'));
   return {
-    curve: 'secp256k1' as const,
+    curve: 'p256' as const,
     privateKeyBytes: privateKey.length,
     publicKeyBytes: publicKey.length,
     certificateSignatureBytes: certificateSignature.length,

@@ -6,8 +6,6 @@ import { ForgotPassword, ResetPassword } from './PasswordReset';
 import { apiFetch } from './lib/api';
 
 type AuthUser = { id: string; centerId?: string | null; email?: string | null; phone?: string | null; status: string; role: 'customer' | 'staff' };
-type Customer = { id: string; centerId: string; customerNumber: string; firstName: string; lastName: string; phone?: string | null; email?: string | null; status: string };
-type CustomerAccountResponse = { account: { id: string; customerId: string; userId: string; status: string; createdAt: string; updatedAt: string }; customer: Customer };
 type LoginPortal = 'customer' | 'staff';
 
 const countryCodes = [

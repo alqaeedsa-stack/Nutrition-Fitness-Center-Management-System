@@ -412,3 +412,25 @@ h2 { font-size: clamp(25px, 5vw, 42px); line-height: 1.25; }
   .permission-list { grid-template-columns: 1fr; max-height: none; }
   .permission-list label { min-height: 34px; font-size: 12px; }
 }
+
+/* Staff management layout: keep forms usable and compact on desktop */
+.staff-management-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, .85fr) minmax(0, 1.15fr);
+  gap: 16px;
+  align-items: start;
+}
+.staff-management-grid > .panel { margin-top: 0; }
+.panel-heading-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.portal-choice-actions { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.panel-description { color:var(--muted); line-height:1.7; }
+.form-success { padding:9px 11px; border:1px solid #dbe7df; border-radius:7px; background:#f7fbf8; color:#356047; font-size:12px; line-height:1.5; }
+.staff-table-wrap { overflow-x:auto; }
+.staff-table { width:100%; border-collapse:collapse; }
+.staff-table th, .staff-table td { padding:9px 8px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
+.staff-table th { color:#64748b; font-weight:700; }
+.staff-table td { color:#334155; }
+.empty-state { color:var(--muted); font-size:13px; }
+@media (max-width: 900px) {
+  .staff-management-grid { grid-template-columns:1fr; }
+}

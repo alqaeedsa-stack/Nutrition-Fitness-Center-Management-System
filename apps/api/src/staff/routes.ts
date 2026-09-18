@@ -273,20 +273,6 @@ const stockAdjustmentSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 });
 
-async function requireStaff(c: any) {
-  const auth = await requirePermission(c, 'customers.read');
-  if ('error' in auth) return auth;
-  return auth;
-}
-
-async function requireStaffTypes(c: any, allowed: Array<z.infer<typeof staffTypeSchema>>) {
-  const permissionMap: Record<string, PermissionCode> = {
-    'admin,warehouse': 'catalog.read',
-    'admin,cashier': 'pos.read',
-  };
-  const key = allowed.join(',');
-  return requirePermission(c, permissionMap[key] ?? 'customers.read');
-}
 
 staffRoutes.get('/catalog-options', async c => {
   const auth = await requirePermission(c, 'catalog.read'); if ('error' in auth) return auth.error;

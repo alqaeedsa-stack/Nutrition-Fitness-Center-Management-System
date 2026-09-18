@@ -277,6 +277,9 @@ zatcaRoutes.post('/sales/:saleId/prepare', async c => {
       tax: Number(sale.tax),
       total: Number(sale.total),
       lines: invoiceLines,
+    }, {
+      privateKeyPem: c.env.ZATCA_PRIVATE_KEY_PEM,
+      certificatePem: c.env.ZATCA_CERTIFICATE_PEM,
     });
 
     await tx.update(zatcaSettings).set({

@@ -241,7 +241,7 @@ zatcaRoutes.post('/sales/:saleId/prepare', async c => {
 
     const rows = await tx.insert(eInvoices).values({
       centerId: auth.user.centerId!, saleId: sale.id, invoiceNumber: sale.saleNumber,
-      uuid, invoiceType: body.data.invoiceType, status: 'prepared',
+      uuid, invoiceType: body.data.invoiceType, status: 'prepared_unsigned',
       invoiceHash: generated.invoiceHash, xml: generated.xml, qrCode: generated.qrCode,
     }).returning();
 

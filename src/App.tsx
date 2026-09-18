@@ -549,9 +549,9 @@ function StaffPOS() {
         {cart.map(item => <div className="cart-row" key={item.id}>
           <div><strong>{item.name}</strong><small>{item.price.toFixed(2)} ر.س · الكمية {item.cartQuantity}</small></div>
           <div className="cart-controls">
-            <button type="button" onClick={() => setCart(v => v.map(x => x.id === item.id ? {...x, cartQuantity: Math.max(1, x.cartQuantity - 1)} : x)}>−</button>
+            <button type="button" onClick={() => setCart(v => v.map(x => x.id === item.id ? {...x, cartQuantity: Math.max(1, x.cartQuantity - 1)} : x))}>−</button>
             <span>{item.cartQuantity}</span>
-            <button type="button" onClick={() => setCart(v => v.map(x => x.id === item.id ? {...x, cartQuantity: Math.min(Number(x.quantity), x.cartQuantity + 1)} : x)}>+</button>
+            <button type="button" onClick={() => setCart(v => v.map(x => x.id === item.id ? {...x, cartQuantity: Math.min(Number(x.quantity), x.cartQuantity + 1)} : x))}>+</button>
             <button type="button" className="cart-remove" onClick={() => setCart(v => v.filter(x => x.id !== item.id))}>حذف</button>
           </div>
         </div>)}

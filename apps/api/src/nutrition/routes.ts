@@ -101,7 +101,9 @@ nutritionRoutes.post('/', async c => {
   }));
   if ('error' in result) {
     const m: Record<string, [string, number]> = { CUSTOMER_NOT_FOUND: ['العميل غير موجود داخل هذا المركز', 404], SPECIALIST_NOT_FOUND: ['الأخصائي غير موجود أو غير نشط', 404] };
-    const [message, status] = m[result.error];
+    const entry = m[String(result.error)];
+    if (!entry) return c.json({ error: { code: String(result.error), message: 'تعذر معالجة الطلب' } }, 500);
+    const [message, status] = entry;
     return c.json({ error: { code: result.error, message } }, status as any);
   }
   return c.json(result, 201);

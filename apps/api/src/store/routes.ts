@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { getAuthenticatedUser } from '../auth/session';
 import { withDatabase } from '../db/client';
 import { customerAccounts } from '../db/customer-accounts';
-import { products, stockMovements } from '../db/schema';
+import { customers, products, sales, saleItems, stockMovements } from '../db/schema';
+import { requirePermission } from '../auth/permissions';
 import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
 
 export type StoreBindings = {
@@ -48,6 +49,146 @@ async function getOrCreateCart(c: any, customerId: string, centerId: string) {
     }
   });
 }
+
+
+
+async function staffContext(c: any, permission: 'catalog.read' | 'inventory.read' | 'inventory.adjust' | 'pos.read' | 'pos.sell') {
+  return requirePermission(c, permission);
+}
+
+storeRoutes.get('/admin/products', async c => {
+  const auth = await staffContext(c, 'catalog.read');
+  if ('error' in auth) return auth.error;
+
+  const rows = await withDatabase(c.env, db => db.select({
+    id: products.id,
+    sku: products.sku,
+    name: products.name,
+    sellingPrice: products.sellingPrice,
+    purchaseCost: products.purchaseCost,
+    taxCode: products.taxCode,
+    reorderPoint: products.reorderPoint,
+    active: products.active,
+    categoryId: products.categoryId,
+  }).from(products).where(eq(products.centerId, auth.user.centerId!)).orderBy(asc(products.name)));
+
+  const movements = rows.length ? await withDatabase(c.env, db => db.select({
+    productId: stockMovements.productId,
+    quantity: stockMovements.quantity,
+  }).from(stockMovements).where(and(
+    eq(stockMovements.centerId, auth.user.centerId!),
+    inArray(stockMovements.productId, rows.map(row => row.id)),
+  ))) : [];
+
+  const stock = new Map<string, number>();
+  for (const movement of movements) stock.set(movement.productId, (stock.get(movement.productId) ?? 0) + Number(movement.quantity));
+
+  return c.json({ products: rows.map(product => ({ ...product, stock: stock.get(product.id) ?? 0 })) });
+});
+
+storeRoutes.get('/admin/customers/:customerId/sales', async c => {
+  const auth = await staffContext(c, 'pos.read');
+  if ('error' in auth) return auth.error;
+  const customer = await withDatabase(c.env, db => db.select({ id: customers.id })
+    .from(customers).where(and(eq(customers.id, c.req.param('customerId')), eq(customers.centerId, auth.user.centerId!))).limit(1));
+  if (!customer[0]) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);
+
+  const rows = await withDatabase(c.env, db => db.select().from(sales)
+    .where(and(eq(sales.customerId, customer[0].id), eq(sales.centerId, auth.user.centerId!)))
+    .orderBy(desc(sales.createdAt)));
+  return c.json({ sales: rows });
+});
+
+const staffSaleSchema = z.object({
+  customerId: z.string().uuid(),
+  paymentMethod: z.enum(['cash', 'mada', 'card', 'bank_transfer', 'apple_pay']),
+  paymentStatus: z.enum(['paid', 'unpaid', 'partial']).default('paid'),
+  items: z.array(z.object({
+    productId: z.string().uuid(),
+    quantity: z.number().positive().max(9999),
+  })).min(1),
+});
+
+storeRoutes.post('/admin/sales', async c => {
+  const auth = await staffContext(c, 'pos.sell');
+  if ('error' in auth) return auth.error;
+
+  const parsed = staffSaleSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'بيانات البيع غير صحيحة' } }, 400);
+
+  const result = await withDatabase(c.env, db => db.transaction(async tx => {
+    const customer = await tx.select({ id: customers.id }).from(customers)
+      .where(and(eq(customers.id, parsed.data.customerId), eq(customers.centerId, auth.user.centerId!), eq(customers.status, 'active'))).limit(1);
+    if (!customer[0]) return { error: 'CUSTOMER_NOT_FOUND' as const };
+
+    const productIds = [...new Set(parsed.data.items.map(item => item.productId))];
+    const productRows = await tx.select({
+      id: products.id, sku: products.sku, name: products.name, sellingPrice: products.sellingPrice, purchaseCost: products.purchaseCost, taxCode: products.taxCode, active: products.active,
+    }).from(products).where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds), eq(products.active, true)));
+    if (productRows.length !== productIds.length) return { error: 'PRODUCT_NOT_FOUND' as const };
+    if (productRows.some(product => product.taxCode)) return { error: 'TAX_CONFIGURATION_REQUIRED' as const };
+
+    const movements = await tx.select({ productId: stockMovements.productId, quantity: stockMovements.quantity })
+      .from(stockMovements).where(and(eq(stockMovements.centerId, auth.user.centerId!), inArray(stockMovements.productId, productIds)));
+    const onHand = new Map<string, number>();
+    for (const movement of movements) onHand.set(movement.productId, (onHand.get(movement.productId) ?? 0) + Number(movement.quantity));
+
+    const requested = new Map<string, number>();
+    for (const item of parsed.data.items) requested.set(item.productId, (requested.get(item.productId) ?? 0) + item.quantity);
+    for (const [productId, quantity] of requested) {
+      const available = onHand.get(productId) ?? 0;
+      if (quantity > available) return { error: 'INSUFFICIENT_STOCK' as const, productId, available, requested: quantity };
+    }
+
+    const subtotal = parsed.data.items.reduce((sum, item) => {
+      const product = productRows.find(row => row.id === item.productId)!;
+      return sum + item.quantity * Number(product.sellingPrice);
+    }, 0);
+    const saleNumber = 'POS-' + new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14) + '-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+
+    const sale = await tx.insert(sales).values({
+      centerId: auth.user.centerId!,
+      customerId: customer[0].id,
+      cashierId: auth.user.userId,
+      saleNumber,
+      status: 'completed',
+      currencyCode: 'SAR',
+      subtotal: subtotal.toFixed(2),
+      discount: '0',
+      tax: '0',
+      total: subtotal.toFixed(2),
+      paymentStatus: parsed.data.paymentStatus,
+      paymentMethod: parsed.data.paymentMethod,
+    }).returning();
+    if (!sale[0]) return { error: 'SALE_CREATE_FAILED' as const };
+
+    for (const item of parsed.data.items) {
+      const product = productRows.find(row => row.id === item.productId)!;
+      const lineTotal = (item.quantity * Number(product.sellingPrice)).toFixed(2);
+      await tx.insert(saleItems).values({
+        saleId: sale[0].id, productId: product.id, quantity: item.quantity.toString(), unitPrice: product.sellingPrice, discount: '0', tax: '0', lineTotal,
+      });
+      await tx.insert(stockMovements).values({
+        centerId: auth.user.centerId!, productId: product.id, movementType: 'sale', quantity: (-item.quantity).toString(), unitCost: product.purchaseCost,
+        referenceType: 'sale', referenceId: sale[0].id, occurredAt: new Date(), createdBy: auth.user.userId, notes: 'صرف من نقطة البيع',
+      });
+    }
+    return { sale: sale[0] };
+  }));
+
+  if ('error' in result) {
+    const messages: Record<string, string> = {
+      CUSTOMER_NOT_FOUND: 'العميل غير موجود أو غير نشط',
+      PRODUCT_NOT_FOUND: 'أحد المنتجات غير موجود أو غير نشط',
+      TAX_CONFIGURATION_REQUIRED: 'يوجد منتج عليه رمز ضريبة ولم يتم ربط محرك الضريبة بعد. لم يتم إنشاء البيع.',
+      SALE_CREATE_FAILED: 'تعذر إنشاء عملية البيع',
+    };
+    if (result.error === 'INSUFFICIENT_STOCK') return c.json({ error: { code: result.error, message: 'الكمية المطلوبة أكبر من المخزون المتاح', details: { productId: result.productId, available: result.available, requested: result.requested } } }, 409);
+    return c.json({ error: { code: result.error, message: messages[result.error] ?? 'تعذر إنشاء البيع' } }, result.error === 'TAX_CONFIGURATION_REQUIRED' ? 409 : 400);
+  }
+
+  return c.json({ sale: result.sale }, 201);
+});
 
 const itemSchema = z.object({
   productId: z.string().uuid(),

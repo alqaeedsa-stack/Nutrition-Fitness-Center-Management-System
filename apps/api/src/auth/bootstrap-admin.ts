@@ -32,7 +32,8 @@ bootstrapAdminRoutes.post('/', async (c) => {
 
   try {
     const passwordHash = await hashPassword(body.data.password);
-    const result = await withDatabase(c.env, async (db) => db.transaction(async (tx) => {
+    const result = await withDatabase(c.env, async (db) => {
+      return db.transaction(async (tx) => {
       const existingStaff = await tx.select({ id: staffProfiles.id }).from(staffProfiles).limit(1);
       if (existingStaff[0]) return { error: 'STAFF_ALREADY_EXISTS' as const };
 
@@ -71,7 +72,8 @@ bootstrapAdminRoutes.post('/', async (c) => {
         userAgent: c.req.header('User-Agent') ?? undefined,
       });
 
-      return { user, centerName: company.name };
+        return { user, centerName: company.name };
+      });
     });
 
     if ('error' in result) {

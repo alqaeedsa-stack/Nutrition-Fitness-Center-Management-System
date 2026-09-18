@@ -1,10 +1,11 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { getAuthenticatedUser } from '../auth/session';
 import { withDatabase } from '../db/client';
-import { eInvoices, sales, staffProfiles, taxRates, zatcaSettings } from '../db/schema';
+import { eInvoices, products, saleItems, sales, staffProfiles, taxRates, zatcaSettings } from '../db/schema';
 import { submitZatcaInvoice } from './client';
+import { firstInvoicePreviousHash, generateZatcaInvoice } from './generator';
 
 export type ZatcaBindings = {
   HYPERDRIVE?: { connectionString: string };
@@ -82,6 +83,11 @@ const settingsSchema = z.object({
   legalName: z.string().trim().max(200).nullable().optional(),
   invoiceTypeCode: z.string().trim().min(1).max(10).optional(),
   deviceSerial: z.string().trim().max(200).nullable().optional(),
+  sellerStreet: z.string().trim().max(200).nullable().optional(),
+  sellerBuildingNumber: z.string().trim().max(50).nullable().optional(),
+  sellerCity: z.string().trim().max(100).nullable().optional(),
+  sellerPostalCode: z.string().trim().max(20).nullable().optional(),
+  sellerCountryCode: z.string().trim().length(2).optional(),
   pih: z.string().trim().max(1000).nullable().optional(),
 });
 
@@ -90,7 +96,10 @@ zatcaRoutes.get('/settings', async c => {
   const rows = await withDatabase(c.env, db => db.select({
     id: zatcaSettings.id, environment: zatcaSettings.environment, vatNumber: zatcaSettings.vatNumber,
     legalName: zatcaSettings.legalName, invoiceTypeCode: zatcaSettings.invoiceTypeCode,
-    deviceSerial: zatcaSettings.deviceSerial, pih: zatcaSettings.pih, lastIcv: zatcaSettings.lastIcv,
+    deviceSerial: zatcaSettings.deviceSerial, sellerStreet: zatcaSettings.sellerStreet,
+    sellerBuildingNumber: zatcaSettings.sellerBuildingNumber, sellerCity: zatcaSettings.sellerCity,
+    sellerPostalCode: zatcaSettings.sellerPostalCode, sellerCountryCode: zatcaSettings.sellerCountryCode,
+    pih: zatcaSettings.pih, lastIcv: zatcaSettings.lastIcv,
     status: zatcaSettings.status, lastError: zatcaSettings.lastError, updatedAt: zatcaSettings.updatedAt,
   }).from(zatcaSettings).where(eq(zatcaSettings.centerId, auth.user.centerId!)).limit(1));
   return c.json({ settings: rows[0] ?? null });
@@ -111,7 +120,9 @@ zatcaRoutes.put('/settings', async c => {
     set: {
       environment: d.environment, vatNumber: d.vatNumber ?? null, legalName: d.legalName ?? null,
       invoiceTypeCode: d.invoiceTypeCode ?? '0200000', deviceSerial: d.deviceSerial ?? null,
-      pih: d.pih ?? null, status: 'configured', updatedAt: new Date(),
+      sellerStreet: d.sellerStreet ?? null, sellerBuildingNumber: d.sellerBuildingNumber ?? null,
+      sellerCity: d.sellerCity ?? null, sellerPostalCode: d.sellerPostalCode ?? null,
+      sellerCountryCode: d.sellerCountryCode ?? 'SA', pih: d.pih ?? null, status: 'configured', updatedAt: new Date(),
     },
   }).returning());
   return c.json({ settings: row[0] });
@@ -128,7 +139,8 @@ zatcaRoutes.post('/sales/:saleId/prepare', async c => {
 
   const result = await withDatabase(c.env, db => db.transaction(async tx => {
     const saleRows = await tx.select({
-      id: sales.id, saleNumber: sales.saleNumber,
+      id: sales.id, saleNumber: sales.saleNumber, subtotal: sales.subtotal,
+      discount: sales.discount, tax: sales.tax, total: sales.total, createdAt: sales.createdAt,
     }).from(sales).where(and(
       eq(sales.id, c.req.param('saleId')), eq(sales.centerId, auth.user.centerId!), eq(sales.status, 'completed'),
     )).limit(1);
@@ -138,14 +150,104 @@ zatcaRoutes.post('/sales/:saleId/prepare', async c => {
     const existing = await tx.select().from(eInvoices).where(eq(eInvoices.saleId, sale.id)).limit(1);
     if (existing[0]) return { invoice: existing[0] };
 
+    const settingsRows = await tx.select().from(zatcaSettings)
+      .where(eq(zatcaSettings.centerId, auth.user.centerId!)).limit(1);
+    const settings = settingsRows[0];
+    if (!settings?.vatNumber || !settings.legalName) return { error: 'ZATCA_SELLER_NOT_CONFIGURED' as const };
+    if (!settings.sellerStreet || !settings.sellerBuildingNumber || !settings.sellerCity || !settings.sellerPostalCode) {
+      return { error: 'ZATCA_SELLER_ADDRESS_REQUIRED' as const };
+    }
+    if (body.data.invoiceType === 'standard') {
+      return { error: 'STANDARD_BUYER_DATA_REQUIRED' as const };
+    }
+
+    const itemRows = await tx.select({
+      id: saleItems.id, productId: saleItems.productId, quantity: saleItems.quantity,
+      unitPrice: saleItems.unitPrice, discount: saleItems.discount, tax: saleItems.tax,
+      lineTotal: saleItems.lineTotal, productName: products.name, taxCode: products.taxCode,
+    }).from(saleItems).innerJoin(products, eq(products.id, saleItems.productId))
+      .where(eq(saleItems.saleId, sale.id));
+
+    if (!itemRows.length) return { error: 'EMPTY_SALE' as const };
+
+    const taxRows = await tx.select({
+      code: taxRates.code, rate: taxRates.rate, categoryCode: taxRates.categoryCode,
+      exemptionReasonCode: taxRates.exemptionReasonCode,
+    }).from(taxRates).where(eq(taxRates.centerId, auth.user.centerId!));
+    const taxMap = new Map(taxRows.map(row => [row.code, row]));
+
+    const nextIcv = settings.lastIcv + 1;
+    const previousInvoiceHash = settings.pih || firstInvoicePreviousHash;
+    const uuid = crypto.randomUUID();
+    const invoiceLines = itemRows.map(item => {
+      const tax = item.taxCode ? taxMap.get(item.taxCode) : undefined;
+      const taxable = Math.max(0, Number(item.quantity) * Number(item.unitPrice) - Number(item.discount));
+      const taxAmount = Number(item.tax);
+      const inferredRate = taxable > 0 ? (taxAmount / taxable) * 100 : 0;
+      return {
+        id: item.id,
+        productName: item.productName,
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+        discount: Number(item.discount),
+        tax: taxAmount,
+        lineTotal: Number(item.lineTotal),
+        taxCode: item.taxCode,
+        taxRate: tax ? Number(tax.rate) : inferredRate,
+        categoryCode: tax?.categoryCode ?? (taxAmount > 0 ? 'S' : 'O'),
+        exemptionReasonCode: tax?.exemptionReasonCode ?? null,
+      };
+    });
+
+    const generated = await generateZatcaInvoice({
+      invoiceNumber: sale.saleNumber,
+      uuid,
+      invoiceType: body.data.invoiceType,
+      issueDate: sale.createdAt,
+      icv: nextIcv,
+      previousInvoiceHash,
+      seller: {
+        legalName: settings.legalName,
+        vatNumber: settings.vatNumber,
+        street: settings.sellerStreet,
+        buildingNumber: settings.sellerBuildingNumber,
+        city: settings.sellerCity,
+        postalCode: settings.sellerPostalCode,
+        countryCode: settings.sellerCountryCode || 'SA',
+      },
+      subtotal: Number(sale.subtotal),
+      discount: Number(sale.discount),
+      tax: Number(sale.tax),
+      total: Number(sale.total),
+      lines: invoiceLines,
+    });
+
+    await tx.update(zatcaSettings).set({
+      lastIcv: nextIcv,
+      pih: generated.invoiceHash,
+      updatedAt: new Date(),
+    }).where(eq(zatcaSettings.id, settings.id));
+
     const rows = await tx.insert(eInvoices).values({
       centerId: auth.user.centerId!, saleId: sale.id, invoiceNumber: sale.saleNumber,
-      uuid: crypto.randomUUID(), invoiceType: body.data.invoiceType, status: 'pending',
+      uuid, invoiceType: body.data.invoiceType, status: 'prepared',
+      invoiceHash: generated.invoiceHash, xml: generated.xml, qrCode: generated.qrCode,
     }).returning();
+
     return { invoice: rows[0] };
   }));
 
-  if ('error' in result) return c.json({ error: { code: result.error, message: 'عملية البيع غير موجودة أو غير مكتملة' } }, 404);
+  if ('error' in result) {
+    const messages: Record<string, [string, string, number]> = {
+      SALE_NOT_FOUND: ['SALE_NOT_FOUND', 'عملية البيع غير موجودة أو غير مكتملة', 404],
+      ZATCA_SELLER_NOT_CONFIGURED: ['ZATCA_SELLER_NOT_CONFIGURED', 'أكمل اسم المنشأة والرقم الضريبي في إعدادات ZATCA', 409],
+      ZATCA_SELLER_ADDRESS_REQUIRED: ['ZATCA_SELLER_ADDRESS_REQUIRED', 'أكمل عنوان المنشأة في إعدادات ZATCA قبل توليد الفاتورة', 409],
+      STANDARD_BUYER_DATA_REQUIRED: ['STANDARD_BUYER_DATA_REQUIRED', 'الفاتورة القياسية تحتاج بيانات مشتري كاملة قبل تفعيل هذا المسار', 409],
+      EMPTY_SALE: ['EMPTY_SALE', 'لا يمكن إصدار فاتورة لعملية بيع بدون أصناف', 409],
+    };
+    const [code, message, status] = messages[result.error] ?? ['ZATCA_PREPARE_ERROR', 'تعذر تجهيز الفاتورة الإلكترونية', 500];
+    return c.json({ error: { code, message } }, status as any);
+  }
   return c.json({ invoice: result.invoice }, 201);
 });
 

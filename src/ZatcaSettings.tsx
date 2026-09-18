@@ -5,18 +5,20 @@ import { apiFetch } from './lib/api';
 type TaxRate = { id:string; code:string; name:string; rate:string; categoryCode:string; exemptionReasonCode?:string|null; active:boolean };
 type ZatcaSettings = { id:string; environment:'simulation'|'production'; vatNumber?:string|null; legalName?:string|null; invoiceTypeCode:string; deviceSerial?:string|null; sellerStreet?:string|null; sellerBuildingNumber?:string|null; sellerCity?:string|null; sellerPostalCode?:string|null; sellerCountryCode?:string|null; pih?:string|null; lastIcv:number; status:string; lastError?:string|null };
 type EInvoice = { id:string; invoiceNumber:string; invoiceType:string; status:string; responseCode?:string|null; createdAt:string; submittedAt?:string|null };
+type EligibleSale = { id:string; saleNumber:string; customerId?:string|null; subtotal:string; tax:string; total:string; createdAt:string; invoiceId?:string|null; invoiceStatus?:string|null };
 
 export default function ZatcaSettings() {
  const [settings,setSettings]=useState<ZatcaSettings|null>(null);
  const [taxRates,setTaxRates]=useState<TaxRate[]>([]);
  const [invoices,setInvoices]=useState<EInvoice[]>([]);
+ const [eligibleSales,setEligibleSales]=useState<EligibleSale[]>([]);
  const [form,setForm]=useState({environment:'simulation' as 'simulation'|'production',vatNumber:'',legalName:'',invoiceTypeCode:'0200000',deviceSerial:'',sellerStreet:'',sellerBuildingNumber:'',sellerCity:'',sellerPostalCode:'',sellerCountryCode:'SA',pih:''});
  const [taxForm,setTaxForm]=useState({code:'',name:'',rate:'',categoryCode:'S',exemptionReasonCode:''});
  const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [message,setMessage]=useState(''); const [error,setError]=useState('');
 
  async function load(){ setLoading(true); setError(''); try {
-  const [s,t,i]=await Promise.all([apiFetch<{settings:ZatcaSettings|null}>('/zatca/settings'),apiFetch<{taxRates:TaxRate[]}>('/zatca/tax-rates'),apiFetch<{invoices:EInvoice[]}>('/zatca/invoices')]);
-  setSettings(s.settings); setTaxRates(t.taxRates); setInvoices(i.invoices);
+  const [s,t,i,sales]=await Promise.all([apiFetch<{settings:ZatcaSettings|null}>('/zatca/settings'),apiFetch<{taxRates:TaxRate[]}>('/zatca/tax-rates'),apiFetch<{invoices:EInvoice[]}>('/zatca/invoices'),apiFetch<{sales:EligibleSale[]}>('/zatca/sales/eligible')]);
+  setSettings(s.settings); setTaxRates(t.taxRates); setInvoices(i.invoices); setEligibleSales(sales.sales);
   if(s.settings)setForm({environment:s.settings.environment,vatNumber:s.settings.vatNumber??'',legalName:s.settings.legalName??'',invoiceTypeCode:s.settings.invoiceTypeCode,deviceSerial:s.settings.deviceSerial??'',sellerStreet:s.settings.sellerStreet??'',sellerBuildingNumber:s.settings.sellerBuildingNumber??'',sellerCity:s.settings.sellerCity??'',sellerPostalCode:s.settings.sellerPostalCode??'',sellerCountryCode:s.settings.sellerCountryCode??'SA',pih:s.settings.pih??''});
  } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل إعدادات ZATCA');} finally{setLoading(false);} }
  useEffect(()=>{void load()},[]);
@@ -30,6 +32,12 @@ export default function ZatcaSettings() {
   await apiFetch('/zatca/tax-rates',{method:'POST',body:JSON.stringify({...taxForm,rate:Number(taxForm.rate),exemptionReasonCode:taxForm.exemptionReasonCode.trim()||null,active:true})});
   setTaxForm({code:'',name:'',rate:'',categoryCode:'S',exemptionReasonCode:''}); setMessage('تمت إضافة كود الضريبة'); await load();
  } catch(e){setError(e instanceof Error?e.message:'تعذر إضافة كود الضريبة');} finally{setSaving(false);} }
+
+ async function prepareInvoice(saleId:string){ setSaving(true); setError(''); setMessage(''); try {
+  await apiFetch('/zatca/sales/'+saleId+'/prepare',{method:'POST',body:JSON.stringify({invoiceType:'simplified'})});
+  setMessage('تم تجهيز الفاتورة الإلكترونية وحفظ XML والـQR وربطها بعملية البيع.');
+  await load();
+ } catch(e){setError(e instanceof Error?e.message:'تعذر تجهيز الفاتورة الإلكترونية')} finally{setSaving(false)} }
 
  async function toggleTaxRate(rate:TaxRate){setError('');setMessage('');try{await apiFetch('/zatca/tax-rates/'+rate.id,{method:'PATCH',body:JSON.stringify({active:!rate.active})});await load();setMessage('تم تحديث حالة كود الضريبة')}catch(e){setError(e instanceof Error?e.message:'تعذر تحديث الضريبة')}}
 
@@ -60,6 +68,10 @@ export default function ZatcaSettings() {
      <div className='staff-table-wrap'><table className='staff-table'><thead><tr><th>الكود</th><th>الاسم</th><th>النسبة</th><th>الفئة</th><th>الحالة</th><th></th></tr></thead><tbody>{taxRates.map(t=><tr key={t.id}><td dir='ltr'>{t.code}</td><td>{t.name}</td><td>{t.rate}%</td><td>{t.categoryCode}</td><td>{t.active?'نشط':'موقوف'}</td><td><button className='secondary-button' type='button' onClick={()=>void toggleTaxRate(t)}>{t.active?'إيقاف':'تفعيل'}</button></td></tr>)}</tbody></table></div>
     </section>
    </section>
+   <section className='panel'><div className='panel-heading-row'><div><p className='eyebrow'>POS → E-INVOICE</p><h2>تجهيز فواتير المبيعات</h2><small>تجهيز الفاتورة المبسطة من عملية بيع مكتملة. لا يتم الإرسال إلى فاتورة من هذه الشاشة.</small></div><button className='secondary-button' type='button' onClick={()=>void load()}>تحديث</button></div>
+    {!eligibleSales.length?<p className='empty-state'>لا توجد عمليات بيع مكتملة.</p>:<div className='staff-table-wrap'><table className='staff-table'><thead><tr><th>رقم البيع</th><th>الصافي</th><th>الضريبة</th><th>الإجمالي</th><th>التاريخ</th><th>الفاتورة</th><th>إجراء</th></tr></thead><tbody>{eligibleSales.map(sale=><tr key={sale.id}><td dir='ltr'>{sale.saleNumber}</td><td>{Number(sale.subtotal).toFixed(2)} ر.س</td><td>{Number(sale.tax).toFixed(2)} ر.س</td><td>{Number(sale.total).toFixed(2)} ر.س</td><td>{new Date(sale.createdAt).toLocaleString('ar-SA')}</td><td>{sale.invoiceStatus??'غير مجهزة'}</td><td>{sale.invoiceId?<span className='status-badge active'>مجهزة</span>:<button className='secondary-button' type='button' disabled={saving} onClick={()=>void prepareInvoice(sale.id)}>تجهيز فاتورة</button>}</td></tr>)}</tbody></table></div>}
+   </section>
+
    <section className='panel'><div className='panel-heading-row'><div><p className='eyebrow'>E-INVOICES</p><h2>الفواتير الإلكترونية</h2></div><button className='secondary-button' type='button' onClick={()=>void load()}>تحديث</button></div>
     {!invoices.length?<p className='empty-state'>لا توجد فواتير إلكترونية حتى الآن.</p>:<div className='staff-table-wrap'><table className='staff-table'><thead><tr><th>رقم الفاتورة</th><th>النوع</th><th>الحالة</th><th>كود الاستجابة</th><th>التاريخ</th></tr></thead><tbody>{invoices.map(i=><tr key={i.id}><td dir='ltr'>{i.invoiceNumber}</td><td>{i.invoiceType}</td><td>{i.status}</td><td>{i.responseCode??'—'}</td><td>{new Date(i.createdAt).toLocaleString('ar-SA')}</td></tr>)}</tbody></table></div>}</section>
   </>}

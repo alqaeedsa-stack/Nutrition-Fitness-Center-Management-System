@@ -235,7 +235,8 @@ const productSchema = z.object({
 
 const stockAdjustmentSchema = z.object({
   productId: z.string().uuid(),
-  quantity: z.coerce.number().refine(v => v !== 0, 'الكمية لا يمكن أن تكون صفرًا'),
+  quantity: z.coerce.number().positive().max(999999),
+  movementType: z.enum(['opening', 'purchase', 'adjustment_in', 'adjustment_out', 'return_in', 'return_out']).default('adjustment_in'),
   unitCost: z.coerce.number().min(0).optional(),
   notes: z.string().trim().max(500).optional(),
 });
@@ -376,7 +377,41 @@ staffRoutes.get('/inventory', async c => {
     quantity: sql<number>`coalesce(sum(${stockMovements.quantity}), 0)`,
   }).from(products).leftJoin(stockMovements, eq(stockMovements.productId, products.id))
     .where(eq(products.centerId, auth.user.centerId!)).groupBy(products.id).orderBy(asc(products.name)));
-  return c.json({ inventory: rows });
+  const inventory = rows.map(row => ({
+    ...row,
+    lowStock: Number(row.quantity) <= Number(row.reorderPoint),
+  }));
+  return c.json({
+    inventory,
+    lowStockCount: inventory.filter(row => row.lowStock).length,
+  });
+});
+
+staffRoutes.get('/inventory/:productId/movements', async c => {
+  const auth = await requirePermission(c, 'inventory.read'); if ('error' in auth) return auth.error;
+  const product = await withDatabase(c.env, db => db.select({
+    id: products.id, sku: products.sku, name: products.name,
+  }).from(products).where(and(
+    eq(products.id, c.req.param('productId')),
+    eq(products.centerId, auth.user.centerId!),
+  )).limit(1));
+  if (!product[0]) return c.json({ error: { code: 'PRODUCT_NOT_FOUND', message: 'المنتج غير موجود' } }, 404);
+
+  const movements = await withDatabase(c.env, db => db.select({
+    id: stockMovements.id,
+    movementType: stockMovements.movementType,
+    quantity: stockMovements.quantity,
+    unitCost: stockMovements.unitCost,
+    referenceType: stockMovements.referenceType,
+    referenceId: stockMovements.referenceId,
+    occurredAt: stockMovements.occurredAt,
+    notes: stockMovements.notes,
+  }).from(stockMovements).where(and(
+    eq(stockMovements.productId, product[0].id),
+    eq(stockMovements.centerId, auth.user.centerId!),
+  )).orderBy(desc(stockMovements.occurredAt)).limit(100));
+
+  return c.json({ product: product[0], movements });
 });
 
 staffRoutes.post('/inventory/adjust', async c => {
@@ -388,17 +423,36 @@ staffRoutes.post('/inventory/adjust', async c => {
     const product = await tx.select({ id: products.id, purchaseCost: products.purchaseCost }).from(products)
       .where(and(eq(products.id, data.productId), eq(products.centerId, auth.user.centerId!), eq(products.active, true))).limit(1);
     if (!product[0]) return { error: 'PRODUCT_NOT_FOUND' as const };
-    const type = data.quantity > 0 ? 'adjustment_in' : 'adjustment_out';
+
+    const currentRow = await tx.select({
+      quantity: sql<number>`coalesce(sum(${stockMovements.quantity}), 0)`,
+    }).from(stockMovements).where(and(
+      eq(stockMovements.productId, data.productId),
+      eq(stockMovements.centerId, auth.user.centerId!),
+    ));
+    const currentStock = Number(currentRow[0]?.quantity ?? 0);
+    const type = data.movementType;
+    const sign = ['opening', 'purchase', 'adjustment_in', 'return_in'].includes(type) ? 1 : -1;
+    const signedQuantity = Number(data.quantity) * sign;
+    if (currentStock + signedQuantity < 0) {
+      return { error: 'INSUFFICIENT_STOCK' as const, currentStock };
+    }
+
     const row = await tx.insert(stockMovements).values({
       centerId: auth.user.centerId!, productId: data.productId, movementType: type,
-      quantity: data.quantity.toFixed(3), unitCost: (data.unitCost ?? Number(product[0].purchaseCost)).toFixed(2),
-      referenceType: 'manual_adjustment', occurredAt: new Date(), createdBy: auth.user.userId,
+      quantity: signedQuantity.toFixed(3), unitCost: (data.unitCost ?? Number(product[0].purchaseCost)).toFixed(2),
+      referenceType: 'manual_inventory', occurredAt: new Date(), createdBy: auth.user.userId,
       notes: data.notes ?? null,
     }).returning();
-    return { movement: row[0] };
+    return { movement: row[0], currentStock: currentStock + signedQuantity };
   }));
-  if ('error' in result) return c.json({ error: { code: result.error, message: 'المنتج غير موجود' } }, 404);
-  return c.json({ movement: result.movement }, 201);
+  if ('error' in result) {
+    if (result.error === 'PRODUCT_NOT_FOUND') return c.json({ error: { code: result.error, message: 'المنتج غير موجود أو غير نشط' } }, 404);
+    if (result.error === 'INSUFFICIENT_STOCK') return c.json({
+      error: { code: result.error, message: 'لا يمكن صرف كمية أكبر من الرصيد الحالي', details: { currentStock: result.currentStock, requested: data.quantity } },
+    }, 409);
+  }
+  return c.json({ movement: result.movement, currentStock: result.currentStock }, 201);
 });
 
 

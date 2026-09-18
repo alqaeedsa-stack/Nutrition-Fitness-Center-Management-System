@@ -22,7 +22,7 @@ export default function Customer360() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [action, setAction] = useState<'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness' | null>(null);
+  const [action, setAction] = useState<'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness' | 'nutritionItems' | 'fitnessExercises' | null>(null);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
@@ -35,6 +35,9 @@ export default function Customer360() {
   const [planOptions, setPlanOptions] = useState<Staff[]>([]);
   const [nutritionPlan, setNutritionPlan] = useState({ specialistId: '', title: '', goals: '', startDate: new Date().toISOString().slice(0, 10), endDate: '', status: 'draft' });
   const [fitnessPlan, setFitnessPlan] = useState({ specialistId: '', title: '', goals: '', startDate: new Date().toISOString().slice(0, 10), endDate: '', status: 'draft' });
+  const [detailPlan, setDetailPlan] = useState<{ kind: 'nutrition' | 'fitness'; id: string; title: string; items: any[] } | null>(null);
+  const [itemForm, setItemForm] = useState({ mealType: 'وجبة رئيسية', itemName: '', quantity: '', unit: '', calories: '', notes: '' });
+  const [exerciseForm, setExerciseForm] = useState({ exerciseName: '', sets: '', repetitions: '', durationSeconds: '', restSeconds: '', targetNotes: '' });
 
   const load = useCallback(async (silent = false) => {
     if (!id) return;
@@ -104,6 +107,57 @@ export default function Customer360() {
     finally { setSaving(false); }
   }
 
+  async function openPlanDetails(kind: 'nutrition' | 'fitness', planId: string) {
+    setAction(kind === 'nutrition' ? 'nutritionItems' : 'fitnessExercises'); setActionError(''); setActionMessage('');
+    try {
+      const endpoint = kind === 'nutrition' ? '/nutrition' : '/fitness';
+      const result = await apiFetch<{ plans: any[] }>(endpoint);
+      const plan = result.plans.find(p => p.id === planId);
+      if (!plan) throw new Error('الخطة غير موجودة.');
+      setDetailPlan({ kind, id: plan.id, title: plan.title, items: kind === 'nutrition' ? (plan.items ?? []) : (plan.exercises ?? []) });
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر تحميل تفاصيل الخطة.'); }
+  }
+
+  async function savePlanItem(e: FormEvent) {
+    e.preventDefault(); if (!detailPlan || detailPlan.kind !== 'nutrition') return;
+    setSaving(true); setActionError(''); setActionMessage('');
+    try {
+      await apiFetch('/nutrition/' + detailPlan.id + '/items', { method: 'POST', body: JSON.stringify({ ...itemForm, quantity: itemForm.quantity || null, calories: itemForm.calories || null, sortOrder: detailPlan.items.length }) });
+      const result = await apiFetch<{ plans: any[] }>('/nutrition');
+      const plan = result.plans.find(p => p.id === detailPlan.id);
+      setDetailPlan(v => v ? { ...v, items: plan?.items ?? [] } : v);
+      setItemForm({ mealType: 'وجبة رئيسية', itemName: '', quantity: '', unit: '', calories: '', notes: '' });
+      setActionMessage('تمت إضافة الوجبة للخطة الغذائية.'); await load(true);
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر إضافة الوجبة.'); }
+    finally { setSaving(false); }
+  }
+
+  async function saveExercise(e: FormEvent) {
+    e.preventDefault(); if (!detailPlan || detailPlan.kind !== 'fitness') return;
+    setSaving(true); setActionError(''); setActionMessage('');
+    try {
+      await apiFetch('/fitness/' + detailPlan.id + '/exercises', { method: 'POST', body: JSON.stringify({ ...exerciseForm, sets: exerciseForm.sets || null, repetitions: exerciseForm.repetitions || null, durationSeconds: exerciseForm.durationSeconds || null, restSeconds: exerciseForm.restSeconds || null, sortOrder: detailPlan.items.length }) });
+      const result = await apiFetch<{ plans: any[] }>('/fitness');
+      const plan = result.plans.find(p => p.id === detailPlan.id);
+      setDetailPlan(v => v ? { ...v, items: plan?.exercises ?? [] } : v);
+      setExerciseForm({ exerciseName: '', sets: '', repetitions: '', durationSeconds: '', restSeconds: '', targetNotes: '' });
+      setActionMessage('تمت إضافة التمرين لخطة اللياقة.'); await load(true);
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر إضافة التمرين.'); }
+    finally { setSaving(false); }
+  }
+
+  async function deletePlanItem(itemId: string) {
+    if (!detailPlan || detailPlan.kind !== 'nutrition') return;
+    try { await apiFetch('/nutrition/' + detailPlan.id + '/items/' + itemId, { method: 'DELETE' }); setDetailPlan(v => v ? { ...v, items: v.items.filter(x => x.id !== itemId) } : v); setActionMessage('تم حذف الوجبة.'); await load(true); }
+    catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر حذف الوجبة.'); }
+  }
+
+  async function deleteExercise(itemId: string) {
+    if (!detailPlan || detailPlan.kind !== 'fitness') return;
+    try { await apiFetch('/fitness/' + detailPlan.id + '/exercises/' + itemId, { method: 'DELETE' }); setDetailPlan(v => v ? { ...v, items: v.items.filter(x => x.id !== itemId) } : v); setActionMessage('تم حذف التمرين.'); await load(true); }
+    catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر حذف التمرين.'); }
+  }
+
   async function savePlan(kind: 'nutrition' | 'fitness', e: FormEvent) {
     e.preventDefault(); setSaving(true); setActionError(''); setActionMessage('');
     try {
@@ -171,7 +225,7 @@ export default function Customer360() {
 
       {action && (
         <section className="customer-action-panel panel">
-          <div className="panel-heading-row"><div><span className="eyebrow">{action === 'measurement' ? 'NEW MEASUREMENT' : action === 'followUp' ? 'NEW FOLLOW-UP' : action === 'appointment' ? 'NEW APPOINTMENT' : action === 'nutrition' ? 'NEW NUTRITION PLAN' : 'NEW FITNESS PLAN'}</span><h2>{action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : 'إنشاء خطة لياقة للعميل'}</h2></div><button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button></div>
+          <div className="panel-heading-row"><div><span className="eyebrow">{action === 'measurement' ? 'NEW MEASUREMENT' : action === 'followUp' ? 'NEW FOLLOW-UP' : action === 'appointment' ? 'NEW APPOINTMENT' : action === 'nutrition' ? 'NEW NUTRITION PLAN' : action === 'fitness' ? 'NEW FITNESS PLAN' : detailPlan?.kind === 'nutrition' ? 'NUTRITION ITEMS' : 'FITNESS EXERCISES'}</span><h2>{action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}</h2></div><button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button></div>
           {actionError && <div className="info-strip warning">{actionError}</div>}
           {actionMessage && <div className="info-strip">{actionMessage}</div>}
 
@@ -217,6 +271,22 @@ export default function Customer360() {
             <button className="primary-action button" disabled={saving}>{saving ? 'جارٍ الحفظ...' : action === 'nutrition' ? 'إنشاء الخطة الغذائية' : 'إنشاء خطة اللياقة'}</button>
           </form>}
 
+          {action === 'nutritionItems' && detailPlan?.kind === 'nutrition' && <>
+            <div className="portal-data-list">{detailPlan.items.length ? detailPlan.items.map(item => <div className="portal-data-row" key={item.id}><strong>{item.mealType} — {item.itemName}</strong><span>{item.quantity ?? '—'} {item.unit ?? ''}{item.calories != null ? ' · ' + item.calories + ' سعرة' : ''}</span><button className="text-link button-link" type="button" onClick={() => void deletePlanItem(item.id)}>حذف</button></div>) : <div className="empty-state">لا توجد وجبات مضافة للخطة.</div>}</div>
+            <form className="form-stack" onSubmit={savePlanItem}>
+              <div className="form-row"><label>نوع الوجبة<input required value={itemForm.mealType} onChange={e => setItemForm(v => ({ ...v, mealType: e.target.value }))} /></label><label>اسم الطعام / العنصر<input required value={itemForm.itemName} onChange={e => setItemForm(v => ({ ...v, itemName: e.target.value }))} /></label><label>الكمية<input type="number" min="0" step="0.01" value={itemForm.quantity} onChange={e => setItemForm(v => ({ ...v, quantity: e.target.value }))} /></label><label>الوحدة<input value={itemForm.unit} onChange={e => setItemForm(v => ({ ...v, unit: e.target.value }))} placeholder="جرام / حبة" /></label><label>السعرات<input type="number" min="0" step="0.01" value={itemForm.calories} onChange={e => setItemForm(v => ({ ...v, calories: e.target.value }))} /></label></div>
+              <label>ملاحظات<textarea value={itemForm.notes} onChange={e => setItemForm(v => ({ ...v, notes: e.target.value }))} /></label><button className="primary-action button" disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'إضافة الوجبة'}</button>
+            </form>
+          </>}
+
+          {action === 'fitnessExercises' && detailPlan?.kind === 'fitness' && <>
+            <div className="portal-data-list">{detailPlan.items.length ? detailPlan.items.map(item => <div className="portal-data-row" key={item.id}><strong>{item.exerciseName}</strong><span>{item.sets ?? '—'} مجموعات · {item.repetitions ?? '—'} تكرارات{item.durationSeconds != null ? ' · ' + item.durationSeconds + ' ثانية' : ''}</span><button className="text-link button-link" type="button" onClick={() => void deleteExercise(item.id)}>حذف</button></div>) : <div className="empty-state">لا توجد تمارين مضافة للخطة.</div>}</div>
+            <form className="form-stack" onSubmit={saveExercise}>
+              <div className="form-row"><label>اسم التمرين<input required value={exerciseForm.exerciseName} onChange={e => setExerciseForm(v => ({ ...v, exerciseName: e.target.value }))} /></label><label>المجموعات<input type="number" min="0" value={exerciseForm.sets} onChange={e => setExerciseForm(v => ({ ...v, sets: e.target.value }))} /></label><label>التكرارات<input type="number" min="0" value={exerciseForm.repetitions} onChange={e => setExerciseForm(v => ({ ...v, repetitions: e.target.value }))} /></label><label>المدة (ثانية)<input type="number" min="0" value={exerciseForm.durationSeconds} onChange={e => setExerciseForm(v => ({ ...v, durationSeconds: e.target.value }))} /></label><label>الراحة (ثانية)<input type="number" min="0" value={exerciseForm.restSeconds} onChange={e => setExerciseForm(v => ({ ...v, restSeconds: e.target.value }))} /></label></div>
+              <label>ملاحظات التمرين<textarea value={exerciseForm.targetNotes} onChange={e => setExerciseForm(v => ({ ...v, targetNotes: e.target.value }))} /></label><button className="primary-action button" disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'إضافة التمرين'}</button>
+            </form>
+          </>}
+          
           {action === 'appointment' && <form className="form-stack" onSubmit={saveAppointment}>
             <div className="form-row">
               <label>المختص / الموظف<select required value={appointment.staffId} onChange={e => setAppointment(v => ({ ...v, staffId: e.target.value }))}>{staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
@@ -249,7 +319,7 @@ export default function Customer360() {
       <section className="module-grid customer-live-grid">
         <article className="module-card"><span className="module-code">FOLLOW-UP</span><h3>المتابعات الدورية</h3>{followUps.length ? <div className="portal-data-list">{followUps.slice(0, 5).map(f => <div className="portal-data-row" key={f.id}><strong>{new Date(f.followUpAt).toLocaleDateString('ar-SA')}</strong><span>{f.weight ? f.weight + ' كجم' : '—'}{f.adherenceScore == null ? '' : ' · ' + f.adherenceScore + '%'}</span><small>{f.staffName || '—'}{f.nextFollowUpAt ? ' · التالية ' + new Date(f.nextFollowUpAt).toLocaleDateString('ar-SA') : ''}</small></div>)}</div> : <div className="empty-state">لا توجد متابعات.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('followUp')}>إضافة متابعة</button></article>
         <article className="module-card"><span className="module-code">MEASUREMENTS</span><h3>آخر القياسات</h3>{measurements.length ? <div className="portal-data-list">{measurements.slice(0, 8).map(m => <div className="portal-data-row" key={m.id}><strong>{m.typeName}</strong><span>{m.value} {m.unit || ''}</span><small>{new Date(m.measuredAt).toLocaleString('ar-SA')}</small></div>)}</div> : <div className="empty-state">لا توجد قياسات.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('measurement')}>إضافة قياس</button></article>
-        <article className="module-card"><span className="module-code">NUTRITION</span><h3>الخطط الغذائية</h3>{nutrition.length ? <div className="portal-data-list">{nutrition.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد خطط غذائية.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('nutrition')}>إنشاء خطة غذائية</button></article>
+        <article className="module-card"><span className="module-code">NUTRITION</span><h3>الخطط الغذائية</h3>{nutrition.length ? <div className="portal-data-list">{nutrition.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small><button className="text-link button-link" type="button" onClick={() => void openPlanDetails('nutrition', p.id)}>تفاصيل / الوجبات</button></div>)}</div> : <div className="empty-state">لا توجد خطط غذائية.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('nutrition')}>إنشاء خطة غذائية</button></article>
         <article className="module-card"><span className="module-code">FITNESS</span><h3>خطط اللياقة</h3>{fitness.length ? <div className="portal-data-list">{fitness.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد خطط لياقة.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('fitness')}>إنشاء خطة لياقة</button></article>
         <article className="module-card"><span className="module-code">APPOINTMENTS</span><h3>المواعيد القادمة</h3>{upcoming.length ? <div className="portal-data-list">{upcoming.map(a => <div className="portal-data-row" key={a.id}><strong>{a.appointmentType}</strong><span>{label(a.status)}</span><small>{new Date(a.startsAt).toLocaleString('ar-SA')}{a.staffName ? ` · ${a.staffName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد مواعيد قادمة.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('appointment')}>حجز موعد</button></article>
         <article className="module-card"><span className="module-code">SALES</span><h3>مشتريات العميل</h3>{sales.length ? <div className="portal-data-list">{sales.slice(0, 8).map(s => <div className="portal-data-row" key={s.id}><strong>{s.saleNumber}</strong><span>{s.total} ر.س</span><small>{label(s.status)} · {new Date(s.createdAt).toLocaleDateString('ar-SA')} · {label(s.paymentStatus)}</small></div>)}</div> : <div className="empty-state">لا توجد مشتريات مرتبطة بالعميل.</div>}</article>

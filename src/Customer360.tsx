@@ -1,22 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { apiFetch } from './lib/api';
 
-type Customer = {
-  id: string; customerNumber: string; firstName: string; lastName: string; phone?: string | null;
-  email?: string | null; dateOfBirth?: string | null; gender?: string | null; status: string; source?: string | null; notes?: string | null;
-};
+type Customer = { id: string; customerNumber: string; firstName: string; lastName: string; phone?: string | null; email?: string | null; dateOfBirth?: string | null; gender?: string | null; status: string; source?: string | null; notes?: string | null };
 type Measurement = { id: string; value: string; measuredAt: string; notes?: string | null; typeName: string; unit?: string | null };
 type Plan = { id: string; title: string; goals?: string | null; startDate: string; endDate?: string | null; status: string; version: number; specialistName?: string | null };
 type FollowUp = { id: string; followUpAt: string; nextFollowUpAt?: string | null; weight?: string | null; height?: string | null; adherenceScore?: number | null; nutritionAdherenceScore?: number | null; fitnessAdherenceScore?: number | null; notes?: string | null; recommendations?: string | null; staffName?: string | null };
 type Appointment = { id: string; startsAt: string; endsAt: string; appointmentType: string; status: string; notes?: string | null; staffName?: string | null };
 type Sale = { id: string; saleNumber: string; status: string; subtotal: string; discount: string; tax: string; total: string; paymentStatus: string; createdAt: string };
 type Data = { customer: Customer; measurements: Measurement[]; nutrition: Plan[]; fitness: Plan[]; appointments: Appointment[]; sales: Sale[]; followUps: FollowUp[] };
+type Staff = { id: string; name: string; staffType: string };
+type MeasurementType = { id: string; code: string; name: string; unit?: string | null };
+type AuthMe = { user: { id: string } };
 
-const statusLabel: Record<string, string> = {
-  active: 'نشطة', draft: 'مسودة', completed: 'مكتملة', cancelled: 'ملغاة', scheduled: 'مجدول',
-  confirmed: 'مؤكد', no_show: 'لم يحضر', pending: 'قيد المعالجة', completed_sale: 'مكتمل',
-};
+const statusLabel: Record<string, string> = { active: 'نشطة', draft: 'مسودة', completed: 'مكتملة', cancelled: 'ملغاة', scheduled: 'مجدول', confirmed: 'مؤكد', no_show: 'لم يحضر', pending: 'قيد المعالجة', completed_sale: 'مكتمل' };
 function label(value: string) { return statusLabel[value] ?? value; }
 
 export default function Customer360() {
@@ -25,33 +22,86 @@ export default function Customer360() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [action, setAction] = useState<'measurement' | 'followUp' | 'appointment' | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [measurementTypes, setMeasurementTypes] = useState<MeasurementType[]>([]);
+  const [currentUserId, setCurrentUserId] = useState('');
+  const [measurement, setMeasurement] = useState({ typeId: '', value: '', measuredAt: '', notes: '' });
+  const [followUp, setFollowUp] = useState({ staffId: '', followUpAt: '', nextFollowUpAt: '', weight: '', height: '', adherenceScore: '', nutritionScore: '', fitnessScore: '', notes: '', recommendations: '' });
+  const [appointment, setAppointment] = useState({ staffId: '', startsAt: '', endsAt: '', appointmentType: 'استشارة', status: 'scheduled', notes: '' });
 
   const load = useCallback(async (silent = false) => {
     if (!id) return;
     if (silent) setRefreshing(true); else setLoading(true);
     try {
       const result = await apiFetch<Data>(`/customers/${id}/360`);
-      setData(result);
-      setError('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'تعذر تحميل ملف العميل.');
-    } finally {
-      if (silent) setRefreshing(false); else setLoading(false);
-    }
+      setData(result); setError('');
+    } catch (err) { setError(err instanceof Error ? err.message : 'تعذر تحميل ملف العميل.'); }
+    finally { if (silent) setRefreshing(false); else setLoading(false); }
   }, [id]);
 
   useEffect(() => { void load(); }, [load]);
 
-  // تحديث تلقائي كل 10 ثوانٍ، وكذلك عند عودة الموظف إلى نافذة النظام.
   useEffect(() => {
     const timer = window.setInterval(() => { void load(true); }, 10000);
     const onVisible = () => { if (document.visibilityState === 'visible') void load(true); };
     document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, [load]);
+
+  const openAction = async (next: 'measurement' | 'followUp' | 'appointment') => {
+    setAction(next); setActionError(''); setActionMessage('');
+    try {
+      const [me, options] = await Promise.all([
+        apiFetch<AuthMe>('/auth/me'),
+        apiFetch<{ staff: Staff[]; customers?: unknown[] }>(next === 'appointment' ? '/appointments/options' : '/follow-ups/options'),
+      ]);
+      setCurrentUserId(me.user.id);
+      setStaff(options.staff);
+      const defaultStaff = me.user.id && options.staff.some(s => s.id === me.user.id) ? me.user.id : options.staff[0]?.id ?? '';
+      if (next === 'followUp') setFollowUp(v => ({ ...v, staffId: defaultStaff }));
+      if (next === 'appointment') setAppointment(v => ({ ...v, staffId: defaultStaff }));
+      if (next === 'measurement') {
+        const types = await apiFetch<{ types: MeasurementType[] }>('/measurements/types');
+        setMeasurementTypes(types.types);
+        setMeasurement(v => ({ ...v, typeId: v.typeId || types.types[0]?.id || '' }));
+      }
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر تحميل بيانات النموذج.'); }
+  };
+
+  async function saveMeasurement(e: FormEvent) {
+    e.preventDefault(); setSaving(true); setActionError(''); setActionMessage('');
+    try {
+      await apiFetch('/measurements', { method: 'POST', body: JSON.stringify({ customerId: id, measurementTypeId: measurement.typeId, value: measurement.value, measuredAt: measurement.measuredAt ? new Date(measurement.measuredAt).toISOString() : undefined, notes: measurement.notes || null }) });
+      setMeasurement(v => ({ ...v, value: '', measuredAt: '', notes: '' })); setActionMessage('تم حفظ القياس وتحديث ملف العميل.');
+      await load(true);
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر حفظ القياس.'); }
+    finally { setSaving(false); }
+  }
+
+  async function saveFollowUp(e: FormEvent) {
+    e.preventDefault(); setSaving(true); setActionError(''); setActionMessage('');
+    try {
+      await apiFetch('/follow-ups', { method: 'POST', body: JSON.stringify({ customerId: id, staffId: followUp.staffId || currentUserId, followUpAt: followUp.followUpAt ? new Date(followUp.followUpAt).toISOString() : undefined, nextFollowUpAt: followUp.nextFollowUpAt ? new Date(followUp.nextFollowUpAt).toISOString() : null, weight: followUp.weight || null, height: followUp.height || null, adherenceScore: followUp.adherenceScore || null, nutritionAdherenceScore: followUp.nutritionScore || null, fitnessAdherenceScore: followUp.fitnessScore || null, notes: followUp.notes || null, recommendations: followUp.recommendations || null }) });
+      setFollowUp(v => ({ ...v, followUpAt: '', nextFollowUpAt: '', weight: '', height: '', adherenceScore: '', nutritionScore: '', fitnessScore: '', notes: '', recommendations: '' })); setActionMessage('تم حفظ المتابعة وتحديث ملف العميل.');
+      await load(true);
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر حفظ المتابعة.'); }
+    finally { setSaving(false); }
+  }
+
+  async function saveAppointment(e: FormEvent) {
+    e.preventDefault(); setSaving(true); setActionError(''); setActionMessage('');
+    try {
+      if (!appointment.startsAt || !appointment.endsAt) throw new Error('حدد وقت بداية ونهاية الموعد.');
+      await apiFetch('/appointments', { method: 'POST', body: JSON.stringify({ customerId: id, staffId: appointment.staffId || currentUserId, startsAt: new Date(appointment.startsAt).toISOString(), endsAt: new Date(appointment.endsAt).toISOString(), appointmentType: appointment.appointmentType, status: appointment.status, notes: appointment.notes || null }) });
+      setAppointment(v => ({ ...v, startsAt: '', endsAt: '', notes: '' })); setActionMessage('تم إنشاء الموعد وتحديث ملف العميل.');
+      await load(true);
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر إنشاء الموعد.'); }
+    finally { setSaving(false); }
+  }
 
   if (loading) return <main className="app-shell"><div className="info-strip">جارٍ تحميل ملف العميل...</div></main>;
   if (error || !data) return <main className="app-shell"><div className="info-strip warning">{error || 'العميل غير موجود.'}</div><Link className="secondary-button" to="/admin/customers">العودة إلى العملاء</Link></main>;
@@ -59,38 +109,76 @@ export default function Customer360() {
   const { customer, measurements, nutrition, fitness, appointments, sales, followUps } = data;
   const upcoming = appointments.filter(a => new Date(a.startsAt).getTime() >= Date.now()).slice(0, 5);
   const nextAppointment = upcoming[0];
-  const latestFollowUp = followUps[0];
-  const latestWeight = latestFollowUp?.weight ?? null;
+  const latestWeight = followUps[0]?.weight ?? null;
   const totalSales = sales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
 
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div>
-          <p className="eyebrow">CUSTOMER 360</p>
-          <h1>{customer.firstName} {customer.lastName}</h1>
-          <p>{customer.customerNumber} · {customer.status === 'active' ? 'عميل نشط' : label(customer.status)}</p>
-        </div>
-        <div className="header-actions">
-          <span className="live-search-status">{refreshing ? 'جاري التحديث...' : 'تحديث تلقائي'}</span>
-          <button className="secondary-button" type="button" onClick={() => void load(true)}>تحديث الآن</button>
-          <Link className="secondary-button" to="/admin/customers">العملاء</Link>
-          <Link className="secondary-button" to="/admin/dashboard">لوحة التحكم</Link>
-        </div>
+        <div><p className="eyebrow">CUSTOMER 360</p><h1>{customer.firstName} {customer.lastName}</h1><p>{customer.customerNumber} · {customer.status === 'active' ? 'عميل نشط' : label(customer.status)}</p></div>
+        <div className="header-actions"><span className="live-search-status">{refreshing ? 'جاري التحديث...' : 'تحديث تلقائي'}</span><button className="secondary-button" type="button" onClick={() => void load(true)}>تحديث الآن</button><Link className="secondary-button" to="/admin/customers">العملاء</Link><Link className="secondary-button" to="/admin/dashboard">لوحة التحكم</Link></div>
       </header>
 
       <section className="customer-action-bar">
-        <div className="customer-action-title"><span className="eyebrow">إجراءات سريعة</span><strong>ماذا تريد أن تفعل بهذا العميل؟</strong></div>
+        <div className="customer-action-title"><span className="eyebrow">إجراءات سريعة</span><strong>العمل على العميل مباشرة</strong></div>
         <div className="customer-action-links">
           {customer.phone && <a className="primary-action" href={`tel:${customer.phone}`}>اتصال</a>}
           {customer.phone && <a className="secondary-button" href={`https://wa.me/${customer.phone.replace(/\\D/g, '')}`} target="_blank" rel="noreferrer">واتساب</a>}
-          <Link className="secondary-button" to="/admin/follow-ups">متابعة جديدة</Link>
-          <Link className="secondary-button" to="/admin/measurements">إضافة قياس</Link>
+          <button className="secondary-button" type="button" onClick={() => void openAction('followUp')}>متابعة جديدة</button>
+          <button className="secondary-button" type="button" onClick={() => void openAction('measurement')}>إضافة قياس</button>
           <Link className="secondary-button" to="/admin/nutrition">خطة غذائية</Link>
           <Link className="secondary-button" to="/admin/fitness">خطة لياقة</Link>
-          <Link className="secondary-button" to="/admin/appointments">موعد</Link>
+          <button className="secondary-button" type="button" onClick={() => void openAction('appointment')}>موعد</button>
         </div>
       </section>
+
+      {action && (
+        <section className="customer-action-panel panel">
+          <div className="panel-heading-row"><div><span className="eyebrow">{action === 'measurement' ? 'NEW MEASUREMENT' : action === 'followUp' ? 'NEW FOLLOW-UP' : 'NEW APPOINTMENT'}</span><h2>{action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : 'حجز موعد للعميل'}</h2></div><button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button></div>
+          {actionError && <div className="info-strip warning">{actionError}</div>}
+          {actionMessage && <div className="info-strip">{actionMessage}</div>}
+
+          {action === 'measurement' && <form className="form-stack" onSubmit={saveMeasurement}>
+            <div className="form-row">
+              <label>نوع القياس<select required value={measurement.typeId} onChange={e => setMeasurement(v => ({ ...v, typeId: e.target.value }))}>{measurementTypes.map(t => <option key={t.id} value={t.id}>{t.name}{t.unit ? ` (${t.unit})` : ''}</option>)}</select></label>
+              <label>القيمة<input type="number" step="0.01" required value={measurement.value} onChange={e => setMeasurement(v => ({ ...v, value: e.target.value }))} /></label>
+              <label>وقت القياس<input type="datetime-local" value={measurement.measuredAt} onChange={e => setMeasurement(v => ({ ...v, measuredAt: e.target.value }))} /></label>
+            </div>
+            <label>ملاحظات<textarea value={measurement.notes} onChange={e => setMeasurement(v => ({ ...v, notes: e.target.value }))} /></label>
+            <button className="primary-action button" disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ القياس'}</button>
+          </form>}
+
+          {action === 'followUp' && <form className="form-stack" onSubmit={saveFollowUp}>
+            <div className="form-row">
+              <label>المختص / الموظف<select required value={followUp.staffId} onChange={e => setFollowUp(v => ({ ...v, staffId: e.target.value }))}>{staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+              <label>تاريخ المتابعة<input type="datetime-local" value={followUp.followUpAt} onChange={e => setFollowUp(v => ({ ...v, followUpAt: e.target.value }))} /></label>
+              <label>المتابعة القادمة<input type="datetime-local" value={followUp.nextFollowUpAt} onChange={e => setFollowUp(v => ({ ...v, nextFollowUpAt: e.target.value }))} /></label>
+              <label>الوزن (كجم)<input type="number" min="0" step="0.01" value={followUp.weight} onChange={e => setFollowUp(v => ({ ...v, weight: e.target.value }))} /></label>
+              <label>الطول (سم)<input type="number" min="0" step="0.1" value={followUp.height} onChange={e => setFollowUp(v => ({ ...v, height: e.target.value }))} /></label>
+            </div>
+            <div className="form-row">
+              <label>الالتزام العام (%)<input type="number" min="0" max="100" value={followUp.adherenceScore} onChange={e => setFollowUp(v => ({ ...v, adherenceScore: e.target.value }))} /></label>
+              <label>الالتزام الغذائي (%)<input type="number" min="0" max="100" value={followUp.nutritionScore} onChange={e => setFollowUp(v => ({ ...v, nutritionScore: e.target.value }))} /></label>
+              <label>الالتزام الرياضي (%)<input type="number" min="0" max="100" value={followUp.fitnessScore} onChange={e => setFollowUp(v => ({ ...v, fitnessScore: e.target.value }))} /></label>
+            </div>
+            <label>ملاحظات المتابعة<textarea value={followUp.notes} onChange={e => setFollowUp(v => ({ ...v, notes: e.target.value }))} /></label>
+            <label>التوصيات للعميل<textarea value={followUp.recommendations} onChange={e => setFollowUp(v => ({ ...v, recommendations: e.target.value }))} /></label>
+            <button className="primary-action button" disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ المتابعة'}</button>
+          </form>}
+
+          {action === 'appointment' && <form className="form-stack" onSubmit={saveAppointment}>
+            <div className="form-row">
+              <label>المختص / الموظف<select required value={appointment.staffId} onChange={e => setAppointment(v => ({ ...v, staffId: e.target.value }))}>{staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+              <label>نوع الموعد<input required minLength={2} value={appointment.appointmentType} onChange={e => setAppointment(v => ({ ...v, appointmentType: e.target.value }))} /></label>
+              <label>البداية<input required type="datetime-local" value={appointment.startsAt} onChange={e => setAppointment(v => ({ ...v, startsAt: e.target.value }))} /></label>
+              <label>النهاية<input required type="datetime-local" value={appointment.endsAt} onChange={e => setAppointment(v => ({ ...v, endsAt: e.target.value }))} /></label>
+              <label>الحالة<select value={appointment.status} onChange={e => setAppointment(v => ({ ...v, status: e.target.value }))}><option value="scheduled">مجدول</option><option value="confirmed">مؤكد</option></select></label>
+            </div>
+            <label>ملاحظات الموعد<textarea value={appointment.notes} onChange={e => setAppointment(v => ({ ...v, notes: e.target.value }))} /></label>
+            <button className="primary-action button" disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ الموعد'}</button>
+          </form>}
+        </section>
+      )}
 
       <section className="customer-kpi-grid">
         <div className="customer-kpi"><span>آخر وزن مسجل</span><strong>{latestWeight ? `${latestWeight} كجم` : '—'}</strong></div>
@@ -99,56 +187,22 @@ export default function Customer360() {
         <div className="customer-kpi"><span>إجمالي المشتريات</span><strong>{totalSales.toFixed(2)} ر.س</strong></div>
       </section>
 
-      <section className="customer-next-appointment">
-        <div><span className="eyebrow">NEXT APPOINTMENT</span><strong>{nextAppointment ? nextAppointment.appointmentType : 'لا يوجد موعد قادم'}</strong></div>
-        <span>{nextAppointment ? new Date(nextAppointment.startsAt).toLocaleString('ar-SA') : 'يمكن إنشاء موعد من الإجراءات السريعة'}</span>
-      </section>
+      <section className="customer-next-appointment"><div><span className="eyebrow">NEXT APPOINTMENT</span><strong>{nextAppointment ? nextAppointment.appointmentType : 'لا يوجد موعد قادم'}</strong></div><span>{nextAppointment ? new Date(nextAppointment.startsAt).toLocaleString('ar-SA') : 'يمكن إنشاء موعد من الإجراءات السريعة'}</span></section>
 
       <section className="customer-summary">
-        <div><span className="eyebrow">رقم العميل</span><strong>{customer.customerNumber}</strong></div>
-        <div><span className="eyebrow">الجوال</span><span dir="ltr">{customer.phone || '—'}</span></div>
-        <div><span className="eyebrow">البريد الإلكتروني</span><span dir="ltr">{customer.email || '—'}</span></div>
-        <div><span className="eyebrow">تاريخ الميلاد</span><span>{customer.dateOfBirth || '—'}</span></div>
-        <div><span className="eyebrow">الجنس</span><span>{customer.gender === 'male' ? 'ذكر' : customer.gender === 'female' ? 'أنثى' : '—'}</span></div>
-        <div><span className="eyebrow">مصدر العميل</span><span>{customer.source || '—'}</span></div>
+        <div><span className="eyebrow">رقم العميل</span><strong>{customer.customerNumber}</strong></div><div><span className="eyebrow">الجوال</span><span dir="ltr">{customer.phone || '—'}</span></div><div><span className="eyebrow">البريد الإلكتروني</span><span dir="ltr">{customer.email || '—'}</span></div><div><span className="eyebrow">تاريخ الميلاد</span><span>{customer.dateOfBirth || '—'}</span></div><div><span className="eyebrow">الجنس</span><span>{customer.gender === 'male' ? 'ذكر' : customer.gender === 'female' ? 'أنثى' : '—'}</span></div><div><span className="eyebrow">مصدر العميل</span><span>{customer.source || '—'}</span></div>
       </section>
 
       {customer.notes && <section className="panel"><div className="section-heading left"><span className="eyebrow">ملاحظات</span><h2>ملاحظات العميل</h2></div><p>{customer.notes}</p></section>}
 
       <section className="module-grid customer-live-grid">
-        <article className="module-card"><span className="module-code">FOLLOW-UP</span><h3>المتابعات الدورية</h3>
-          {followUps.length ? <div className="portal-data-list">{followUps.slice(0, 5).map(f => <div className="portal-data-row" key={f.id}><strong>{new Date(f.followUpAt).toLocaleDateString('ar-SA')}</strong><span>{f.weight ? f.weight + ' كجم' : '—'}{f.adherenceScore == null ? '' : ' · ' + f.adherenceScore + '%'}</span><small>{f.staffName || '—'}{f.nextFollowUpAt ? ' · التالية ' + new Date(f.nextFollowUpAt).toLocaleDateString('ar-SA') : ''}</small></div>)}</div> : <div className="empty-state">لا توجد متابعات.</div>}
-          <Link className="text-link" to="/admin/follow-ups">إدارة المتابعات</Link>
-        </article>
-        <article className="module-card"><span className="module-code">MEASUREMENTS</span><h3>آخر القياسات</h3>
-          {measurements.length ? <div className="portal-data-list">{measurements.slice(0, 8).map(m => <div className="portal-data-row" key={m.id}><strong>{m.typeName}</strong><span>{m.value} {m.unit || ''}</span><small>{new Date(m.measuredAt).toLocaleString('ar-SA')}</small></div>)}</div> : <div className="empty-state">لا توجد قياسات.</div>}
-          <Link className="text-link" to="/admin/measurements">إدارة القياسات</Link>
-        </article>
-        <article className="module-card"><span className="module-code">NUTRITION</span><h3>الخطط الغذائية</h3>
-          {nutrition.length ? <div className="portal-data-list">{nutrition.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد خطط غذائية.</div>}
-          <Link className="text-link" to="/admin/nutrition">إدارة التغذية</Link>
-        </article>
-        <article className="module-card"><span className="module-code">FITNESS</span><h3>خطط اللياقة</h3>
-          {fitness.length ? <div className="portal-data-list">{fitness.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد خطط لياقة.</div>}
-          <Link className="text-link" to="/admin/fitness">إدارة اللياقة</Link>
-        </article>
-        <article className="module-card"><span className="module-code">APPOINTMENTS</span><h3>المواعيد القادمة</h3>
-          {upcoming.length ? <div className="portal-data-list">{upcoming.map(a => <div className="portal-data-row" key={a.id}><strong>{a.appointmentType}</strong><span>{label(a.status)}</span><small>{new Date(a.startsAt).toLocaleString('ar-SA')}{a.staffName ? ` · ${a.staffName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد مواعيد قادمة.</div>}
-          <Link className="text-link" to="/admin/appointments">إدارة المواعيد</Link>
-        </article>
-        <article className="module-card"><span className="module-code">SALES</span><h3>مشتريات العميل</h3>
-          {sales.length ? <div className="portal-data-list">{sales.slice(0, 8).map(s => <div className="portal-data-row" key={s.id}><strong>{s.saleNumber}</strong><span>{s.total} ر.س</span><small>{label(s.status)} · {new Date(s.createdAt).toLocaleDateString('ar-SA')} · {label(s.paymentStatus)}</small></div>)}</div> : <div className="empty-state">لا توجد مشتريات مرتبطة بالعميل.</div>}
-        </article>
-        <article className="module-card"><span className="module-code">ACTIVITY</span><h3>ملخص العميل</h3>
-          <div className="portal-data-list">
-            <div className="portal-data-row"><strong>القياسات</strong><span>{measurements.length}</span></div>
-            <div className="portal-data-row"><strong>الخطط الغذائية</strong><span>{nutrition.length}</span></div>
-            <div className="portal-data-row"><strong>خطط اللياقة</strong><span>{fitness.length}</span></div>
-            <div className="portal-data-row"><strong>المواعيد</strong><span>{appointments.length}</span></div>
-            <div className="portal-data-row"><strong>المتابعات</strong><span>{followUps.length}</span></div>
-            <div className="portal-data-row"><strong>المبيعات</strong><span>{sales.length}</span></div>
-          </div>
-        </article>
+        <article className="module-card"><span className="module-code">FOLLOW-UP</span><h3>المتابعات الدورية</h3>{followUps.length ? <div className="portal-data-list">{followUps.slice(0, 5).map(f => <div className="portal-data-row" key={f.id}><strong>{new Date(f.followUpAt).toLocaleDateString('ar-SA')}</strong><span>{f.weight ? f.weight + ' كجم' : '—'}{f.adherenceScore == null ? '' : ' · ' + f.adherenceScore + '%'}</span><small>{f.staffName || '—'}{f.nextFollowUpAt ? ' · التالية ' + new Date(f.nextFollowUpAt).toLocaleDateString('ar-SA') : ''}</small></div>)}</div> : <div className="empty-state">لا توجد متابعات.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('followUp')}>إضافة متابعة</button></article>
+        <article className="module-card"><span className="module-code">MEASUREMENTS</span><h3>آخر القياسات</h3>{measurements.length ? <div className="portal-data-list">{measurements.slice(0, 8).map(m => <div className="portal-data-row" key={m.id}><strong>{m.typeName}</strong><span>{m.value} {m.unit || ''}</span><small>{new Date(m.measuredAt).toLocaleString('ar-SA')}</small></div>)}</div> : <div className="empty-state">لا توجد قياسات.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('measurement')}>إضافة قياس</button></article>
+        <article className="module-card"><span className="module-code">NUTRITION</span><h3>الخطط الغذائية</h3>{nutrition.length ? <div className="portal-data-list">{nutrition.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد خطط غذائية.</div>}<Link className="text-link" to="/admin/nutrition">إدارة التغذية</Link></article>
+        <article className="module-card"><span className="module-code">FITNESS</span><h3>خطط اللياقة</h3>{fitness.length ? <div className="portal-data-list">{fitness.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد خطط لياقة.</div>}<Link className="text-link" to="/admin/fitness">إدارة اللياقة</Link></article>
+        <article className="module-card"><span className="module-code">APPOINTMENTS</span><h3>المواعيد القادمة</h3>{upcoming.length ? <div className="portal-data-list">{upcoming.map(a => <div className="portal-data-row" key={a.id}><strong>{a.appointmentType}</strong><span>{label(a.status)}</span><small>{new Date(a.startsAt).toLocaleString('ar-SA')}{a.staffName ? ` · ${a.staffName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد مواعيد قادمة.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('appointment')}>حجز موعد</button></article>
+        <article className="module-card"><span className="module-code">SALES</span><h3>مشتريات العميل</h3>{sales.length ? <div className="portal-data-list">{sales.slice(0, 8).map(s => <div className="portal-data-row" key={s.id}><strong>{s.saleNumber}</strong><span>{s.total} ر.س</span><small>{label(s.status)} · {new Date(s.createdAt).toLocaleDateString('ar-SA')} · {label(s.paymentStatus)}</small></div>)}</div> : <div className="empty-state">لا توجد مشتريات مرتبطة بالعميل.</div>}</article>
+        <article className="module-card"><span className="module-code">ACTIVITY</span><h3>ملخص العميل</h3><div className="portal-data-list"><div className="portal-data-row"><strong>القياسات</strong><span>{measurements.length}</span></div><div className="portal-data-row"><strong>الخطط الغذائية</strong><span>{nutrition.length}</span></div><div className="portal-data-row"><strong>خطط اللياقة</strong><span>{fitness.length}</span></div><div className="portal-data-row"><strong>المواعيد</strong><span>{appointments.length}</span></div><div className="portal-data-row"><strong>المتابعات</strong><span>{followUps.length}</span></div><div className="portal-data-row"><strong>المبيعات</strong><span>{sales.length}</span></div></div></article>
       </section>
     </main>
   );

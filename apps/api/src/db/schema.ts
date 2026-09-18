@@ -293,6 +293,61 @@ export const saleItems = pgTable('sale_items', {
   lineTotal: numeric('line_total', { precision: 14, scale: 2 }).notNull(),
 });
 
+export const taxRates = pgTable('tax_rates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
+  code: varchar('code', { length: 50 }).notNull(),
+  name: varchar('name', { length: 150 }).notNull(),
+  rate: numeric('rate', { precision: 7, scale: 4 }).notNull(),
+  categoryCode: varchar('category_code', { length: 10 }).notNull().default('S'),
+  exemptionReasonCode: varchar('exemption_reason_code', { length: 20 }),
+  active: boolean('active').notNull().default(true),
+  ...auditTimestamps,
+}, (table) => [
+  uniqueIndex('tax_rates_center_code_uq').on(table.centerId, table.code),
+  index('tax_rates_center_active_idx').on(table.centerId, table.active),
+]);
+
+export const zatcaSettings = pgTable('zatca_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().unique().references(() => centers.id),
+  environment: varchar('environment', { length: 20 }).notNull().default('simulation'),
+  vatNumber: varchar('vat_number', { length: 20 }),
+  legalName: varchar('legal_name', { length: 200 }),
+  invoiceTypeCode: varchar('invoice_type_code', { length: 10 }).notNull().default('0200000'),
+  deviceSerial: varchar('device_serial', { length: 200 }),
+  pih: text('pih'),
+  lastIcv: integer('last_icv').notNull().default(0),
+  status: varchar('status', { length: 30 }).notNull().default('not_configured'),
+  lastError: text('last_error'),
+  ...auditTimestamps,
+});
+
+export const eInvoices = pgTable('e_invoices', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
+  saleId: uuid('sale_id').references(() => sales.id),
+  invoiceNumber: varchar('invoice_number', { length: 100 }).notNull(),
+  uuid: uuid('uuid').notNull().unique(),
+  invoiceType: varchar('invoice_type', { length: 30 }).notNull(),
+  status: varchar('status', { length: 30 }).notNull().default('pending'),
+  invoiceHash: text('invoice_hash'),
+  xml: text('xml'),
+  qrCode: text('qr_code'),
+  reportingStatus: varchar('reporting_status', { length: 30 }),
+  clearanceStatus: varchar('clearance_status', { length: 30 }),
+  responseCode: varchar('response_code', { length: 50 }),
+  responseBody: jsonb('response_body'),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  reportedAt: timestamp('reported_at', { withTimezone: true }),
+  clearedAt: timestamp('cleared_at', { withTimezone: true }),
+  ...auditTimestamps,
+}, (table) => [
+  uniqueIndex('e_invoices_center_number_uq').on(table.centerId, table.invoiceNumber),
+  uniqueIndex('e_invoices_sale_uq').on(table.saleId),
+  index('e_invoices_center_status_idx').on(table.centerId, table.status),
+]);
+
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').defaultRandom().primaryKey(),
   centerId: uuid('center_id').references(() => centers.id),

@@ -3,7 +3,6 @@ import { Hono } from 'hono';
 import { customers } from '../db/schema';
 import { customerAccounts } from '../db/customer-accounts';
 import { withDatabase } from '../db/client';
-import { getCompany } from '../db/company';
 import { requirePermission } from '../auth/permissions';
 
 export type CustomerBindings = { HYPERDRIVE?: { connectionString: string }; DATABASE_URL?: string };
@@ -70,12 +69,11 @@ customerRoutes.post('/', async (c) => {
   if (!customerNumber || !firstName || !lastName || !phone) return c.json({ error: { code: 'VALIDATION_ERROR', message: 'رقم العميل والاسم الأول واسم العائلة والجوال حقول مطلوبة' } }, 400);
 
   const created = await withDatabase(c.env, async db => {
-    const company = await getCompany(db);
-    if (!company) return { companyMissing: true as const };
-    const existing = await db.select({ id: customers.id }).from(customers).where(eq(customers.customerNumber, customerNumber)).limit(1);
+    const existing = await db.select({ id: customers.id }).from(customers)
+      .where(and(eq(customers.centerId, auth.user.centerId!), eq(customers.customerNumber, customerNumber))).limit(1);
     if (existing[0]) return { conflict: true as const };
     const values = {
-      centerId: company.id,
+      centerId: auth.user.centerId!,
       customerNumber,
       firstName,
       lastName,
@@ -92,7 +90,6 @@ customerRoutes.post('/', async (c) => {
     return { customer: rows[0] };
   });
 
-  if ('companyMissing' in created) return c.json({ error: { code: 'COMPANY_NOT_CONFIGURED', message: 'لم يتم إعداد بيانات الشركة في النظام بعد' } }, 503);
   if ('conflict' in created) return c.json({ error: { code: 'CUSTOMER_NUMBER_EXISTS', message: 'رقم العميل مستخدم بالفعل' } }, 409);
   return c.json({ customer: created.customer }, 201);
 });
@@ -125,12 +122,9 @@ customerRoutes.patch('/:id', async (c) => {
       .where(and(eq(customers.id, c.req.param('id')), eq(customers.centerId, auth.user.centerId!))).limit(1);
     if (!current[0]) return { notFound: true as const };
     if (data.customerNumber !== undefined) {
-      const duplicate = await db.select({ id: customers.id }).from(customers)
-        .where(and(eq(customers.centerId, auth.user.centerId!), eq(customers.customerNumber, data.customerNumber), eq(customers.id, c.req.param('id')))).limit(1);
-      const sameNumber = duplicate[0];
       const any = await db.select({ id: customers.id }).from(customers)
         .where(and(eq(customers.centerId, auth.user.centerId!), eq(customers.customerNumber, data.customerNumber))).limit(1);
-      if (any[0] && any[0].id !== sameNumber?.id) return { conflict: true as const };
+      if (any[0] && any[0].id !== c.req.param('id')) return { conflict: true as const };
     }
     const rows = await db.update(customers).set(data).where(and(eq(customers.id, c.req.param('id')), eq(customers.centerId, auth.user.centerId!))).returning();
     return rows[0] ? { customer: rows[0] } : { notFound: true as const };

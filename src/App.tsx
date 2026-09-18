@@ -56,7 +56,7 @@ function Login({ onLogin, portal }: { onLogin: (user: AuthUser) => void; portal:
   return (
     <main className="auth-page">
       <section className="auth-card">
-        <Link className="portal-back" to={isStaff ? '/staff' : '/customer'}>← العودة إلى {isStaff ? 'بوابة الإدارة' : 'بوابة العملاء'}</Link>
+        <Link className="portal-back" to={isStaff ? '/admin' : '/customer'}>← العودة إلى {isStaff ? 'بوابة الإدارة' : 'بوابة العملاء'}</Link>
         <div className="brand-mark small">N</div>
         <div className="brand-block">
           <span className="eyebrow">{isStaff ? 'STAFF & MANAGEMENT PORTAL' : 'CUSTOMER PORTAL'}</span>
@@ -220,7 +220,7 @@ function PortalEntry({ portal, user }: { portal: LoginPortal; user: AuthUser | n
             </>
           )}
         </div>
-        <Link className="portal-other-link" to={isStaff ? '/customer' : '/staff'}>الانتقال إلى {isStaff ? 'بوابة العملاء والمتجر' : 'بوابة الإدارة والموظفين'}</Link>
+        <Link className="portal-other-link" to={isStaff ? '/customer' : '/admin'}>الانتقال إلى {isStaff ? 'بوابة العملاء والمتجر' : 'بوابة الإدارة والموظفين'}</Link>
       </section>
     </main>
   );
@@ -233,7 +233,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
       await apiFetch<void>('/auth/logout', { method: 'POST' });
     } finally {
       onLogout();
-      navigate('/staff', { replace: true });
+      navigate('/admin', { replace: true });
     }
   }
 

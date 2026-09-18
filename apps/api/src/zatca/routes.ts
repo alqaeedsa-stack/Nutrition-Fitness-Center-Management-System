@@ -263,6 +263,40 @@ zatcaRoutes.post('/sales/:saleId/prepare', async c => {
   return c.json({ invoice: result.invoice }, 201);
 });
 
+zatcaRoutes.get('/invoices/:id/readiness', async c => {
+  const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
+  const invoiceRows = await withDatabase(c.env, db => db.select().from(eInvoices).where(and(
+    eq(eInvoices.id, c.req.param('id')), eq(eInvoices.centerId, auth.user.centerId!),
+  )).limit(1));
+  const invoice = invoiceRows[0];
+  if (!invoice) return c.json({ error: { code: 'EINVOICE_NOT_FOUND', message: 'الفاتورة الإلكترونية غير موجودة' } }, 404);
+
+  const settingsRows = await withDatabase(c.env, db => db.select().from(zatcaSettings)
+    .where(eq(zatcaSettings.centerId, auth.user.centerId!)).limit(1));
+  const settings = settingsRows[0];
+
+  const checks = {
+    sellerConfiguration: Boolean(settings?.vatNumber && settings.legalName),
+    sellerAddress: Boolean(settings?.sellerStreet && settings.sellerBuildingNumber && settings.sellerCity && settings.sellerPostalCode),
+    xmlGenerated: Boolean(invoice.xml),
+    cryptographicSignature: Boolean(invoice.xml && /<(?:ds:)?Signature\b/.test(invoice.xml)),
+    binarySecurityToken: Boolean(c.env.ZATCA_BINARY_SECURITY_TOKEN),
+    secret: Boolean(c.env.ZATCA_SECRET),
+  };
+  const readyForSubmission = Object.values(checks).every(Boolean);
+
+  return c.json({
+    invoiceId: invoice.id,
+    status: invoice.status,
+    environment: settings?.environment ?? null,
+    checks,
+    readyForSubmission,
+    note: readyForSubmission
+      ? 'الفاتورة مستوفية لفحوص الجاهزية المحلية قبل الإرسال.'
+      : 'الفاتورة غير جاهزة للإرسال. يلزم استكمال المتطلبات الناقصة، ولا يتم تجاوز فحص التوقيع.',
+  });
+});
+
 zatcaRoutes.post('/invoices/:id/submit', async c => {
   const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
   const invoiceRows = await withDatabase(c.env, db => db.select().from(eInvoices).where(and(

@@ -6,6 +6,7 @@ import { withDatabase } from '../db/client';
 import { eInvoices, products, saleItems, sales, staffProfiles, taxRates, zatcaSettings } from '../db/schema';
 import { submitZatcaInvoice } from './client';
 import { firstInvoicePreviousHash, generateZatcaInvoice } from './generator';
+import { validateZatcaSigningMaterial } from './signing';
 
 export type ZatcaBindings = {
   HYPERDRIVE?: { connectionString: string };
@@ -109,6 +110,16 @@ zatcaRoutes.get('/readiness', async c => {
     sellerPostalCode: zatcaSettings.sellerPostalCode,
   }).from(zatcaSettings).where(eq(zatcaSettings.centerId, auth.user.centerId!)).limit(1));
   const current = rows[0];
+  let signingMaterial = false;
+  if (c.env.ZATCA_PRIVATE_KEY_PEM && c.env.ZATCA_CERTIFICATE_PEM) {
+    try {
+      validateZatcaSigningMaterial(c.env.ZATCA_PRIVATE_KEY_PEM, c.env.ZATCA_CERTIFICATE_PEM);
+      signingMaterial = true;
+    } catch {
+      signingMaterial = false;
+    }
+  }
+
   const checks = {
     sellerConfiguration: Boolean(current?.vatNumber && current?.legalName),
     sellerAddress: Boolean(current?.sellerStreet && current?.sellerBuildingNumber && current?.sellerCity && current?.sellerPostalCode),
@@ -116,6 +127,7 @@ zatcaRoutes.get('/readiness', async c => {
     secret: Boolean(c.env.ZATCA_SECRET),
     privateKey: Boolean(c.env.ZATCA_PRIVATE_KEY_PEM),
     certificate: Boolean(c.env.ZATCA_CERTIFICATE_PEM),
+    signingMaterial,
     signingEngine: false,
   };
   return c.json({

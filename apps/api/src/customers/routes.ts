@@ -5,6 +5,7 @@ import { customerAccounts } from '../db/customer-accounts';
 import { withDatabase } from '../db/client';
 import { getCompany } from '../db/company';
 import { getAuthenticatedUser } from '../auth/session';
+import { staffProfiles } from '../db/schema';
 
 export type CustomerBindings = { HYPERDRIVE?: { connectionString: string }; DATABASE_URL?: string };
 export const customerRoutes = new Hono<{ Bindings: CustomerBindings }>();
@@ -13,15 +14,15 @@ async function requireStaffUser(c: any) {
   const user = await getAuthenticatedUser(c.env, c.req.raw);
   if (!user) return { error: c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401) };
 
-  const linkedCustomer = await withDatabase(c.env, async (db) => {
-    const rows = await db.select({ id: customerAccounts.id, status: customerAccounts.status })
-      .from(customerAccounts)
-      .where(eq(customerAccounts.userId, user.userId))
+  const staff = await withDatabase(c.env, async (db) => {
+    const rows = await db.select({ id: staffProfiles.id, active: staffProfiles.active })
+      .from(staffProfiles)
+      .where(eq(staffProfiles.userId, user.userId))
       .limit(1);
     return rows[0] ?? null;
   });
 
-  if (linkedCustomer?.status === 'active') {
+  if (!staff?.active) {
     return { error: c.json({ error: { code: 'STAFF_ACCESS_REQUIRED', message: 'هذه الوحدة مخصصة لموظفي المركز' } }, 403) };
   }
 

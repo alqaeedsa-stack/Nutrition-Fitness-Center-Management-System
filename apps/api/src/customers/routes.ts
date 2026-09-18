@@ -148,7 +148,7 @@ customerRoutes.delete('/:id', async (c) => {
     const current = await db.select({ id: customers.id }).from(customers).where(and(eq(customers.id, id), eq(customers.centerId, auth.user.centerId!))).limit(1);
     if (!current[0]) return { notFound: true as const };
     const refs = await Promise.all([
-      db.select({ id: customerAccounts.id }).from(customerAccounts).where(eq(customerAccounts.userId, id)).limit(1),
+      db.select({ id: customerAccounts.id }).from(customerAccounts).where(eq(customerAccounts.customerId, id)).limit(1),
     ]);
     if (refs.some(rows => rows.length > 0)) return { dependent: true as const };
     try {

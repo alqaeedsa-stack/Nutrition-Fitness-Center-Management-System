@@ -1,6 +1,6 @@
 import { and, desc, eq, ilike, or } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { appointments, customerFollowUps, customers, fitnessPlans, measurementRecords, measurementTypes, nutritionPlans, sales, staffProfiles, users } from '../db/schema';
+import { appointments, customerFollowUps, customers, fitnessPlans, measurementRecords, measurementTypes, nutritionPlans, sales, staffProfiles } from '../db/schema';
 import { customerAccounts } from '../db/customer-accounts';
 import { withDatabase } from '../db/client';
 import { requirePermission } from '../auth/permissions';

@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
-import { auditLogs, brands, categories, products, saleItems, sales, stockMovements, staffProfiles, users } from '../db/schema';
+import { auditLogs, brands, categories, customers, productBarcodes, products, saleItems, sales, stockMovements, staffProfiles, users } from '../db/schema';
 import { storeOrderItems, storeOrders } from '../db/store';
 import { getCompany } from '../db/company';
 import { getAuthenticatedUser } from '../auth/session';
@@ -321,6 +321,136 @@ staffRoutes.post('/inventory/adjust', async c => {
   }));
   if ('error' in result) return c.json({ error: { code: result.error, message: 'المنتج غير موجود' } }, 404);
   return c.json({ movement: result.movement }, 201);
+});
+
+
+const posSaleSchema = z.object({
+  customerId: z.string().uuid().nullable().optional(),
+  paymentMethod: z.enum(['cash', 'card', 'mada', 'bank_transfer']),
+  items: z.array(z.object({
+    productId: z.string().uuid(),
+    quantity: z.coerce.number().positive().max(9999),
+    unitPrice: z.coerce.number().min(0),
+    discount: z.coerce.number().min(0).default(0),
+  })).min(1).max(500),
+});
+
+staffRoutes.get('/pos/products', async c => {
+  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const query = (c.req.query('q') ?? '').trim();
+  if (!query) return c.json({ products: [] });
+
+  const rows = await withDatabase(c.env, db => db.select({
+    id: products.id, sku: products.sku, name: products.name,
+    sellingPrice: products.sellingPrice, purchaseCost: products.purchaseCost,
+    barcode: productBarcodes.barcode,
+    quantity: sql<number>`coalesce(sum(${stockMovements.quantity}), 0)`,
+  }).from(products)
+    .leftJoin(productBarcodes, and(eq(productBarcodes.productId, products.id), eq(productBarcodes.active, true)))
+    .leftJoin(stockMovements, eq(stockMovements.productId, products.id))
+    .where(and(
+      eq(products.centerId, auth.user.centerId!), eq(products.active, true),
+      or(eq(products.sku, query), eq(productBarcodes.barcode, query),
+        sql`lower(${products.name}) like lower(${`%\${query}%`})`),
+    ))
+    .groupBy(products.id, productBarcodes.barcode)
+    .orderBy(asc(products.name)).limit(20));
+  return c.json({ products: rows });
+});
+
+staffRoutes.get('/pos/customers', async c => {
+  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const query = (c.req.query('q') ?? '').trim();
+  if (!query) return c.json({ customers: [] });
+  const rows = await withDatabase(c.env, db => db.select({
+    id: customers.id, customerNumber: customers.customerNumber,
+    firstName: customers.firstName, lastName: customers.lastName, phone: customers.phone,
+  }).from(customers).where(and(
+    eq(customers.centerId, auth.user.centerId!), eq(customers.status, 'active'),
+    or(eq(customers.customerNumber, query), eq(customers.phone, query),
+      sql`lower(concat(${customers.firstName}, ' ', ${customers.lastName})) like lower(${`%\${query}%`})`),
+  )).orderBy(asc(customers.firstName)).limit(20));
+  return c.json({ customers: rows });
+});
+
+staffRoutes.post('/pos/sales', async c => {
+  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const body = posSaleSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'بيانات البيع غير صحيحة' } }, 400);
+
+  const result = await withDatabase(c.env, db => db.transaction(async tx => {
+    const data = body.data;
+    const ids = [...new Set(data.items.map(item => item.productId))].sort();
+    const locked = await tx.select({
+      id: products.id, sku: products.sku, name: products.name,
+      purchaseCost: products.purchaseCost, sellingPrice: products.sellingPrice, active: products.active,
+    }).from(products).where(and(
+      eq(products.centerId, auth.user.centerId!), inArray(products.id, ids), eq(products.active, true),
+    ));
+    if (locked.length !== ids.length) return { error: 'PRODUCT_NOT_FOUND' as const };
+    for (const id of ids) await tx.execute(sql`select id from products where id = ${id} for update`);
+
+    if (data.customerId) {
+      const customer = await tx.select({ id: customers.id }).from(customers).where(and(
+        eq(customers.id, data.customerId), eq(customers.centerId, auth.user.centerId!), eq(customers.status, 'active'),
+      )).limit(1);
+      if (!customer[0]) return { error: 'CUSTOMER_NOT_FOUND' as const };
+    }
+
+    const movementRows = await tx.select({ productId: stockMovements.productId, quantity: stockMovements.quantity })
+      .from(stockMovements).where(and(
+        eq(stockMovements.centerId, auth.user.centerId!), inArray(stockMovements.productId, ids),
+      ));
+    const available = new Map<string, number>();
+    for (const row of movementRows) available.set(row.productId, (available.get(row.productId) ?? 0) + Number(row.quantity));
+    const productMap = new Map(locked.map(p => [p.id, p]));
+
+    for (const item of data.items) {
+      const product = productMap.get(item.productId)!;
+      if (item.unitPrice < Number(product.purchaseCost)) return { error: 'BELOW_COST' as const, productId: item.productId };
+      if (item.quantity > (available.get(item.productId) ?? 0)) return { error: 'INSUFFICIENT_STOCK' as const, productId: item.productId };
+    }
+
+    const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const discount = data.items.reduce((sum, item) => sum + item.discount, 0);
+    const total = Math.max(0, subtotal - discount);
+    const saleNumber = `POS-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+
+    const saleRows = await tx.insert(sales).values({
+      centerId: auth.user.centerId!, customerId: data.customerId ?? null, soldBy: auth.user.userId,
+      saleNumber, status: 'completed', subtotal: subtotal.toFixed(2), discount: discount.toFixed(2),
+      tax: '0', total: total.toFixed(2), paymentMethod: data.paymentMethod,
+    }).returning();
+    const sale = saleRows[0];
+    if (!sale) return { error: 'SALE_CREATE_FAILED' as const };
+
+    await tx.insert(saleItems).values(data.items.map(item => ({
+      saleId: sale.id, productId: item.productId, quantity: item.quantity.toFixed(3),
+      unitPrice: item.unitPrice.toFixed(2), discount: item.discount.toFixed(2),
+      tax: '0', lineTotal: (item.quantity * item.unitPrice - item.discount).toFixed(2),
+    })));
+
+    await tx.insert(stockMovements).values(data.items.map(item => ({
+      centerId: auth.user.centerId!, productId: item.productId, movementType: 'sale',
+      quantity: (-item.quantity).toFixed(3), unitCost: Number(productMap.get(item.productId)!.purchaseCost).toFixed(2),
+      referenceType: 'pos_sale', referenceId: sale.id, occurredAt: new Date(), createdBy: auth.user.userId,
+      notes: `صرف من نقطة البيع ${saleNumber}`,
+    })));
+    return { sale };
+  }));
+
+  if ('error' in result) {
+    const messages: Record<string, [string, string, number]> = {
+      PRODUCT_NOT_FOUND: ['PRODUCT_NOT_FOUND', 'يوجد منتج غير متاح أو غير تابع للمركز', 404],
+      CUSTOMER_NOT_FOUND: ['CUSTOMER_NOT_FOUND', 'العميل غير موجود أو غير نشط', 404],
+      BELOW_COST: ['BELOW_COST', 'لا يمكن بيع منتج بسعر أقل من تكلفة الشراء', 409],
+      INSUFFICIENT_STOCK: ['INSUFFICIENT_STOCK', 'المخزون الحالي غير كافٍ لإتمام البيع', 409],
+      SALE_CREATE_FAILED: ['SALE_CREATE_FAILED', 'تعذر إنشاء عملية البيع', 500],
+    };
+    const [code, message, status] = messages[result.error] ?? ['POS_ERROR', 'تعذر إتمام البيع', 500];
+    return c.json({ error: { code, message } }, status as any);
+  }
+  return c.json({ sale: result.sale }, 201);
 });
 
 staffRoutes.get('/orders', async c => {

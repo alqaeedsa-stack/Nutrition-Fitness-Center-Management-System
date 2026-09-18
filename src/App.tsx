@@ -5,7 +5,15 @@ import CustomerPortal from './CustomerPortal';
 import { ForgotPassword, ResetPassword } from './PasswordReset';
 import { apiFetch } from './lib/api';
 
-type AuthUser = { id: string; centerId?: string | null; email?: string | null; phone?: string | null; status: string; role: 'customer' | 'staff' };
+type AuthUser = {
+  id: string;
+  centerId?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  status: string;
+  role: 'customer' | 'staff';
+};
+
 type LoginPortal = 'customer' | 'staff';
 
 const countryCodes = [
@@ -17,7 +25,7 @@ const countryCodes = [
   ['86', 'الصين'], ['61', 'أستراليا'], ['64', 'نيوزيلندا'], ['27', 'جنوب أفريقيا']
 ] as const;
 
-function Login({ onLogin, portal = 'customer' }: { onLogin: (user: AuthUser) => void; portal?: LoginPortal }) {
+function Login({ onLogin, portal }: { onLogin: (user: AuthUser) => void; portal: LoginPortal }) {
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -26,111 +34,333 @@ function Login({ onLogin, portal = 'customer' }: { onLogin: (user: AuthUser) => 
   const isStaff = portal === 'staff';
 
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError(''); setLoading(true);
+    event.preventDefault();
+    setError('');
+    setLoading(true);
     try {
-      const result = await apiFetch<{ user: AuthUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ identifier, password, portal }) });
+      const result = await apiFetch<{ user: AuthUser }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ identifier, password, portal }),
+      });
       onLogin(result.user);
-      navigate(isStaff ? '/dashboard' : '/customer', { replace: true });
+      navigate(isStaff ? '/staff/dashboard' : '/customer/home', { replace: true });
     } catch {
-      setError(isStaff ? 'تعذر دخول الإدارة والموظفين. تحقق من البيانات ونوع الحساب.' : 'تعذر تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور.');
-    } finally { setLoading(false); }
+      setError(isStaff
+        ? 'تعذر الدخول إلى بوابة الإدارة والموظفين. تحقق من البريد/الجوال وكلمة المرور.'
+        : 'تعذر الدخول إلى بوابة العملاء. تحقق من البريد الإلكتروني وكلمة المرور.');
+    } finally {
+      setLoading(false);
+    }
   }
 
-  return <main className="auth-page"><section className="auth-card">
-    <div className="brand-mark small">N</div>
-    <div className="brand-block"><span className="eyebrow">Nutrition & Fitness Center</span><h1>{isStaff ? 'دخول الإدارة والموظفين' : 'دخول العملاء'}</h1><p>{isStaff ? 'ادخل إلى مساحة العمل الخاصة بك لإدارة المركز وتشغيل وحداته.' : 'سجّل الدخول بالبريد الإلكتروني لمتابعة ملفك وخططك وقياساتك ومواعيدك.'}</p></div>
-    <form onSubmit={submit} className="form-stack">
-      <label>{isStaff ? 'البريد الإلكتروني أو الجوال' : 'البريد الإلكتروني'}<input type={isStaff ? 'text' : 'email'} value={identifier} onChange={e => setIdentifier(e.target.value)} autoComplete="username" required /></label>
-      <label>كلمة المرور<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required /></label>
-      {error && <div className="form-error" role="alert">{error}</div>}
-      <button className="primary-action button" type="submit" disabled={loading}>{loading ? 'جارٍ التحقق...' : isStaff ? 'دخول مساحة العمل' : 'تسجيل الدخول'}</button>
-    </form>
-    {!isStaff && <div className="auth-switch"><Link className="text-link" to="/forgot-password">نسيت كلمة المرور؟</Link></div>}
-    {!isStaff && <div className="auth-switch">ليس لديك حساب؟ <Link className="text-link" to="/register">تسجيل عميل جديد</Link></div>}
-    <div className="auth-switch">{isStaff ? <><span>عميل؟ </span><Link className="text-link" to="/login">دخول العملاء</Link></> : <><span>موظف أو مدير؟ </span><Link className="text-link" to="/staff/login">دخول الإدارة والموظفين</Link></>}</div>
-    <Link className="text-link" to="/">العودة للرئيسية</Link>
-  </section></main>;
+  return (
+    <main className="auth-page">
+      <section className="auth-card">
+        <Link className="portal-back" to={isStaff ? '/staff' : '/customer'}>← العودة إلى {isStaff ? 'بوابة الإدارة' : 'بوابة العملاء'}</Link>
+        <div className="brand-mark small">N</div>
+        <div className="brand-block">
+          <span className="eyebrow">{isStaff ? 'STAFF & MANAGEMENT PORTAL' : 'CUSTOMER PORTAL'}</span>
+          <h1>{isStaff ? 'دخول الإدارة والموظفين' : 'دخول العملاء'}</h1>
+          <p>{isStaff
+            ? 'بوابة العمل الداخلية للإدارة والأطباء والأخصائيين والموظفين.'
+            : 'بوابة العميل الخاصة بالحساب والخطط والمواعيد والمشتريات والمتجر.'}</p>
+        </div>
+        <form onSubmit={submit} className="form-stack">
+          <label>
+            {isStaff ? 'البريد الإلكتروني أو الجوال' : 'البريد الإلكتروني'}
+            <input type={isStaff ? 'text' : 'email'} value={identifier} onChange={e => setIdentifier(e.target.value)} autoComplete="username" required />
+          </label>
+          <label>
+            كلمة المرور
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required />
+          </label>
+          {error && <div className="form-error" role="alert">{error}</div>}
+          <button className="primary-action button" type="submit" disabled={loading}>
+            {loading ? 'جارٍ التحقق...' : 'دخول البوابة'}
+          </button>
+        </form>
+        {!isStaff && (
+          <>
+            <div className="auth-switch"><Link className="text-link" to="/customer/forgot-password">نسيت كلمة المرور؟</Link></div>
+            <div className="auth-switch">ليس لديك حساب؟ <Link className="text-link" to="/customer/register">تسجيل عميل جديد</Link></div>
+          </>
+        )}
+        <div className="auth-switch">
+          {isStaff
+            ? <>عميل؟ <Link className="text-link" to="/customer/login">دخول العملاء والمتجر</Link></>
+            : <>إدارة أو موظف؟ <Link className="text-link" to="/staff/login">دخول الإدارة والموظفين</Link></>}
+        </div>
+      </section>
+    </main>
+  );
 }
 
 function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
   const navigate = useNavigate();
   const [form, setForm] = useState({ firstName: '', lastName: '', countryCode: '966', phone: '', email: '', password: '', confirmPassword: '' });
-  const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
-  function update(key: keyof typeof form, value: string) { setForm(prev => ({ ...prev, [key]: value })); }
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  function update(key: keyof typeof form, value: string) {
+    setForm(prev => ({ ...prev, [key]: value }));
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError('');
-    if (!form.email.trim()) { setError('البريد الإلكتروني مطلوب'); return; }
+    event.preventDefault();
+    setError('');
+    if (!form.email.trim()) {
+      setError('البريد الإلكتروني مطلوب');
+      return;
+    }
     const localPhone = form.phone.replace(/\D/g, '');
     if (localPhone) {
-      if (form.countryCode === '966' && !/^5\d{8}$/.test(localPhone)) { setError('رقم الجوال السعودي يجب أن يتكون من 9 أرقام ويبدأ بـ 5'); return; }
-      if (localPhone.length < 6 || localPhone.length > 14) { setError('رقم الجوال غير صحيح'); return; }
+      if (form.countryCode === '966' && !/^5\d{8}$/.test(localPhone)) {
+        setError('رقم الجوال السعودي يجب أن يتكون من 9 أرقام ويبدأ بـ 5');
+        return;
+      }
+      if (localPhone.length < 6 || localPhone.length > 14) {
+        setError('رقم الجوال غير صحيح');
+        return;
+      }
     }
-    if (form.password !== form.confirmPassword) { setError('كلمتا المرور غير متطابقتين'); return; }
+    if (form.password !== form.confirmPassword) {
+      setError('كلمتا المرور غير متطابقتين');
+      return;
+    }
+
     setLoading(true);
     try {
       const phone = localPhone ? `+${form.countryCode}${localPhone}` : '';
-      const result = await apiFetch<{ user: AuthUser }>('/auth/register', { method: 'POST', body: JSON.stringify({ firstName: form.firstName, lastName: form.lastName, phone, email: form.email.trim(), password: form.password, confirmPassword: form.confirmPassword }) });
-      onLogin(result.user); navigate('/customer', { replace: true });
-    } catch (err) { setError(err instanceof Error ? err.message : 'تعذر إنشاء الحساب. تحقق من البيانات.'); }
-    finally { setLoading(false); }
+      const result = await apiFetch<{ user: AuthUser }>('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          firstName: form.firstName,
+          lastName: form.lastName,
+          phone,
+          email: form.email.trim(),
+          password: form.password,
+          confirmPassword: form.confirmPassword,
+        }),
+      });
+      onLogin(result.user);
+      navigate('/customer/home', { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذر إنشاء حساب العميل. تحقق من البيانات.');
+    } finally {
+      setLoading(false);
+    }
   }
-  return <main className="auth-page"><section className="auth-card register-card">
-    <div className="brand-mark small">N</div><div className="brand-block"><span className="eyebrow">Nutrition & Fitness Center</span><h1>إنشاء حساب عميل</h1><p>أنشئ حسابك بالبريد الإلكتروني، ويمكنك إضافة رقم الجوال اختياريًا.</p></div>
-    <form onSubmit={submit} className="form-stack">
-      <div className="form-row"><label>الاسم الأول<input value={form.firstName} onChange={e => update('firstName', e.target.value)} required /></label><label>اسم العائلة<input value={form.lastName} onChange={e => update('lastName', e.target.value)} required /></label></div>
-      <label>البريد الإلكتروني <span>(مطلوب)</span><input type="email" dir="ltr" value={form.email} onChange={e => update('email', e.target.value)} autoComplete="email" required /></label>
-      <label>رقم الجوال <span>(اختياري)</span><div className="phone-field" dir="ltr"><select aria-label="رمز الدولة" value={form.countryCode} onChange={e => update('countryCode', e.target.value)}>{countryCodes.map(([code, name]) => <option key={code} value={code}>+{code} — {name}</option>)}</select><input type="tel" inputMode="numeric" value={form.phone} onChange={e => update('phone', e.target.value)} autoComplete="tel-national" placeholder={form.countryCode === '966' ? '5XXXXXXXX' : 'رقم الجوال'} /></div><small>اختر رمز الدولة ثم اكتب رقم الجوال بدون رمز الدولة. السعودية هي الاختيار الافتراضي.</small></label>
-      <label>كلمة المرور<input type="password" value={form.password} onChange={e => update('password', e.target.value)} autoComplete="new-password" minLength={10} required /><small>10 أحرف على الأقل</small></label>
-      <label>تأكيد كلمة المرور<input type="password" value={form.confirmPassword} onChange={e => update('confirmPassword', e.target.value)} autoComplete="new-password" minLength={10} required /></label>
-      {error && <div className="form-error" role="alert">{error}</div>}
-      <button className="primary-action button" type="submit" disabled={loading}>{loading ? 'جارٍ إنشاء الحساب...' : 'إنشاء الحساب'}</button>
-    </form><div className="auth-switch">لديك حساب بالفعل؟ <Link className="text-link" to="/login">دخول العملاء</Link></div>
-  </section></main>;
+
+  return (
+    <main className="auth-page">
+      <section className="auth-card register-card">
+        <Link className="portal-back" to="/customer">← العودة إلى بوابة العملاء والمتجر</Link>
+        <div className="brand-mark small">N</div>
+        <div className="brand-block">
+          <span className="eyebrow">CUSTOMER PORTAL</span>
+          <h1>إنشاء حساب عميل</h1>
+          <p>التسجيل العام متاح للعملاء فقط. حسابات الإدارة والموظفين ينشئها النظام من داخل بوابة العمل.</p>
+        </div>
+        <form onSubmit={submit} className="form-stack">
+          <div className="form-row">
+            <label>الاسم الأول<input value={form.firstName} onChange={e => update('firstName', e.target.value)} required /></label>
+            <label>اسم العائلة<input value={form.lastName} onChange={e => update('lastName', e.target.value)} required /></label>
+          </div>
+          <label>البريد الإلكتروني <span>(مطلوب)</span><input type="email" dir="ltr" value={form.email} onChange={e => update('email', e.target.value)} autoComplete="email" required /></label>
+          <label>
+            رقم الجوال <span>(اختياري)</span>
+            <div className="phone-field" dir="ltr">
+              <select aria-label="رمز الدولة" value={form.countryCode} onChange={e => update('countryCode', e.target.value)}>
+                {countryCodes.map(([code, name]) => <option key={code} value={code}>+{code} — {name}</option>)}
+              </select>
+              <input type="tel" inputMode="numeric" value={form.phone} onChange={e => update('phone', e.target.value)} autoComplete="tel-national" placeholder={form.countryCode === '966' ? '5XXXXXXXX' : 'رقم الجوال'} />
+            </div>
+            <small>اختر رمز الدولة ثم اكتب الرقم بدون رمز الدولة. السعودية هي الاختيار الافتراضي.</small>
+          </label>
+          <label>كلمة المرور<input type="password" value={form.password} onChange={e => update('password', e.target.value)} autoComplete="new-password" minLength={10} required /><small>10 أحرف على الأقل</small></label>
+          <label>تأكيد كلمة المرور<input type="password" value={form.confirmPassword} onChange={e => update('confirmPassword', e.target.value)} autoComplete="new-password" minLength={10} required /></label>
+          {error && <div className="form-error" role="alert">{error}</div>}
+          <button className="primary-action button" type="submit" disabled={loading}>{loading ? 'جارٍ إنشاء الحساب...' : 'إنشاء حساب العميل'}</button>
+        </form>
+        <div className="auth-switch">لديك حساب؟ <Link className="text-link" to="/customer/login">دخول العملاء</Link></div>
+      </section>
+    </main>
+  );
 }
 
-function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
+function PortalEntry({ portal, user }: { portal: LoginPortal; user: AuthUser | null }) {
+  const isStaff = portal === 'staff';
+  if (user) return <Navigate to={user.role === 'staff' ? '/staff/dashboard' : '/customer/home'} replace />;
+
+  return (
+    <main className="portal-page">
+      <section className={`portal-card ${isStaff ? 'staff-portal' : 'customer-portal'}`}>
+        <div className="brand-mark">N</div>
+        <span className="eyebrow">{isStaff ? 'INTERNAL WORKSPACE' : 'CUSTOMER & STORE'}</span>
+        <h1>{isStaff ? 'بوابة الإدارة والموظفين' : 'بوابة العملاء والمتجر'}</h1>
+        <p>{isStaff
+          ? 'دخول منفصل للإدارة والأطباء والأخصائيين والموظفين لإدارة العملاء والمواعيد والمخزون ونقاط البيع والتشغيل الداخلي.'
+          : 'دخول منفصل للعملاء لمتابعة الحساب والقياسات والخطط والمواعيد والمشتريات والوصول إلى المتجر الإلكتروني.'}</p>
+        <div className="portal-actions">
+          <Link className="primary-action button" to={isStaff ? '/staff/login' : '/customer/login'}>{isStaff ? 'دخول الإدارة والموظفين' : 'دخول العملاء'}</Link>
+          {!isStaff && <Link className="secondary-button portal-action-link" to="/customer/register">إنشاء حساب عميل</Link>}
+        </div>
+        <div className="portal-sections">
+          {isStaff ? (
+            <>
+              <div><strong>الإدارة والموظفون</strong><span>حسابات العمل والصلاحيات</span></div>
+              <div><strong>العملاء والمواعيد</strong><span>التشغيل والمتابعة</span></div>
+              <div><strong>المخزون ونقاط البيع</strong><span>المنتجات والمبيعات</span></div>
+            </>
+          ) : (
+            <>
+              <div><strong>حساب العميل</strong><span>بياناتي وخططي ومواعيدي</span></div>
+              <div><strong>المتجر الإلكتروني</strong><span>تصفح المنتجات والطلبات</span></div>
+              <div><strong>المشتريات</strong><span>طلبات العميل وفواتيره</span></div>
+            </>
+          )}
+        </div>
+        <Link className="portal-other-link" to={isStaff ? '/customer' : '/staff'}>الانتقال إلى {isStaff ? 'بوابة العملاء والمتجر' : 'بوابة الإدارة والموظفين'}</Link>
+      </section>
+    </main>
+  );
+}
+
+function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
   const navigate = useNavigate();
-  async function logout() { try { await apiFetch<void>('/auth/logout', { method: 'POST' }); } finally { onLogout(); navigate('/staff/login', { replace: true }); } }
-  const modules = [['العملاء', 'Customer 360', 'ملف العميل والبيانات الأساسية والمتابعة.', '/customers'], ['المواعيد', 'Appointments', 'الحجوزات والمتابعة ومواعيد المركز.', ''], ['القياسات', 'Measurements', 'القياسات والتغيرات والتقارير المرتبطة بالعميل.', ''], ['الخطط الغذائية', 'Nutrition Plans', 'إعداد وإدارة الخطط الغذائية.', ''], ['اللياقة', 'Fitness Plans', 'خطط التدريب واللياقة.', ''], ['المبيعات', 'POS', 'المبيعات والفواتير والمرتجعات.', ''], ['المخزون', 'Inventory', 'الأصناف وحركات المخزون والجرد.', ''], ['التقارير', 'Reports', 'تقارير الإدارة والتحليل.', '']] as const;
-  return <main className="app-shell"><header className="app-header"><div className="brand-inline"><div className="brand-mark">N</div><div><span className="eyebrow">Nutrition & Fitness Center</span><h1>بوابة الإدارة والطاقم</h1></div></div><button className="secondary-button" onClick={logout}>تسجيل الخروج</button></header>
-    <section className="dashboard-intro"><p className="eyebrow">مساحة العمل الداخلية</p><h2>مرحبًا {user.email ?? user.phone ?? 'بك'}</h2><p>هذه البوابة مخصصة للإدارة والأطباء والأخصائيين والموظفين. لا تحتوي على بيانات أو وظائف خاصة بحسابات العملاء الشخصية.</p></section>
-    <section className="module-grid" aria-label="وحدات الإدارة">{modules.map(([title, code, description, path]) => <article className="module-card" key={code}><span className="module-code">{code}</span><h3>{title}</h3><p>{description}</p>{path ? <Link className="module-link" to={path}>فتح الوحدة ←</Link> : <span className="module-status">قيد البناء</span>}</article>)}</section>
-    <footer className="app-footer"><span>Nutrition & Fitness Center</span><span>{user.email ?? user.phone ?? 'حساب موظف'}</span></footer>
-  </main>;
+  async function logout() {
+    try {
+      await apiFetch<void>('/auth/logout', { method: 'POST' });
+    } finally {
+      onLogout();
+      navigate('/staff', { replace: true });
+    }
+  }
+
+  const modules = [
+    ['الإدارة', 'ADMIN', 'إعدادات المركز وإدارة التشغيل والصلاحيات.', ''],
+    ['الموظفون والأطباء والأخصائيون', 'STAFF', 'إدارة حسابات الطاقم الداخلي والأدوار.', ''],
+    ['العملاء', 'CUSTOMERS', 'ملفات العملاء والمتابعة والبيانات الأساسية.', '/customers'],
+    ['المواعيد', 'APPOINTMENTS', 'حجوزات المركز ومواعيد الأطباء والأخصائيين.', ''],
+    ['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', ''],
+    ['المخزون', 'INVENTORY', 'المنتجات والأرصدة وحركات المخزون والجرد.', ''],
+    ['الخطط الغذائية', 'NUTRITION', 'إعداد ومتابعة الخطط الغذائية.', ''],
+    ['الخطط الرياضية', 'FITNESS', 'إعداد ومتابعة خطط اللياقة.', ''],
+    ['التقارير', 'REPORTS', 'تقارير التشغيل والمبيعات والمخزون.', ''],
+  ] as const;
+
+  return (
+    <main className="app-shell staff-workspace">
+      <header className="app-header">
+        <div className="brand-inline">
+          <div className="brand-mark">N</div>
+          <div><span className="eyebrow">INTERNAL WORKSPACE</span><h1>بوابة الإدارة والموظفين</h1></div>
+        </div>
+        <button className="secondary-button" onClick={logout}>تسجيل الخروج</button>
+      </header>
+      <section className="dashboard-intro">
+        <p className="eyebrow">الإدارة والتشغيل الداخلي</p>
+        <h2>مساحة عمل الإدارة والطاقم</h2>
+        <p>هذه البوابة منفصلة عن بوابة العملاء والمتجر. تظهر هنا وظائف التشغيل الداخلية فقط.</p>
+      </section>
+      <section className="workspace-grid" aria-label="وحدات بوابة الإدارة والموظفين">
+        {modules.map(([title, code, description, path]) => (
+          <article className="workspace-card" key={code}>
+            <span className="module-code">{code}</span>
+            <h3>{title}</h3>
+            <p>{description}</p>
+            {path ? <Link className="module-link" to={path}>فتح الوحدة ←</Link> : <span className="module-status">قيد البناء</span>}
+          </article>
+        ))}
+      </section>
+      <footer className="app-footer"><span>بوابة الإدارة والموظفين</span><span>{user.email ?? user.phone ?? 'حساب موظف'}</span></footer>
+    </main>
+  );
 }
 
 function Home() {
-  return <main className="landing-page"><nav className="landing-nav"><div className="brand-inline"><div className="brand-mark">N</div><div className="brand-name"><strong>Nutrition</strong><span>& Fitness Center</span></div></div><div className="nav-actions"><Link className="nav-login" to="/login">دخول العملاء</Link><Link className="nav-login" to="/staff/login">دخول الإدارة والطاقم</Link><Link className="nav-register" to="/register">تسجيل عميل جديد</Link></div></nav>
-    <section className="hero"><div className="hero-copy"><span className="hero-kicker">إدارة المركز من مكان واحد</span><h1>نظام متكامل لإدارة <em>التغذية واللياقة</em></h1><p>نظّم عملاءك ومواعيدك وقياساتهم وخططهم الغذائية والرياضية ومبيعاتك ومخزونك داخل منصة واحدة مصممة لعمل المراكز اليومية.</p><div className="hero-actions"><Link className="primary-action" to="/register">تسجيل عميل جديد <span>←</span></Link><Link className="secondary-hero" to="/login">دخول العملاء</Link><Link className="secondary-hero" to="/staff/login">دخول الإدارة والطاقم</Link></div><div className="trust-row"><span>بياناتك في مكان واحد</span><span>صلاحيات حسب الدور</span><span>واجهة عربية RTL</span></div></div>
-      <div className="hero-visual" aria-hidden="true"><div className="dashboard-window"><div className="window-top"><span></span><span></span><span></span></div><div className="window-content"><div className="mini-sidebar"><b>N</b><i></i><i></i><i></i><i></i></div><div className="mini-main"><div className="mini-title"><span></span><b></b></div><div className="mini-cards"><div></div><div></div><div></div></div><div className="mini-chart"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div></div><div className="float-card one"><b>+24</b><span>موعد اليوم</span></div><div className="float-card two"><b>96%</b><span>متابعة العملاء</span></div></div></section>
-    <section id="features" className="features"><div className="section-heading"><span className="eyebrow">كل ما يحتاجه المركز</span><h2>تشغيل أوضح. متابعة أفضل.</h2><p>المعلومات التي تحتاجها في وقتها، بدون تشتيت بين ملفات وأدوات متعددة.</p></div><div className="feature-grid"><article><span className="feature-number">01</span><h3>ملف العميل</h3><p>بيانات العميل وقياساته وخططه وتاريخه في سياق واحد.</p></article><article><span className="feature-number">02</span><h3>الخطط والمتابعة</h3><p>إدارة الخطط الغذائية والرياضية وربطها بمتابعة العميل.</p></article><article><span className="feature-number">03</span><h3>المواعيد والمبيعات</h3><p>تنظيم الحجوزات والمبيعات والمرتجعات داخل سير عمل واضح.</p></article><article><span className="feature-number">04</span><h3>المخزون والتقارير</h3><p>متابعة الأصناف والحركات والتقارير التي تساعد الإدارة على اتخاذ القرار.</p></article></div></section>
-    <section className="closing"><div><span className="eyebrow">ابدأ من هنا</span><h2>جاهز لإدارة مركزك بشكل أكثر تنظيمًا؟</h2><p>للعملاء: أنشئ حسابك أو سجّل الدخول من بوابتهم. للإدارة والأطباء والأخصائيين والموظفين: استخدم بوابة العمل الداخلية.</p></div><div className="hero-actions"><Link className="primary-action" to="/register">تسجيل عميل جديد <span>←</span></Link><Link className="secondary-hero" to="/staff/login">دخول الإدارة والطاقم</Link></div></section>
-    <footer className="landing-footer"><span>Nutrition & Fitness Center</span><span>نظام إدارة متكامل للمراكز</span></footer>
-  </main>;
+  return (
+    <main className="portal-home">
+      <section className="portal-home-inner">
+        <div className="portal-home-heading">
+          <span className="eyebrow">NUTRITION & FITNESS CENTER</span>
+          <h1>اختر البوابة التي تريد الدخول إليها</h1>
+          <p>تم فصل تجربة العملاء والمتجر عن بيئة الإدارة والموظفين والمخزون ونقطة البيع.</p>
+        </div>
+        <div className="portal-choice-grid">
+          <article className="portal-choice customer-choice">
+            <span className="eyebrow">CUSTOMER PORTAL</span>
+            <h2>بوابة العملاء والمتجر</h2>
+            <p>للعملاء فقط: الحساب الشخصي، القياسات، الخطط، المواعيد، المشتريات والمتجر الإلكتروني.</p>
+            <div className="portal-choice-actions">
+              <Link className="primary-action" to="/customer">دخول بوابة العملاء</Link>
+              <Link className="secondary-button" to="/customer/register">تسجيل عميل جديد</Link>
+            </div>
+            <span className="portal-url">/customer</span>
+          </article>
+          <article className="portal-choice staff-choice">
+            <span className="eyebrow">STAFF & MANAGEMENT PORTAL</span>
+            <h2>بوابة الإدارة والموظفين</h2>
+            <p>للإدارة والأطباء والأخصائيين والموظفين: العملاء، المواعيد، المخزون، نقطة البيع والتشغيل الداخلي.</p>
+            <div className="portal-choice-actions">
+              <Link className="primary-action" to="/staff">دخول بوابة الإدارة</Link>
+            </div>
+            <span className="portal-url">/staff</span>
+          </article>
+        </div>
+      </section>
+    </main>
+  );
 }
 
-function Health() { return <main className="shell narrow"><section className="panel"><p className="eyebrow">System Health</p><h1>النظام يعمل</h1><p>واجهة التطبيق الأساسية تعمل. حالة قاعدة البيانات وخدمات الإنتاج تُفحص من طبقة الـ API.</p><Link className="text-link" to="/">العودة</Link></section></main>; }
-function NotFound() { return <main className="shell narrow"><section className="panel"><p className="eyebrow">404</p><h1>الصفحة غير موجودة</h1><Link className="text-link" to="/">العودة للرئيسية</Link></section></main>; }
+function Health() {
+  return <main className="shell narrow"><section className="panel"><p className="eyebrow">System Health</p><h1>النظام يعمل</h1><p>واجهة التطبيق الأساسية تعمل. حالة قاعدة البيانات وخدمات الإنتاج تُفحص من طبقة الـ API.</p><Link className="text-link" to="/">العودة</Link></section></main>;
+}
+
+function NotFound() {
+  return <main className="shell narrow"><section className="panel"><p className="eyebrow">404</p><h1>الصفحة غير موجودة</h1><Link className="text-link" to="/">العودة للبوابات</Link></section></main>;
+}
 
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
-  useEffect(() => { apiFetch<{ user: AuthUser }>('/auth/me').then(r => setUser(r.user)).catch(() => setUser(null)).finally(() => setAuthChecking(false)); }, []);
+
+  useEffect(() => {
+    apiFetch<{ user: AuthUser }>('/auth/me')
+      .then(r => setUser(r.user))
+      .catch(() => setUser(null))
+      .finally(() => setAuthChecking(false));
+  }, []);
+
   if (authChecking) return <main className="loading-page"><div className="brand-mark">N</div><p>جارٍ تحميل النظام...</p></main>;
 
-  const homeForRole = user?.role === 'staff' ? '/dashboard' : '/customer';
+  const customerGuard = user?.role === 'customer';
+  const staffGuard = user?.role === 'staff';
 
-  return <Routes>
-    <Route path="/" element={<Home />} />
-    <Route path="/health" element={<Health />} />
-    <Route path="/login" element={user ? <Navigate to={homeForRole} replace /> : <Login onLogin={setUser} />} />
-    <Route path="/staff/login" element={user ? <Navigate to={homeForRole} replace /> : <Login portal="staff" onLogin={setUser} />} />
-    <Route path="/register" element={user ? <Navigate to={homeForRole} replace /> : <Register onLogin={setUser} />} />
-    <Route path="/forgot-password" element={user ? <Navigate to={homeForRole} replace /> : <ForgotPassword />} />
-    <Route path="/reset-password" element={user ? <Navigate to={homeForRole} replace /> : <ResetPassword />} />
-    <Route path="/customer" element={user?.role === 'customer' ? <CustomerPortal onLogout={() => setUser(null)} /> : user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
-    <Route path="/dashboard" element={user?.role === 'staff' ? <Dashboard user={user} onLogout={() => setUser(null)} /> : user ? <Navigate to="/customer" replace /> : <Navigate to="/staff/login" replace />} />
-    <Route path="/customers" element={user?.role === 'staff' ? <Customers /> : user ? <Navigate to="/customer" replace /> : <Navigate to="/staff/login" replace />} />
-    <Route path="*" element={<NotFound />} />
-  </Routes>;
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/health" element={<Health />} />
+
+      <Route path="/customer" element={<PortalEntry portal="customer" user={user} />} />
+      <Route path="/customer/login" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/staff/dashboard'} replace /> : <Login portal="customer" onLogin={setUser} />} />
+      <Route path="/customer/register" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/staff/dashboard'} replace /> : <Register onLogin={setUser} />} />
+      <Route path="/customer/forgot-password" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/staff/dashboard'} replace /> : <ForgotPassword />} />
+      <Route path="/customer/reset-password" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/staff/dashboard'} replace /> : <ResetPassword />} />
+      <Route path="/customer/home" element={customerGuard ? <CustomerPortal onLogout={() => setUser(null)} /> : user ? <Navigate to="/staff/dashboard" replace /> : <Navigate to="/customer" replace />} />
+
+      <Route path="/staff" element={<PortalEntry portal="staff" user={user} />} />
+      <Route path="/staff/login" element={user ? <Navigate to={user.role === 'staff' ? '/staff/dashboard' : '/customer/home'} replace /> : <Login portal="staff" onLogin={setUser} />} />
+      <Route path="/staff/dashboard" element={staffGuard ? <StaffDashboard user={user} onLogout={() => setUser(null)} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/staff" replace />} />
+      <Route path="/dashboard" element={<Navigate to="/staff/dashboard" replace />} />
+
+      <Route path="/login" element={<Navigate to="/customer" replace />} />
+      <Route path="/register" element={<Navigate to="/customer/register" replace />} />
+      <Route path="/forgot-password" element={<Navigate to="/customer/forgot-password" replace />} />
+      <Route path="/reset-password" element={<Navigate to="/customer/reset-password" replace />} />
+
+      <Route path="/customers" element={staffGuard ? <Customers /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/staff" replace />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
 }

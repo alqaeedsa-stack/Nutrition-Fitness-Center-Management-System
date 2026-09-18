@@ -5,6 +5,7 @@ import Appointments from './Appointments';
 import NutritionManagement from './NutritionManagement';
 import FitnessManagement from './FitnessManagement';
 import MeasurementsManagement from './MeasurementsManagement';
+import Customer360 from './Customer360';
 import CustomerPortal from './CustomerPortal';
 import { ForgotPassword, ResetPassword } from './PasswordReset';
 import { apiFetch } from './lib/api';
@@ -766,6 +767,7 @@ export default function App() {
       <Route path="/admin/appointments" element={permissionGuard('appointments.read') ? <Appointments user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/nutrition" element={permissionGuard('nutrition.read') ? <NutritionManagement user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/fitness" element={permissionGuard('fitness.read') ? <FitnessManagement user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/customers/:id" element={permissionGuard('customers.read') ? <Customer360 /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/measurements" element={permissionGuard('customers.read') ? <MeasurementsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/operations" element={staffGuard && (user?.staffType === 'admin' || ['catalog.read','inventory.read','orders.read'].some(p => (user?.permissions ?? []).includes(p))) ? <StaffOperations user={user} /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/zatca" element={permissionGuard('zatca.manage') ? <ZatcaSettings /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />

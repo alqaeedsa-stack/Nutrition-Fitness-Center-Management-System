@@ -26,7 +26,7 @@ const taxRateSchema = z.object({
 });
 
 zatcaRoutes.get('/tax-rates', async c => {
-  const auth = await requireAdmin(c); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select().from(taxRates)
     .where(eq(taxRates.centerId, auth.user.centerId!))
     .orderBy(asc(taxRates.code)));
@@ -34,7 +34,7 @@ zatcaRoutes.get('/tax-rates', async c => {
 });
 
 zatcaRoutes.post('/tax-rates', async c => {
-  const auth = await requireAdmin(c); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
   const body = taxRateSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'إعداد الضريبة غير صحيح' } }, 400);
   try {
@@ -50,7 +50,7 @@ zatcaRoutes.post('/tax-rates', async c => {
 });
 
 zatcaRoutes.patch('/tax-rates/:id', async c => {
-  const auth = await requireAdmin(c); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
   const body = taxRateSchema.partial().safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'إعداد الضريبة غير صحيح' } }, 400);
   const d = body.data;
@@ -82,7 +82,7 @@ const settingsSchema = z.object({
 });
 
 zatcaRoutes.get('/settings', async c => {
-  const auth = await requireAdmin(c); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select({
     id: zatcaSettings.id, environment: zatcaSettings.environment, vatNumber: zatcaSettings.vatNumber,
     legalName: zatcaSettings.legalName, invoiceTypeCode: zatcaSettings.invoiceTypeCode,
@@ -96,7 +96,7 @@ zatcaRoutes.get('/settings', async c => {
 });
 
 zatcaRoutes.put('/settings', async c => {
-  const auth = await requireAdmin(c); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
   const body = settingsSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'إعدادات ZATCA غير صحيحة' } }, 400);
   const d = body.data;
@@ -125,7 +125,7 @@ const prepareSchema = z.object({
 });
 
 zatcaRoutes.post('/sales/:saleId/prepare', async c => {
-  const auth = await requireAdmin(c); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
   const body = prepareSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'نوع الفاتورة غير صحيح' } }, 400);
 
@@ -244,7 +244,7 @@ zatcaRoutes.post('/sales/:saleId/prepare', async c => {
 });
 
 zatcaRoutes.post('/invoices/:id/submit', async c => {
-  const auth = await requireAdmin(c); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
   const invoiceRows = await withDatabase(c.env, db => db.select().from(eInvoices).where(and(
     eq(eInvoices.id, c.req.param('id')), eq(eInvoices.centerId, auth.user.centerId!),
   )).limit(1));
@@ -298,7 +298,7 @@ zatcaRoutes.post('/invoices/:id/submit', async c => {
 });
 
 zatcaRoutes.get('/invoices', async c => {
-  const auth = await requireAdmin(c); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select().from(eInvoices)
     .where(eq(eInvoices.centerId, auth.user.centerId!))
     .orderBy(desc(eInvoices.createdAt)).limit(100));

@@ -141,10 +141,12 @@ export const measurementRecords = pgTable('measurement_records', {
   centerId: uuid('center_id').notNull().references(() => centers.id),
   customerId: uuid('customer_id').notNull().references(() => customers.id),
   measurementTypeId: uuid('measurement_type_id').notNull().references(() => measurementTypes.id),
-  value: numeric('value', { precision: 14, scale: 4 }).notNull(),
+  value: numeric('numeric_value', { precision: 14, scale: 4 }).notNull(),
+  textValue: text('text_value'),
   measuredAt: timestamp('measured_at', { withTimezone: true }).notNull(),
+  source: varchar('source', { length: 50 }),
+  createdBy: uuid('recorded_by').notNull().references(() => users.id),
   notes: text('notes'),
-  createdBy: uuid('created_by').notNull().references(() => users.id),
   ...auditTimestamps,
 });
 

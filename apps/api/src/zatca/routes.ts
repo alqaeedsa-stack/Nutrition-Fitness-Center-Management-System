@@ -12,6 +12,8 @@ export type ZatcaBindings = {
   DATABASE_URL?: string;
   ZATCA_BINARY_SECURITY_TOKEN?: string;
   ZATCA_SECRET?: string;
+  ZATCA_PRIVATE_KEY_PEM?: string;
+  ZATCA_CERTIFICATE_PEM?: string;
 };
 
 export const zatcaRoutes = new Hono<{ Bindings: ZatcaBindings }>();
@@ -282,6 +284,8 @@ zatcaRoutes.get('/invoices/:id/readiness', async c => {
     cryptographicSignature: Boolean(invoice.xml && /<(?:ds:)?Signature\b/.test(invoice.xml)),
     binarySecurityToken: Boolean(c.env.ZATCA_BINARY_SECURITY_TOKEN),
     secret: Boolean(c.env.ZATCA_SECRET),
+    privateKey: Boolean(c.env.ZATCA_PRIVATE_KEY_PEM),
+    certificate: Boolean(c.env.ZATCA_CERTIFICATE_PEM),
   };
   const readyForSubmission = Object.values(checks).every(Boolean);
 

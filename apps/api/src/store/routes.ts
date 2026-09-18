@@ -231,12 +231,18 @@ storeRoutes.post('/checkout', async c => {
       sellingPrice: products.sellingPrice,
       active: products.active,
       centerId: products.centerId,
+      taxCode: products.taxCode,
     })
       .from(products)
       .innerJoin(storeCartItems, eq(storeCartItems.productId, products.id))
       .where(and(eq(storeCartItems.cartId, cart.id), eq(products.centerId, auth.user.centerId!), eq(products.active, true)));
 
     if (!lockedProducts.length) throw new Error('CART_EMPTY');
+
+    const taxConfigured = lockedProducts.every(product => !product.taxCode);
+    if (!taxConfigured) {
+      return { taxConfigurationRequired: true };
+    }
 
     const productIds = [...new Set(lockedProducts.map(product => product.id))].sort();
     for (const productId of productIds) {
@@ -343,6 +349,15 @@ storeRoutes.post('/checkout', async c => {
 
     return { order: order[0] };
   }));
+
+  if ('taxConfigurationRequired' in result && result.taxConfigurationRequired) {
+    return c.json({
+      error: {
+        code: 'TAX_CONFIGURATION_REQUIRED',
+        message: 'يوجد منتج في السلة له رمز ضريبة، لكن محرك الضريبة لم يتم ربطه بعد. لم يتم إنشاء الطلب حتى لا يتم احتساب ضريبة غير صحيحة.',
+      },
+    }, 409);
+  }
 
   if ('shortages' in result && result.shortages.length) {
     return c.json({

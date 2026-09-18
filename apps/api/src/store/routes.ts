@@ -247,8 +247,10 @@ storeRoutes.post('/checkout', async c => {
 
     const cutoff = new Date(Date.now() - 30 * 60 * 1000);
     const pendingRows = await tx.select({
+      orderId: storeOrderItems.orderId,
       productId: storeOrderItems.productId,
       quantity: storeOrderItems.quantity,
+      createdAt: storeOrders.createdAt,
     })
       .from(storeOrderItems)
       .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.orderId))
@@ -259,11 +261,7 @@ storeRoutes.post('/checkout', async c => {
 
     const reservedByProduct = new Map<string, number>();
     for (const row of pendingRows) {
-      const order = await tx.select({ createdAt: storeOrders.createdAt })
-        .from(storeOrders)
-        .where(eq(storeOrders.id, row.productId === row.productId ? storeOrderItems.orderId : storeOrderItems.orderId))
-        .limit(1);
-      if (order[0] && order[0].createdAt >= cutoff) {
+      if (row.createdAt >= cutoff) {
         reservedByProduct.set(row.productId, (reservedByProduct.get(row.productId) ?? 0) + Number(row.quantity));
       }
     }

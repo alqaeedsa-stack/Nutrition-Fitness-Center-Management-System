@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
-import { auditLogs, brands, categories, products, stockMovements, staffProfiles, users } from '../db/schema';
+import { auditLogs, brands, categories, products, saleItems, sales, stockMovements, staffProfiles, users } from '../db/schema';
 import { storeOrders } from '../db/store';
 import { getCompany } from '../db/company';
 import { getAuthenticatedUser } from '../auth/session';
@@ -340,10 +340,91 @@ staffRoutes.patch('/orders/:id/status', async c => {
       .where(and(eq(storeOrders.id, c.req.param('id')), eq(storeOrders.centerId, auth.user.centerId!))).limit(1);
     if (!order[0]) return { error: 'NOT_FOUND' as const };
     if (order[0].status === body.data.status) return { order: order[0] };
-    const updated = await tx.update(storeOrders).set({ status: body.data.status, updatedAt: new Date() })
-      .where(eq(storeOrders.id, order[0].id)).returning();
+
+    if (body.data.status === 'completed') {
+      const items = await tx.select().from(storeOrderItems).where(eq(storeOrderItems.orderId, order[0].id));
+      if (!items.length) return { error: 'EMPTY_ORDER' as const };
+
+      const productIds = items.map(item => item.productId);
+      const productRows = await tx.select({
+        id: products.id, purchaseCost: products.purchaseCost, active: products.active,
+      }).from(products).where(and(
+        eq(products.centerId, auth.user.centerId!),
+        inArray(products.id, productIds),
+        eq(products.active, true),
+      ));
+
+      const available = new Map<string, number>();
+      const movements = await tx.select({
+        productId: stockMovements.productId, quantity: stockMovements.quantity,
+      }).from(stockMovements).where(and(
+        eq(stockMovements.centerId, auth.user.centerId!),
+        inArray(stockMovements.productId, productIds),
+      ));
+      for (const movement of movements) {
+        available.set(movement.productId, (available.get(movement.productId) ?? 0) + Number(movement.quantity));
+      }
+
+      for (const item of items) {
+        if ((available.get(item.productId) ?? 0) < Number(item.quantity)) {
+          return { error: 'INSUFFICIENT_STOCK' as const, productId: item.productId };
+        }
+      }
+
+      const saleRows = await tx.insert(sales).values({
+        centerId: auth.user.centerId!,
+        customerId: order[0].customerId,
+        soldBy: auth.user.userId,
+        saleNumber: order[0].orderNumber,
+        status: 'completed',
+        subtotal: order[0].subtotal,
+        discount: order[0].discount,
+        tax: order[0].tax,
+        total: order[0].total,
+        paymentMethod: order[0].paymentMethod ?? 'cash_on_delivery',
+      }).returning();
+      const sale = saleRows[0];
+      if (!sale) return { error: 'SALE_CREATE_FAILED' as const };
+
+      await tx.insert(saleItems).values(items.map(item => ({
+        saleId: sale.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discount: item.discount,
+        tax: item.tax,
+        lineTotal: item.lineTotal,
+      })));
+
+      const costByProduct = new Map(productRows.map(product => [product.id, Number(product.purchaseCost)]));
+      await tx.insert(stockMovements).values(items.map(item => ({
+        centerId: auth.user.centerId!,
+        productId: item.productId,
+        movementType: 'sale',
+        quantity: (-Number(item.quantity)).toFixed(3),
+        unitCost: (costByProduct.get(item.productId) ?? 0).toFixed(2),
+        referenceType: 'store_order',
+        referenceId: order[0].id,
+        occurredAt: new Date(),
+        createdBy: auth.user.userId,
+        notes: `صرف من طلب المتجر ${order[0].orderNumber}`,
+      })));
+    }
+
+    const updated = await tx.update(storeOrders).set({
+      status: body.data.status,
+      updatedAt: new Date(),
+      ...(body.data.status === 'completed' && order[0].paymentMethod === 'cash_on_delivery'
+        ? { paymentStatus: 'paid' }
+        : {}),
+    }).where(eq(storeOrders.id, order[0].id)).returning();
     return { order: updated[0] };
   }));
-  if ('error' in result) return c.json({ error: { code: 'ORDER_NOT_FOUND', message: 'الطلب غير موجود' } }, 404);
+  if ('error' in result) {
+    if (result.error === 'INSUFFICIENT_STOCK') return c.json({ error: { code: 'INSUFFICIENT_STOCK', message: 'لا يمكن إكمال الطلب لأن المخزون الحالي غير كافٍ' } }, 409);
+    if (result.error === 'EMPTY_ORDER') return c.json({ error: { code: 'EMPTY_ORDER', message: 'الطلب لا يحتوي على منتجات' } }, 400);
+    if (result.error === 'SALE_CREATE_FAILED') return c.json({ error: { code: 'SALE_CREATE_FAILED', message: 'تعذر إنشاء المبيعات المرتبطة بالطلب' } }, 500);
+    return c.json({ error: { code: 'ORDER_NOT_FOUND', message: 'الطلب غير موجود' } }, 404);
+  }
   return c.json({ order: result.order });
 });

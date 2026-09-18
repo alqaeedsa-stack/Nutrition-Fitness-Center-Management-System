@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { withDatabase } from '../db/client';
 import { permissions, staffProfiles, userPermissions } from '../db/schema';
 import { getAuthenticatedUser } from '../auth/session';

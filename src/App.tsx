@@ -279,10 +279,27 @@ function Home() {
 function CustomerStore() {
   type Product = { id: string; sku: string; name: string; sellingPrice: string; taxCode?: string | null };
   type CartItem = { id: string; productId: string; quantity: string; unitPrice: string; name: string; sku: string };
+  type OrderItem = { id: string; productId: string; productName: string; sku: string; quantity: string; unitPrice: string; lineTotal: string };
+  type Order = {
+    id: string;
+    orderNumber: string;
+    status: string;
+    subtotal: string;
+    tax: string;
+    total: string;
+    paymentMethod?: string | null;
+    paymentStatus: string;
+    createdAt: string;
+    items: OrderItem[];
+  };
+
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<{ id: string; items: CartItem[]; subtotal: string } | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<'cash_on_delivery' | 'bank_transfer'>('cash_on_delivery');
   const [loading, setLoading] = useState(true);
   const [busyProduct, setBusyProduct] = useState('');
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -290,12 +307,14 @@ function CustomerStore() {
     setLoading(true);
     setError('');
     try {
-      const [productResult, cartResult] = await Promise.all([
+      const [productResult, cartResult, orderResult] = await Promise.all([
         apiFetch<{ products: Product[] }>('/customer-portal/store/products'),
         apiFetch<{ cart: { id: string; items: CartItem[]; subtotal: string } }>('/store/cart'),
+        apiFetch<{ orders: Order[] }>('/store/orders'),
       ]);
       setProducts(productResult.products);
       setCart(cartResult.cart);
+      setOrders(orderResult.orders);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'تعذر تحميل المتجر');
     } finally {
@@ -353,6 +372,44 @@ function CustomerStore() {
     }
   }
 
+  async function checkout() {
+    if (!cart?.items.length) {
+      setError('السلة فارغة');
+      return;
+    }
+    setCheckoutLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      const result = await apiFetch<{ order: Order }>('/store/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ paymentMethod }),
+      });
+      setMessage(
+        paymentMethod === 'bank_transfer'
+          ? `تم إنشاء الطلب ${result.order.orderNumber}. حالة الدفع غير مدفوعة وسيتم تأكيده بعد التحقق من التحويل.`
+          : `تم إنشاء الطلب ${result.order.orderNumber}. الدفع عند الاستلام وسيتم تأكيد الطلب من المركز.`
+      );
+      const [cartResult, orderResult] = await Promise.all([
+        apiFetch<{ cart: { id: string; items: CartItem[]; subtotal: string } }>('/store/cart'),
+        apiFetch<{ orders: Order[] }>('/store/orders'),
+      ]);
+      setCart(cartResult.cart);
+      setOrders(orderResult.orders);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذر إتمام الطلب');
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }
+
+  const statusLabel: Record<string, string> = {
+    pending: 'بانتظار التأكيد',
+    confirmed: 'مؤكد',
+    completed: 'مكتمل',
+    cancelled: 'ملغى',
+  };
+
   return (
     <main className="app-shell customer-store-page">
       <header className="app-header">
@@ -366,7 +423,7 @@ function CustomerStore() {
       <section className="store-heading">
         <p className="eyebrow">منتجات المركز</p>
         <h2>المتجر الإلكتروني</h2>
-        <p>كتالوج المنتجات الفعلي وسلة التسوق الخاصة بحسابك.</p>
+        <p>كتالوج المنتجات الفعلي، سلة التسوق، والطلبات الخاصة بحسابك.</p>
       </section>
 
       {loading && <div className="info-strip">جارٍ تحميل المتجر...</div>}
@@ -404,23 +461,64 @@ function CustomerStore() {
           {!cart.items.length ? (
             <p className="empty-state">السلة فارغة. أضف المنتجات التي تريدها.</p>
           ) : (
-            <div className="cart-list">
-              {cart.items.map(item => (
-                <div className="cart-row" key={item.id}>
-                  <div><strong>{item.name}</strong><small>{item.sku} · {item.unitPrice} ر.س</small></div>
-                  <div className="cart-controls">
-                    <button type="button" onClick={() => void updateCartItem(item, Number(item.quantity) - 1)} aria-label={`تقليل ${item.name}`}>−</button>
-                    <span>{item.quantity}</span>
-                    <button type="button" onClick={() => void updateCartItem(item, Number(item.quantity) + 1)} aria-label={`زيادة ${item.name}`}>+</button>
-                    <button type="button" className="cart-remove" onClick={() => void removeCartItem(item.id)}>حذف</button>
+            <>
+              <div className="cart-list">
+                {cart.items.map(item => (
+                  <div className="cart-row" key={item.id}>
+                    <div><strong>{item.name}</strong><small>{item.sku} · {item.unitPrice} ر.س</small></div>
+                    <div className="cart-controls">
+                      <button type="button" onClick={() => void updateCartItem(item, Number(item.quantity) - 1)} aria-label={`تقليل ${item.name}`}>−</button>
+                      <span>{item.quantity}</span>
+                      <button type="button" onClick={() => void updateCartItem(item, Number(item.quantity) + 1)} aria-label={`زيادة ${item.name}`}>+</button>
+                      <button type="button" className="cart-remove" onClick={() => void removeCartItem(item.id)}>حذف</button>
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              <div className="checkout-panel">
+                <div>
+                  <span className="eyebrow">CHECKOUT</span>
+                  <h3>إتمام الطلب</h3>
                 </div>
-              ))}
-            </div>
+                <label>
+                  طريقة الدفع
+                  <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as typeof paymentMethod)}>
+                    <option value="cash_on_delivery">الدفع عند الاستلام</option>
+                    <option value="bank_transfer">تحويل بنكي</option>
+                  </select>
+                </label>
+                <button className="primary-action button" type="button" onClick={() => void checkout()} disabled={checkoutLoading}>
+                  {checkoutLoading ? 'جارٍ إنشاء الطلب...' : `تأكيد الطلب — ${cart.subtotal} ر.س`}
+                </button>
+                <div className="cart-note">الدفع الإلكتروني عبر مدى وApple Pay والبطاقات غير مفعّل حتى يتم ربط بوابة دفع حقيقية. لا يتم إنشاء عملية دفع وهمية.</div>
+              </div>
+            </>
           )}
-          <div className="cart-note">الدفع وإتمام الطلب سيتم تفعيله بعد ربط طريقة الدفع وحساب الضريبة في المرحلة التجارية التالية.</div>
         </section>
       )}
+
+      <section className="store-cart">
+        <div className="panel-heading-row">
+          <div><span className="eyebrow">ORDERS</span><h2>طلباتي</h2></div>
+        </div>
+        {!orders.length ? (
+          <p className="empty-state">لا توجد طلبات متجر حتى الآن.</p>
+        ) : (
+          <div className="cart-list">
+            {orders.map(order => (
+              <article className="cart-row" key={order.id}>
+                <div>
+                  <strong>{order.orderNumber}</strong>
+                  <small>{new Date(order.createdAt).toLocaleString('ar-SA')} · {statusLabel[order.status] ?? order.status}</small>
+                  <small>{order.items.length} منتج · {order.total} ر.س · {order.paymentStatus === 'paid' ? 'مدفوع' : 'غير مدفوع'}</small>
+                </div>
+                <strong>{order.total} ر.س</strong>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   );
 }

@@ -206,7 +206,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
     ['العملاء', 'CUSTOMERS', 'ملفات العملاء والمتابعة والبيانات الأساسية.', '/customers'],
     ['المواعيد', 'APPOINTMENTS', 'حجوزات المركز ومواعيد الأطباء والأخصائيين.', ''],
     ['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', ''],
-    ['المخزون', 'INVENTORY', 'المنتجات والأرصدة وحركات المخزون والجرد.', ''],
+    ['المخزون والمنتجات والطلبات', 'OPERATIONS', 'المنتجات والأرصدة وحركات المخزون وطلبات المتجر.', '/admin/operations'],
     ['الخطط الغذائية', 'NUTRITION', 'إعداد ومتابعة الخطط الغذائية.', ''],
     ['الخطط الرياضية', 'FITNESS', 'إعداد ومتابعة خطط اللياقة.', ''],
     ['التقارير', 'REPORTS', 'تقارير التشغيل والمبيعات والمخزون.', ''],
@@ -522,6 +522,95 @@ function CustomerStore() {
     </main>
   );
 }
+function StaffOperations() {
+  type Product = { id: string; sku: string; name: string; purchaseCost: string; sellingPrice: string; reorderPoint: string; active: boolean; categoryName?: string | null; brandName?: string | null };
+  type Inventory = { productId: string; sku: string; name: string; quantity: string; reorderPoint: string; purchaseCost: string; sellingPrice: string };
+  type Order = { id: string; orderNumber: string; customerId: string; status: string; total: string; paymentMethod?: string | null; paymentStatus: string; createdAt: string };
+
+  const [tab, setTab] = useState<'products'|'inventory'|'orders'>('products');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [inventory, setInventory] = useState<Inventory[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [categories, setCategories] = useState<{id:string;name:string}[]>([]);
+  const [brands, setBrands] = useState<{id:string;name:string}[]>([]);
+  const [form, setForm] = useState({sku:'',name:'',categoryId:'',brandId:'',purchaseCost:'0',sellingPrice:'0',taxCode:'',reorderPoint:'0'});
+  const [adjust, setAdjust] = useState({productId:'',quantity:'',notes:''});
+  const [error,setError]=useState(''); const [message,setMessage]=useState(''); const [saving,setSaving]=useState(false);
+
+  async function load() {
+    try {
+      const [p,i,o,opt]=await Promise.all([
+        apiFetch<{products:Product[]}>('/staff/products'),
+        apiFetch<{inventory:Inventory[]}>('/staff/inventory'),
+        apiFetch<{orders:Order[]}>('/staff/orders'),
+        apiFetch<{categories:{id:string;name:string}[];brands:{id:string;name:string}[]}>('/staff/catalog-options')
+      ]);
+      setProducts(p.products); setInventory(i.inventory); setOrders(o.orders); setCategories(opt.categories); setBrands(opt.brands);
+      if (!form.categoryId && opt.categories[0]) setForm(v=>({...v,categoryId:opt.categories[0].id}));
+    } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل بيانات التشغيل');}
+  }
+  useEffect(()=>{void load()},[]);
+
+  async function createProduct(e: FormEvent) {
+    e.preventDefault(); setSaving(true); setError(''); setMessage('');
+    try {
+      await apiFetch('/staff/products',{method:'POST',body:JSON.stringify({...form,brandId:form.brandId||null,purchaseCost:Number(form.purchaseCost),sellingPrice:Number(form.sellingPrice),reorderPoint:Number(form.reorderPoint),active:true})});
+      setForm(v=>({...v,sku:'',name:'',purchaseCost:'0',sellingPrice:'0',taxCode:'',reorderPoint:'0'}));
+      setMessage('تم إنشاء المنتج'); await load();
+    } catch(e){setError(e instanceof Error?e.message:'تعذر إنشاء المنتج');} finally{setSaving(false);}
+  }
+
+  async function adjustStock(e: FormEvent) {
+    e.preventDefault(); setSaving(true); setError(''); setMessage('');
+    try {
+      await apiFetch('/staff/inventory/adjust',{method:'POST',body:JSON.stringify({productId:adjust.productId,quantity:Number(adjust.quantity),notes:adjust.notes})});
+      setAdjust({productId:'',quantity:'',notes:''}); setMessage('تم تسجيل حركة المخزون'); await load();
+    } catch(e){setError(e instanceof Error?e.message:'تعذر تسجيل الحركة');} finally{setSaving(false);}
+  }
+
+  async function setOrderStatus(id:string,status:'confirmed'|'completed'|'cancelled') {
+    try { await apiFetch(`/staff/orders/${id}/status`,{method:'PATCH',body:JSON.stringify({status})}); setMessage('تم تحديث حالة الطلب'); await load(); }
+    catch(e){setError(e instanceof Error?e.message:'تعذر تحديث الطلب');}
+  }
+
+  return <main className="app-shell">
+    <header className="app-header"><div><span className="eyebrow">OPERATIONS</span><h1>المنتجات والمخزون والطلبات</h1></div><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></header>
+    <div className="portal-choice-actions">
+      <button className={`secondary-button ${tab==='products'?'active':''}`} onClick={()=>setTab('products')}>المنتجات</button>
+      <button className={`secondary-button ${tab==='inventory'?'active':''}`} onClick={()=>setTab('inventory')}>المخزون</button>
+      <button className={`secondary-button ${tab==='orders'?'active':''}`} onClick={()=>setTab('orders')}>طلبات المتجر</button>
+    </div>
+    {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
+
+    {tab==='products'&&<section className="staff-management-grid">
+      <section className="panel"><p className="eyebrow">PRODUCT MASTER</p><h2>إضافة منتج</h2><form className="form-stack" onSubmit={createProduct}>
+        <label>SKU<input required value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label>
+        <label>اسم المنتج<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label>
+        <label>التصنيف<select required value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}>{categories.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+        <label>العلامة التجارية<select value={form.brandId} onChange={e=>setForm({...form,brandId:e.target.value})}><option value="">بدون علامة</option>{brands.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+        <label>تكلفة الشراء<input type="number" min="0" step="0.01" value={form.purchaseCost} onChange={e=>setForm({...form,purchaseCost:e.target.value})}/></label>
+        <label>سعر البيع<input type="number" min="0" step="0.01" value={form.sellingPrice} onChange={e=>setForm({...form,sellingPrice:e.target.value})}/></label>
+        <label>رمز الضريبة<input value={form.taxCode} onChange={e=>setForm({...form,taxCode:e.target.value})} placeholder="اتركه فارغًا حتى إعداد محرك الضريبة"/></label>
+        <label>حد إعادة الطلب<input type="number" min="0" step="0.001" value={form.reorderPoint} onChange={e=>setForm({...form,reorderPoint:e.target.value})}/></label>
+        <button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'حفظ المنتج'}</button>
+      </form></section>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">CATALOG</p><h2>المنتجات</h2></div></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>التصنيف</th><th>التكلفة</th><th>البيع</th><th>الحالة</th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.categoryName??'—'}</td><td>{p.purchaseCost}</td><td>{p.sellingPrice}</td><td>{p.active?'نشط':'موقوف'}</td></tr>)}</tbody></table></div></section>
+    </section>}
+
+    {tab==='inventory'&&<section className="staff-management-grid">
+      <section className="panel"><p className="eyebrow">STOCK MOVEMENT</p><h2>تسوية المخزون</h2><form className="form-stack" onSubmit={adjustStock}>
+        <label>المنتج<select required value={adjust.productId} onChange={e=>setAdjust({...adjust,productId:e.target.value})}><option value="">اختر المنتج</option>{products.filter(p=>p.active).map(p=><option key={p.id} value={p.id}>{p.sku} — {p.name}</option>)}</select></label>
+        <label>الكمية <small>موجب إضافة / سالب صرف</small><input type="number" step="0.001" required value={adjust.quantity} onChange={e=>setAdjust({...adjust,quantity:e.target.value})}/></label>
+        <label>ملاحظة<textarea value={adjust.notes} onChange={e=>setAdjust({...adjust,notes:e.target.value})}/></label>
+        <button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'تسجيل الحركة'}</button>
+      </form></section>
+      <section className="panel"><p className="eyebrow">ON HAND</p><h2>الأرصدة الحالية</h2><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>الرصيد</th><th>حد الطلب</th><th>قيمة التكلفة</th></tr></thead><tbody>{inventory.map(x=><tr key={x.productId}><td>{x.sku}</td><td>{x.name}</td><td>{x.quantity}</td><td>{x.reorderPoint}</td><td>{(Number(x.quantity)*Number(x.purchaseCost)).toFixed(2)} ر.س</td></tr>)}</tbody></table></div></section>
+    </section>}
+
+    {tab==='orders'&&<section className="panel"><p className="eyebrow">CUSTOMER ORDERS</p><h2>طلبات العملاء</h2><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الطلب</th><th>الحالة</th><th>الإجمالي</th><th>الدفع</th><th>التاريخ</th><th>إجراء</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.orderNumber}</td><td>{o.status}</td><td>{o.total} ر.س</td><td>{o.paymentStatus}</td><td>{new Date(o.createdAt).toLocaleString('ar-SA')}</td><td>{o.status==='pending'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'confirmed')}>تأكيد</button>}{o.status==='confirmed'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'completed')}>إكمال</button>}{o.status!=='completed'&&o.status!=='cancelled'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'cancelled')}>إلغاء</button>}</td></tr>)}</tbody></table></div></section>}
+  </main>;
+}
+
 function Health() {
   return <main className="shell narrow"><section className="panel"><p className="eyebrow">System Health</p><h1>النظام يعمل</h1><p>واجهة التطبيق الأساسية تعمل. حالة قاعدة البيانات وخدمات الإنتاج تُفحص من طبقة الـ API.</p><Link className="text-link" to="/">العودة</Link></section></main>;
 }
@@ -563,6 +652,7 @@ export default function App() {
       <Route path="/admin/login" element={<Navigate to="/admin" replace />} />
       <Route path="/admin/dashboard" element={staffGuard ? <StaffDashboard user={user} onLogout={() => setUser(null)} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/staff" element={staffGuard ? <StaffManagement /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/operations" element={staffGuard ? <StaffOperations /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
 
       <Route path="/login" element={<Navigate to="/customer" replace />} />

@@ -53,7 +53,7 @@ customerRoutes.get('/', async (c) => {
 
 customerRoutes.get('/:id', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
-  const auth = await requirePermission(c, 'customers.create'); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'customers.read'); if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select().from(customers).where(and(eq(customers.id, c.req.param('id')), eq(customers.centerId, auth.user.centerId!))).limit(1));
   if (!rows[0]) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);
   return c.json({ customer: rows[0] });
@@ -61,7 +61,7 @@ customerRoutes.get('/:id', async (c) => {
 
 customerRoutes.post('/', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
-  const auth = await requireStaffUser(c, ['admin', 'doctor', 'nutritionist', 'trainer', 'employee', 'cashier']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'customers.create'); if ('error' in auth) return auth.error;
   const body = await c.req.json<{ customerNumber?: string; firstName?: string; lastName?: string; phone?: string; email?: string; dateOfBirth?: string; gender?: string; source?: string; notes?: string }>();
   const customerNumber = body.customerNumber?.trim();
   const firstName = body.firstName?.trim();

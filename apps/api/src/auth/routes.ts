@@ -214,8 +214,8 @@ authRoutes.post('/login', async (c) => {
       const account = await db.select({ id: customerAccounts.id }).from(customerAccounts).where(eq(customerAccounts.userId, candidate.id)).limit(1);
       if (!account[0]) return null;
     } else {
-      const staff = await db.select({ id: staffProfiles.id }).from(staffProfiles).where(eq(staffProfiles.userId, candidate.id)).limit(1);
-      if (!staff[0]) return null;
+      const staff = await db.select({ id: staffProfiles.id, staffType: staffProfiles.staffType, active: staffProfiles.active }).from(staffProfiles).where(eq(staffProfiles.userId, candidate.id)).limit(1);
+      if (!staff[0] || !staff[0].active) return null;
     }
 
     return candidate;
@@ -225,6 +225,9 @@ authRoutes.post('/login', async (c) => {
     return c.json({ error: { code: 'INVALID_CREDENTIALS', message: 'بيانات الدخول غير صحيحة أو نوع الحساب لا يطابق مساحة الدخول' } }, 401);
   }
   const session = await createSession(c.env, user.id, c.req.raw);
+  const staffProfile = body.data.portal === 'staff'
+    ? await withDatabase(c.env, db => db.select({ staffType: staffProfiles.staffType, active: staffProfiles.active }).from(staffProfiles).where(eq(staffProfiles.userId, user.id)).limit(1))
+    : [];
   await withDatabase(c.env, async (db) => db.insert(auditLogs).values({
     centerId: user.centerId,
     actorUserId: user.id,
@@ -243,6 +246,7 @@ authRoutes.post('/login', async (c) => {
       phone: user.phone,
       status: user.status,
       role: body.data.portal,
+      ...(body.data.portal === 'staff' ? { staffType: staffProfile[0]?.staffType ?? null } : {}),
     },
     expiresAt: session.expiresAt.toISOString(),
   });
@@ -274,10 +278,10 @@ authRoutes.get('/me', async (c) => {
   if (!user) return c.json({ error: { code: 'UNAUTHENTICATED', message: 'تسجيل الدخول مطلوب' } }, 401);
 
   const role = await withDatabase(c.env, async (db) => {
-    const staff = await db.select({ id: staffProfiles.id }).from(staffProfiles).where(eq(staffProfiles.userId, user.userId)).limit(1);
-    if (staff[0]) return 'staff' as const;
+    const staff = await db.select({ id: staffProfiles.id, staffType: staffProfiles.staffType, active: staffProfiles.active }).from(staffProfiles).where(eq(staffProfiles.userId, user.userId)).limit(1);
+    if (staff[0]?.active) return { role: 'staff' as const, staffType: staff[0].staffType };
     const customer = await db.select({ id: customerAccounts.id }).from(customerAccounts).where(eq(customerAccounts.userId, user.userId)).limit(1);
-    if (customer[0]) return 'customer' as const;
+    if (customer[0]) return { role: 'customer' as const, staffType: null };
     return null;
   });
 
@@ -286,7 +290,7 @@ authRoutes.get('/me', async (c) => {
     return c.json({ error: { code: 'ACCOUNT_ROLE_MISSING', message: 'نوع الحساب غير محدد' } }, 403);
   }
 
-  return c.json({ user: { id: user.userId, centerId: user.centerId, email: user.email, phone: user.phone, status: user.status, role } });
+  return c.json({ user: { id: user.userId, centerId: user.centerId, email: user.email, phone: user.phone, status: user.status, role: role.role, ...(role.role === 'staff' ? { staffType: role.staffType } : {}) } });
 });
 
 authRoutes.post('/forgot-password', async (c) => {

@@ -1,6 +1,6 @@
 import { and, desc, eq, ilike, or } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { appointments, customers, fitnessPlans, measurementRecords, measurementTypes, nutritionPlans, sales, staffProfiles } from '../db/schema';
+import { appointments, customerFollowUps, customers, fitnessPlans, measurementRecords, measurementTypes, nutritionPlans, sales, staffProfiles, users } from '../db/schema';
 import { customerAccounts } from '../db/customer-accounts';
 import { withDatabase } from '../db/client';
 import { requirePermission } from '../auth/permissions';
@@ -68,7 +68,7 @@ customerRoutes.get('/:id/360', async (c) => {
       .where(and(eq(customers.id, customerId), eq(customers.centerId, auth.user.centerId!))).limit(1);
     if (!customerRows[0]) return { notFound: true as const };
 
-    const [measurements, nutrition, fitness, appointmentsRows, salesRows] = await Promise.all([
+    const [measurements, nutrition, fitness, appointmentsRows, salesRows, followUps] = await Promise.all([
       db.select({
         id: measurementRecords.id,
         value: measurementRecords.value,
@@ -131,9 +131,25 @@ customerRoutes.get('/:id/360', async (c) => {
       }).from(sales)
         .where(and(eq(sales.customerId, customerId), eq(sales.centerId, auth.user.centerId!)))
         .orderBy(desc(sales.createdAt)).limit(30),
+      db.select({
+        id: customerFollowUps.id,
+        followUpAt: customerFollowUps.followUpAt,
+        nextFollowUpAt: customerFollowUps.nextFollowUpAt,
+        weight: customerFollowUps.weight,
+        height: customerFollowUps.height,
+        adherenceScore: customerFollowUps.adherenceScore,
+        nutritionAdherenceScore: customerFollowUps.nutritionAdherenceScore,
+        fitnessAdherenceScore: customerFollowUps.fitnessAdherenceScore,
+        notes: customerFollowUps.notes,
+        recommendations: customerFollowUps.recommendations,
+        staffName: staffProfiles.displayName,
+      }).from(customerFollowUps)
+        .leftJoin(staffProfiles, eq(staffProfiles.userId, customerFollowUps.staffId))
+        .where(and(eq(customerFollowUps.customerId, customerId), eq(customerFollowUps.centerId, auth.user.centerId!)))
+        .orderBy(desc(customerFollowUps.followUpAt)).limit(20),
     ]);
 
-    return { customer: customerRows[0], measurements, nutrition, fitness, appointments: appointmentsRows, sales: salesRows };
+    return { customer: customerRows[0], measurements, nutrition, fitness, appointments: appointmentsRows, sales: salesRows, followUps };
   });
 
   if ('notFound' in result) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);

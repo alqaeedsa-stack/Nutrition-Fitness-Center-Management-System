@@ -215,6 +215,15 @@ async function requireStaff(c: any) {
   return { user, profile: profile[0] };
 }
 
+async function requireStaffTypes(c: any, allowed: Array<z.infer<typeof staffTypeSchema>>) {
+  const auth = await requireStaff(c);
+  if ('error' in auth) return auth;
+  if (!allowed.includes(auth.profile.staffType)) {
+    return { error: c.json({ error: { code: 'STAFF_PERMISSION_REQUIRED', message: 'لا تملك صلاحية تنفيذ هذا الإجراء' } }, 403) };
+  }
+  return auth;
+}
+
 staffRoutes.get('/catalog-options', async c => {
   const auth = await requireStaff(c); if ('error' in auth) return auth.error;
   const [categoryRows, brandRows] = await Promise.all([
@@ -241,7 +250,7 @@ staffRoutes.get('/products', async c => {
 });
 
 staffRoutes.post('/products', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'warehouse']); if ('error' in auth) return auth.error;
   const body = productSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: body.error.issues[0]?.message ?? 'بيانات المنتج غير صحيحة' } }, 400);
   const data = body.data;
@@ -270,7 +279,7 @@ staffRoutes.post('/products', async c => {
 });
 
 staffRoutes.patch('/products/:id', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'warehouse']); if ('error' in auth) return auth.error;
   const body = productSchema.partial().safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'بيانات المنتج غير صحيحة' } }, 400);
   const data = body.data;
@@ -303,7 +312,7 @@ staffRoutes.get('/inventory', async c => {
 });
 
 staffRoutes.post('/inventory/adjust', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'warehouse']); if ('error' in auth) return auth.error;
   const body = stockAdjustmentSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: body.error.issues[0]?.message ?? 'بيانات الحركة غير صحيحة' } }, 400);
   const data = body.data;
@@ -375,7 +384,7 @@ staffRoutes.get('/pos/customers', async c => {
 });
 
 staffRoutes.post('/pos/sales', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
   const body = posSaleSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'بيانات البيع غير صحيحة' } }, 400);
 
@@ -493,7 +502,7 @@ staffRoutes.get('/pos/sales', async c => {
 });
 
 staffRoutes.post('/pos/sales/:id/void', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
   const result = await withDatabase(c.env, db => db.transaction(async tx => {
     const saleRows = await tx.select().from(sales).where(and(eq(sales.id, c.req.param('id')), eq(sales.centerId, auth.user.centerId!))).limit(1);
     const sale = saleRows[0];
@@ -560,7 +569,7 @@ staffRoutes.get('/orders', async c => {
 });
 
 staffRoutes.patch('/orders/:id/status', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
   const schema = z.object({ status: z.enum(['pending', 'confirmed', 'completed', 'cancelled']) });
   const body = schema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_STATUS', message: 'حالة الطلب غير صحيحة' } }, 400);

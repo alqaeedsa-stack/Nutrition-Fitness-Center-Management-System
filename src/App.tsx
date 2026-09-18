@@ -15,6 +15,7 @@ type AuthUser = {
   status: string;
   role: 'customer' | 'staff';
   staffType?: 'admin' | 'doctor' | 'nutritionist' | 'trainer' | 'employee' | 'cashier' | 'warehouse' | null;
+  permissions?: string[];
 };
 
 type LoginPortal = 'customer' | 'staff';
@@ -194,9 +195,10 @@ function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
 function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
   const staffType = user.staffType ?? 'employee';
   const isAdmin = staffType === 'admin';
-  const canCustomers = isAdmin || ['doctor', 'nutritionist', 'trainer', 'employee', 'cashier'].includes(staffType);
-  const canPos = isAdmin || staffType === 'cashier';
-  const canOperations = isAdmin || ['cashier', 'warehouse'].includes(staffType);
+  const can = (permission: string) => isAdmin || (user.permissions ?? []).includes(permission);
+  const canCustomers = can('customers.read');
+  const canPos = can('pos.read');
+  const canOperations = can('catalog.read') || can('inventory.read') || can('orders.read');
 
   const navigate = useNavigate();
   async function logout() {
@@ -210,7 +212,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
 
   const modules = [
     ...(isAdmin ? [['الإدارة', 'ADMIN', 'إعدادات المركز وإدارة التشغيل والصلاحيات.', '']] : []),
-    ...(isAdmin ? [['الموظفون والأطباء والأخصائيون', 'STAFF', 'إدارة حسابات الطاقم الداخلي والأدوار.', '/admin/staff']] : []),
+    ...(can('staff.manage') ? [['الموظفون والأطباء والأخصائيون', 'STAFF', 'إدارة حسابات الطاقم الداخلي والصلاحيات.', '/admin/staff']] : []),
     ...(canCustomers ? [['العملاء', 'CUSTOMERS', 'ملفات العملاء والمتابعة والبيانات الأساسية.', '/customers']] : []),
     ...(isAdmin ? [['المواعيد', 'APPOINTMENTS', 'حجوزات المركز ومواعيد الأطباء والأخصائيين.', '']] : []),
     ...(canPos ? [['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', '/admin/pos']] : []),
@@ -218,7 +220,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
     ...(isAdmin || staffType === 'nutritionist' ? [['الخطط الغذائية', 'NUTRITION', 'إعداد ومتابعة الخطط الغذائية.', '']] : []),
     ...(isAdmin || staffType === 'trainer' ? [['الخطط الرياضية', 'FITNESS', 'إعداد ومتابعة خطط اللياقة.', '']] : []),
     ...(isAdmin ? [['التقارير', 'REPORTS', 'تقارير التشغيل والمبيعات والمخزون.', '']] : []),
-    ...(isAdmin ? [['الضرائب والفوترة الإلكترونية', 'ZATCA', 'إعداد الضرائب ومتابعة الفواتير الإلكترونية المتوافقة مع مسار فاتورة.', '/admin/zatca']] : []),
+    ...(can('zatca.manage') ? [['الضرائب والفوترة الإلكترونية', 'ZATCA', 'إعداد الضرائب ومتابعة الفواتير الإلكترونية المتوافقة مع مسار فاتورة.', '/admin/zatca']] : []),
   ] as const;
 
   return (
@@ -596,8 +598,14 @@ function StaffPOS() {
 }
 function StaffOperations({ user }: { user: AuthUser }) {
   const staffType = user.staffType ?? 'employee';
-  const canManageCatalog = staffType === 'admin' || staffType === 'warehouse';
-  const canManageOrders = staffType === 'admin' || staffType === 'cashier';
+  const isAdmin = staffType === 'admin';
+  const can = (permission: string) => isAdmin || (user.permissions ?? []).includes(permission);
+  const canManageCatalog = can('catalog.read');
+  const canManageInventory = can('inventory.read');
+  const canAdjustInventory = can('inventory.adjust');
+  const canWriteCatalog = can('catalog.write');
+  const canManageOrders = can('orders.read');
+  const canUpdateOrders = can('orders.update');
   type Product = { id: string; sku: string; name: string; purchaseCost: string; sellingPrice: string; reorderPoint: string; active: boolean; categoryName?: string | null; brandName?: string | null };
   type Inventory = { productId: string; sku: string; name: string; quantity: string; reorderPoint: string; purchaseCost: string; sellingPrice: string };
   type Order = { id: string; orderNumber: string; customerId: string; status: string; total: string; paymentMethod?: string | null; paymentStatus: string; createdAt: string };
@@ -652,7 +660,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
     <header className="app-header"><div><span className="eyebrow">OPERATIONS</span><h1>المنتجات والمخزون والطلبات</h1></div><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></header>
     <div className="portal-choice-actions">
       {canManageCatalog && <button className={`secondary-button ${tab==='products'?'active':''}`} onClick={()=>setTab('products')}>المنتجات</button>}
-      {canManageCatalog && <button className={`secondary-button ${tab==='inventory'?'active':''}`} onClick={()=>setTab('inventory')}>المخزون</button>}
+      {canManageInventory && <button className={`secondary-button ${tab==='inventory'?'active':''}`} onClick={()=>setTab('inventory')}>المخزون</button>}
       {canManageOrders && <button className={`secondary-button ${tab==='orders'?'active':''}`} onClick={()=>setTab('orders')}>طلبات المتجر</button>}
     </div>
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
@@ -667,17 +675,17 @@ function StaffOperations({ user }: { user: AuthUser }) {
         <label>سعر البيع<input type="number" min="0" step="0.01" value={form.sellingPrice} onChange={e=>setForm({...form,sellingPrice:e.target.value})}/></label>
         <label>رمز الضريبة<input value={form.taxCode} onChange={e=>setForm({...form,taxCode:e.target.value})} placeholder="اتركه فارغًا حتى إعداد محرك الضريبة"/></label>
         <label>حد إعادة الطلب<input type="number" min="0" step="0.001" value={form.reorderPoint} onChange={e=>setForm({...form,reorderPoint:e.target.value})}/></label>
-        <button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'حفظ المنتج'}</button>
+        {canWriteCatalog && <button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'حفظ المنتج'}</button>}
       </form></section>
       <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">CATALOG</p><h2>المنتجات</h2></div></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>التصنيف</th><th>التكلفة</th><th>البيع</th><th>الحالة</th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.categoryName??'—'}</td><td>{p.purchaseCost}</td><td>{p.sellingPrice}</td><td>{p.active?'نشط':'موقوف'}</td></tr>)}</tbody></table></div></section>
     </section>}
 
-    {canManageCatalog && tab==='inventory'&&<section className="staff-management-grid">
+    {canManageInventory && tab==='inventory'&&<section className="staff-management-grid">
       <section className="panel"><p className="eyebrow">STOCK MOVEMENT</p><h2>تسوية المخزون</h2><form className="form-stack" onSubmit={adjustStock}>
         <label>المنتج<select required value={adjust.productId} onChange={e=>setAdjust({...adjust,productId:e.target.value})}><option value="">اختر المنتج</option>{products.filter(p=>p.active).map(p=><option key={p.id} value={p.id}>{p.sku} — {p.name}</option>)}</select></label>
         <label>الكمية <small>موجب إضافة / سالب صرف</small><input type="number" step="0.001" required value={adjust.quantity} onChange={e=>setAdjust({...adjust,quantity:e.target.value})}/></label>
         <label>ملاحظة<textarea value={adjust.notes} onChange={e=>setAdjust({...adjust,notes:e.target.value})}/></label>
-        <button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'تسجيل الحركة'}</button>
+        {canAdjustInventory && <button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'تسجيل الحركة'}</button>}
       </form></section>
       <section className="panel"><p className="eyebrow">ON HAND</p><h2>الأرصدة الحالية</h2><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>الرصيد</th><th>حد الطلب</th><th>قيمة التكلفة</th></tr></thead><tbody>{inventory.map(x=><tr key={x.productId}><td>{x.sku}</td><td>{x.name}</td><td>{x.quantity}</td><td>{x.reorderPoint}</td><td>{(Number(x.quantity)*Number(x.purchaseCost)).toFixed(2)} ر.س</td></tr>)}</tbody></table></div></section>
     </section>}
@@ -710,6 +718,7 @@ export default function App() {
   const customerGuard = user?.role === 'customer';
   const staffGuard = user?.role === 'staff';
   const adminGuard = staffGuard && user?.staffType === 'admin';
+  const permissionGuard = (code: string) => staffGuard && (user?.staffType === 'admin' || (user?.permissions ?? []).includes(code));
 
   return (
     <Routes>
@@ -727,10 +736,10 @@ export default function App() {
       <Route path="/admin" element={user ? <Navigate to={user.role === 'staff' ? '/admin/dashboard' : '/customer/home'} replace /> : <Login portal="staff" onLogin={setUser} />} />
       <Route path="/admin/login" element={<Navigate to="/admin" replace />} />
       <Route path="/admin/dashboard" element={staffGuard ? <StaffDashboard user={user} onLogout={async () => { try { await apiFetch('/auth/logout', { method: 'POST' }); } finally { setUser(null); } }} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/staff" element={adminGuard ? <StaffManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/pos" element={staffGuard && (user?.staffType === 'admin' || user?.staffType === 'cashier') ? <StaffPOS /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/operations" element={staffGuard && ['admin', 'cashier', 'warehouse'].includes(user?.staffType ?? '') ? <StaffOperations user={user} /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/zatca" element={adminGuard ? <ZatcaSettings /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/staff" element={permissionGuard('staff.manage') ? <StaffManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/pos" element={permissionGuard('pos.read') ? <StaffPOS /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/operations" element={staffGuard && (user?.staffType === 'admin' || ['catalog.read','inventory.read','orders.read'].some(p => (user?.permissions ?? []).includes(p))) ? <StaffOperations user={user} /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/zatca" element={permissionGuard('zatca.manage') ? <ZatcaSettings /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
 
       <Route path="/login" element={<Navigate to="/customer" replace />} />
@@ -738,7 +747,7 @@ export default function App() {
       <Route path="/forgot-password" element={<Navigate to="/customer/forgot-password" replace />} />
       <Route path="/reset-password" element={<Navigate to="/customer/reset-password" replace />} />
 
-      <Route path="/customers" element={staffGuard ? <Customers /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/customers" element={permissionGuard('customers.read') ? <Customers /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

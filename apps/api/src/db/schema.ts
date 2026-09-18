@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   uuid,
   varchar,
+  sql,
 } from 'drizzle-orm/pg-core';
 
 const auditTimestamps = {
@@ -108,7 +109,7 @@ export const sessions = pgTable('sessions', {
 export const customers = pgTable('customers', {
   id: uuid('id').defaultRandom().primaryKey(),
   centerId: uuid('center_id').notNull().references(() => centers.id),
-  customerNumber: varchar('customer_number', { length: 50 }).notNull(),
+  customerNumber: varchar('customer_number', { length: 50 }).notNull().default(sql`nextval('customer_number_seq')::text`),
   firstName: varchar('first_name', { length: 100 }).notNull(),
   lastName: varchar('last_name', { length: 100 }).notNull(),
   phone: varchar('phone', { length: 30 }),

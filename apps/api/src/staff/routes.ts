@@ -214,6 +214,17 @@ async function requireStaff(c: any) {
   return { user, profile: profile[0] };
 }
 
+staffRoutes.get('/catalog-options', async c => {
+  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const [categoryRows, brandRows] = await Promise.all([
+    withDatabase(c.env, db => db.select({ id: categories.id, name: categories.name }).from(categories)
+      .where(and(eq(categories.centerId, auth.user.centerId!), eq(categories.active, true))).orderBy(asc(categories.name))),
+    withDatabase(c.env, db => db.select({ id: brands.id, name: brands.name }).from(brands)
+      .where(and(eq(brands.centerId, auth.user.centerId!), eq(brands.active, true))).orderBy(asc(brands.name))),
+  ]);
+  return c.json({ categories: categoryRows, brands: brandRows });
+});
+
 staffRoutes.get('/products', async c => {
   const auth = await requireStaff(c); if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select({

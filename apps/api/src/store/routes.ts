@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getAuthenticatedUser } from '../auth/session';
 import { withDatabase } from '../db/client';
 import { customerAccounts } from '../db/customer-accounts';
-import { customers, products, sales, saleItems, stockMovements } from '../db/schema';
+import { customers, products, sales, saleItems, stockMovements, taxRates } from '../db/schema';
 import { requirePermission } from '../auth/permissions';
 import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
 
@@ -126,7 +126,17 @@ storeRoutes.post('/admin/sales', async c => {
       id: products.id, sku: products.sku, name: products.name, sellingPrice: products.sellingPrice, purchaseCost: products.purchaseCost, taxCode: products.taxCode, active: products.active,
     }).from(products).where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds), eq(products.active, true)));
     if (productRows.length !== productIds.length) return { error: 'PRODUCT_NOT_FOUND' as const };
-    if (productRows.some(product => product.taxCode)) return { error: 'TAX_CONFIGURATION_REQUIRED' as const };
+
+    const taxCodes = [...new Set(productRows.map(product => product.taxCode).filter((code): code is string => Boolean(code)))];
+    const taxRows = taxCodes.length
+      ? await tx.select({ code: taxRates.code, rate: taxRates.rate, categoryCode: taxRates.categoryCode, exemptionReasonCode: taxRates.exemptionReasonCode })
+        .from(taxRates)
+        .where(and(eq(taxRates.centerId, auth.user.centerId!), inArray(taxRates.code, taxCodes), eq(taxRates.active, true)))
+      : [];
+    const taxMap = new Map(taxRows.map(row => [row.code, row]));
+    for (const product of productRows) {
+      if (product.taxCode && !taxMap.has(product.taxCode)) return { error: 'TAX_CONFIGURATION_REQUIRED' as const, taxCode: product.taxCode };
+    }
 
     const movements = await tx.select({ productId: stockMovements.productId, quantity: stockMovements.quantity })
       .from(stockMovements).where(and(eq(stockMovements.centerId, auth.user.centerId!), inArray(stockMovements.productId, productIds)));
@@ -140,10 +150,17 @@ storeRoutes.post('/admin/sales', async c => {
       if (quantity > available) return { error: 'INSUFFICIENT_STOCK' as const, productId, available, requested: quantity };
     }
 
-    const subtotal = parsed.data.items.reduce((sum, item) => {
+    const lineCalculations = parsed.data.items.map(item => {
       const product = productRows.find(row => row.id === item.productId)!;
-      return sum + item.quantity * Number(product.sellingPrice);
-    }, 0);
+      const taxableBase = item.quantity * Number(product.sellingPrice);
+      const taxConfig = product.taxCode ? taxMap.get(product.taxCode) : null;
+      const taxAmount = taxConfig && taxConfig.categoryCode === 'S' ? taxableBase * Number(taxConfig.rate) / 100 : 0;
+      const lineTotal = taxableBase + taxAmount;
+      return { item, product, taxableBase, taxAmount, lineTotal };
+    });
+    const subtotal = lineCalculations.reduce((sum, line) => sum + line.taxableBase, 0);
+    const taxTotal = lineCalculations.reduce((sum, line) => sum + line.taxAmount, 0);
+    const grandTotal = subtotal + taxTotal;
     const saleNumber = 'POS-' + new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14) + '-' + crypto.randomUUID().slice(0, 8).toUpperCase();
 
     const sale = await tx.insert(sales).values({
@@ -155,18 +172,17 @@ storeRoutes.post('/admin/sales', async c => {
       currencyCode: 'SAR',
       subtotal: subtotal.toFixed(2),
       discount: '0',
-      tax: '0',
-      total: subtotal.toFixed(2),
+      tax: taxTotal.toFixed(2),
+      total: grandTotal.toFixed(2),
       paymentStatus: parsed.data.paymentStatus,
       paymentMethod: parsed.data.paymentMethod,
     }).returning();
     if (!sale[0]) return { error: 'SALE_CREATE_FAILED' as const };
 
-    for (const item of parsed.data.items) {
-      const product = productRows.find(row => row.id === item.productId)!;
-      const lineTotal = (item.quantity * Number(product.sellingPrice)).toFixed(2);
+    for (const line of lineCalculations) {
+      const { item, product, taxAmount, lineTotal } = line;
       await tx.insert(saleItems).values({
-        saleId: sale[0].id, productId: product.id, quantity: item.quantity.toString(), unitPrice: product.sellingPrice, discount: '0', tax: '0', lineTotal,
+        saleId: sale[0].id, productId: product.id, quantity: item.quantity.toString(), unitPrice: product.sellingPrice, discount: '0', tax: taxAmount.toFixed(2), lineTotal: lineTotal.toFixed(2),
       });
       await tx.insert(stockMovements).values({
         centerId: auth.user.centerId!, productId: product.id, movementType: 'sale', quantity: (-item.quantity).toString(), unitCost: product.purchaseCost,
@@ -185,7 +201,7 @@ storeRoutes.post('/admin/sales', async c => {
     const messages: Record<string, string> = {
       CUSTOMER_NOT_FOUND: 'العميل غير موجود أو غير نشط',
       PRODUCT_NOT_FOUND: 'أحد المنتجات غير موجود أو غير نشط',
-      TAX_CONFIGURATION_REQUIRED: 'يوجد منتج عليه رمز ضريبة ولم يتم ربط محرك الضريبة بعد. لم يتم إنشاء البيع.',
+      TAX_CONFIGURATION_REQUIRED: 'يوجد منتج عليه رمز ضريبة غير مرتبط بكود ضريبي نشط. لم يتم إنشاء البيع.',
       SALE_CREATE_FAILED: 'تعذر إنشاء عملية البيع',
     };
     if (errorCode === 'INSUFFICIENT_STOCK') {
@@ -198,7 +214,7 @@ storeRoutes.post('/admin/sales', async c => {
       }, 409);
     }
     return c.json({
-      error: { code: errorCode, message: messages[errorCode] ?? 'تعذر إنشاء البيع' },
+      error: { code: errorCode, message: messages[errorCode] ?? 'تعذر إنشاء البيع', ...(errorCode === 'TAX_CONFIGURATION_REQUIRED' && 'taxCode' in result ? { details: { taxCode: result.taxCode } } : {}) },
     }, errorCode === 'TAX_CONFIGURATION_REQUIRED' ? 409 : 400);
   }
 

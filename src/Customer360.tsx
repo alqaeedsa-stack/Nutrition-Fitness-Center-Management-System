@@ -46,6 +46,10 @@ export default function Customer360() {
 
   const { customer, measurements, nutrition, fitness, appointments, sales, followUps } = data;
   const upcoming = appointments.filter(a => new Date(a.startsAt).getTime() >= Date.now()).slice(0, 5);
+  const nextAppointment = upcoming[0];
+  const latestFollowUp = followUps[0];
+  const latestWeight = latestFollowUp?.weight ?? null;
+  const totalSales = sales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
 
   return (
     <main className="app-shell">
@@ -60,6 +64,31 @@ export default function Customer360() {
           <Link className="secondary-button" to="/admin/dashboard">لوحة التحكم</Link>
         </div>
       </header>
+
+      <section className="customer-action-bar">
+        <div className="customer-action-title"><span className="eyebrow">إجراءات سريعة</span><strong>ماذا تريد أن تفعل بهذا العميل؟</strong></div>
+        <div className="customer-action-links">
+          {customer.phone && <a className="primary-action" href={`tel:${customer.phone}`}>اتصال</a>}
+          {customer.phone && <a className="secondary-button" href={`https://wa.me/${customer.phone.replace(/\\D/g, '')}`} target="_blank" rel="noreferrer">واتساب</a>}
+          <Link className="secondary-button" to="/admin/follow-ups">متابعة جديدة</Link>
+          <Link className="secondary-button" to="/admin/measurements">إضافة قياس</Link>
+          <Link className="secondary-button" to="/admin/nutrition">خطة غذائية</Link>
+          <Link className="secondary-button" to="/admin/fitness">خطة لياقة</Link>
+          <Link className="secondary-button" to="/admin/appointments">موعد</Link>
+        </div>
+      </section>
+
+      <section className="customer-kpi-grid">
+        <div className="customer-kpi"><span>آخر وزن مسجل</span><strong>{latestWeight ? `${latestWeight} كجم` : '—'}</strong></div>
+        <div className="customer-kpi"><span>المتابعات</span><strong>{followUps.length}</strong></div>
+        <div className="customer-kpi"><span>المواعيد القادمة</span><strong>{upcoming.length}</strong></div>
+        <div className="customer-kpi"><span>إجمالي المشتريات</span><strong>{totalSales.toFixed(2)} ر.س</strong></div>
+      </section>
+
+      <section className="customer-next-appointment">
+        <div><span className="eyebrow">NEXT APPOINTMENT</span><strong>{nextAppointment ? nextAppointment.appointmentType : 'لا يوجد موعد قادم'}</strong></div>
+        <span>{nextAppointment ? new Date(nextAppointment.startsAt).toLocaleString('ar-SA') : 'يمكن إنشاء موعد من الإجراءات السريعة'}</span>
+      </section>
 
       <section className="customer-summary">
         <div><span className="eyebrow">رقم العميل</span><strong>{customer.customerNumber}</strong></div>

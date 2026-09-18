@@ -544,7 +544,18 @@ function StaffPOS() {
       <input value={customerQuery} onChange={e=>void searchCustomers(e.target.value)} placeholder="بحث بالرقم أو الجوال أو الاسم" />
       {!!customers.length&&!customer&&<div className="cart-list">{customers.map(c=><button type="button" className="cart-row" key={c.id} onClick={()=>{setCustomer(c);setCustomers([]);setCustomerQuery(c.customerNumber);}}><span><strong>{c.firstName} {c.lastName}</strong><small>{c.customerNumber} · {c.phone??'بدون جوال'}</small></span></button>)}</div>}
       {customer&&<button className="secondary-button" type="button" onClick={()=>{setCustomer(null);setCustomerQuery('');}}>إزالة العميل</button>}</section>
-    <section className="panel"><p className="eyebrow">CURRENT SALE</p><h2>السلة</h2>{!cart.length?<p className="empty-state">لم تتم إضافة منتجات.</p>:<div className="cart-list">{cart.map(item=><div className="cart-row" key={item.id}><div><strong>{item.name}</strong><small>{item.price.toFixed(2)} ر.س · الكمية {item.cartQuantity}</small></div><div className="cart-controls"><button type="button" onClick={()=>setCart(v=>v.map(x=>x.id===item.id?{...x,cartQuantity:Math.max(1,x.cartQuantity-1)}:x)}>−</button><span>{item.cartQuantity}</span><button type="button" onClick={()=>setCart(v=>v.map(x=>x.id===item.id?{...x,cartQuantity:Math.min(Number(x.quantity),x.cartQuantity+1)}:x)}>+</button><button type="button" className="cart-remove" onClick={()=>setCart(v=>v.filter(x=>x.id!==item.id))}>حذف</button></div></div>)}</div>}
+    <section className="panel"><p className="eyebrow">CURRENT SALE</p><h2>السلة</h2>
+      {!cart.length ? <p className="empty-state">لم تتم إضافة منتجات.</p> : <div className="cart-list">
+        {cart.map(item => <div className="cart-row" key={item.id}>
+          <div><strong>{item.name}</strong><small>{item.price.toFixed(2)} ر.س · الكمية {item.cartQuantity}</small></div>
+          <div className="cart-controls">
+            <button type="button" onClick={() => setCart(v => v.map(x => x.id === item.id ? {...x, cartQuantity: Math.max(1, x.cartQuantity - 1)} : x)}>−</button>
+            <span>{item.cartQuantity}</span>
+            <button type="button" onClick={() => setCart(v => v.map(x => x.id === item.id ? {...x, cartQuantity: Math.min(Number(x.quantity), x.cartQuantity + 1)} : x)}>+</button>
+            <button type="button" className="cart-remove" onClick={() => setCart(v => v.filter(x => x.id !== item.id))}>حذف</button>
+          </div>
+        </div>)}
+      </div>}
       <div className="checkout-panel"><div><span className="eyebrow">PAYMENT</span><h3>الإجمالي: {total.toFixed(2)} ر.س</h3><small>قبل الضريبة — محرك الضريبة لم يتم ربطه بعد.</small></div>
         <label>طريقة الدفع<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value as typeof paymentMethod)}><option value="cash">نقدي</option><option value="mada">مدى</option><option value="card">بطاقة</option><option value="bank_transfer">تحويل بنكي</option></select></label>
         <button className="primary-action button" type="button" onClick={()=>void completeSale()} disabled={loading||!cart.length}>{loading?'جارٍ تسجيل البيع...':'إتمام البيع'}</button><div className="cart-note">البيع يُسجل ذريًا في المبيعات وعناصر البيع وحركة المخزون. لا يتم إنشاء قيد دفع إلكتروني وهمي.</div></div></section></section></main>;

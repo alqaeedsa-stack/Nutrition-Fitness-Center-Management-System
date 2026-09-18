@@ -237,7 +237,7 @@ storeRoutes.post('/checkout', async c => {
       .innerJoin(storeCartItems, eq(storeCartItems.productId, products.id))
       .where(and(eq(storeCartItems.cartId, cart.id), eq(products.centerId, auth.user.centerId!), eq(products.active, true)));
 
-    if (!lockedProducts.length) throw new Error('CART_EMPTY');
+    if (!lockedProducts.length) return { cartEmpty: true };
 
     const taxConfigured = lockedProducts.every(product => !product.taxCode);
     if (!taxConfigured) {
@@ -324,7 +324,7 @@ storeRoutes.post('/checkout', async c => {
       paymentStatus: 'unpaid',
     }).returning();
 
-    if (!order[0]) throw new Error('ORDER_CREATE_FAILED');
+    if (!order[0]) return { orderCreateFailed: true };
 
     await tx.insert(storeOrderItems).values(cartItems.map(item => {
       const product = lockedProducts.find(p => p.id === item.productId)!;
@@ -349,6 +349,14 @@ storeRoutes.post('/checkout', async c => {
 
     return { order: order[0] };
   }));
+
+  if ('cartEmpty' in result && result.cartEmpty) {
+    return c.json({ error: { code: 'CART_EMPTY', message: 'السلة فارغة' } }, 400);
+  }
+
+  if ('orderCreateFailed' in result && result.orderCreateFailed) {
+    return c.json({ error: { code: 'ORDER_CREATE_FAILED', message: 'تعذر إنشاء الطلب' } }, 500);
+  }
 
   if ('taxConfigurationRequired' in result && result.taxConfigurationRequired) {
     return c.json({

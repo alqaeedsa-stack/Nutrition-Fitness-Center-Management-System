@@ -37,7 +37,7 @@ export default function CustomerPortal({ onLogout }: Props) {
       await apiFetch<void>('/auth/logout', { method: 'POST' });
     } finally {
       onLogout();
-      navigate('/login', { replace: true });
+      navigate('/customer', { replace: true });
     }
   }
 
@@ -79,6 +79,14 @@ export default function CustomerPortal({ onLogout }: Props) {
       <div><span className="eyebrow">الجوال</span><span dir="ltr">{customer.phone || 'لم تتم إضافته'}</span></div>
     </section>}
 
+    <section className="customer-store-entry">
+      <div>
+        <span className="eyebrow">CUSTOMER STORE</span>
+        <h2>المتجر الإلكتروني</h2>
+        <p>تصفح منتجات المركز وطلباتك من نفس بوابة العميل، بدون الوصول إلى أدوات الإدارة أو المخزون أو نقطة البيع.</p>
+      </div>
+      <Link className="primary-action" to="/customer/store">دخول المتجر</Link>
+    </section>
     <section className="module-grid" aria-label="مساحة العميل">
       {sections.map(([title, description, key]) => (
         <article className="module-card" key={key}>
@@ -92,7 +100,7 @@ export default function CustomerPortal({ onLogout }: Props) {
 
     <footer className="app-footer">
       <span>بوابة العميل</span>
-      <Link className="text-link" to="/">العودة للرئيسية</Link>
+      <Link className="text-link" to="/customer">بوابة العملاء والمتجر</Link>
     </footer>
   </main>;
 }

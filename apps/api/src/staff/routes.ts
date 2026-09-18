@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { withDatabase } from '../db/client';
 import { auditLogs, brands, categories, customers, productBarcodes, products, saleItems, sales, stockMovements, staffProfiles, users, permissions, userPermissions } from '../db/schema';
 import { storeOrderItems, storeOrders } from '../db/store';
-import { getCompany } from '../db/company';
 import { requirePermission, PERMISSIONS, getUserPermissionCodes, type PermissionCode } from '../auth/permissions';
 import { hashPassword } from '../auth/password';
 import { calculateTax } from '../tax/engine';
@@ -80,9 +79,6 @@ staffRoutes.post('/', async c => {
   const passwordHash = await hashPassword(data.password);
 
   const created = await withDatabase(c.env, async db => db.transaction(async tx => {
-    const company = await getCompany(tx);
-    if (!company) return { error: 'COMPANY_NOT_CONFIGURED' as const };
-
     const existing = await tx.select({ id: users.id, email: users.email, phone: users.phone })
       .from(users)
       .where(or(eq(users.email, email), ...(phone ? [eq(users.phone, phone)] : [])))
@@ -94,7 +90,7 @@ staffRoutes.post('/', async c => {
     }
 
     const userRows = await tx.insert(users).values({
-      centerId: company.id,
+      centerId: auth.user.centerId!,
       email,
       phone,
       passwordHash,
@@ -131,7 +127,7 @@ staffRoutes.post('/', async c => {
     }
 
     await tx.insert(auditLogs).values({
-      centerId: company.id,
+      centerId: auth.user.centerId!,
       actorUserId: auth.user.userId,
       action: 'staff.create',
       resourceType: 'staff_profile',
@@ -157,9 +153,6 @@ staffRoutes.post('/', async c => {
   }));
 
   if ('error' in created) {
-    if (created.error === 'COMPANY_NOT_CONFIGURED') {
-      return c.json({ error: { code: 'COMPANY_NOT_CONFIGURED', message: 'لم يتم إعداد بيانات الشركة في النظام بعد' } }, 503);
-    }
     if (created.error === 'EMAIL_EXISTS') {
       return c.json({ error: { code: 'EMAIL_ALREADY_EXISTS', message: 'البريد الإلكتروني مستخدم بالفعل' } }, 409);
     }

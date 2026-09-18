@@ -225,7 +225,7 @@ async function requireStaffTypes(c: any, allowed: Array<z.infer<typeof staffType
 }
 
 staffRoutes.get('/catalog-options', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'warehouse']); if ('error' in auth) return auth.error;
   const [categoryRows, brandRows] = await Promise.all([
     withDatabase(c.env, db => db.select({ id: categories.id, name: categories.name }).from(categories)
       .where(and(eq(categories.centerId, auth.user.centerId!), eq(categories.active, true))).orderBy(asc(categories.name))),
@@ -236,7 +236,7 @@ staffRoutes.get('/catalog-options', async c => {
 });
 
 staffRoutes.get('/products', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'warehouse']); if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select({
     id: products.id, sku: products.sku, name: products.name, categoryId: products.categoryId,
     brandId: products.brandId, productType: products.productType, purchaseCost: products.purchaseCost,
@@ -301,7 +301,7 @@ staffRoutes.patch('/products/:id', async c => {
 });
 
 staffRoutes.get('/inventory', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'warehouse']); if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select({
     productId: products.id, sku: products.sku, name: products.name, purchaseCost: products.purchaseCost,
     sellingPrice: products.sellingPrice, reorderPoint: products.reorderPoint,
@@ -346,7 +346,7 @@ const posSaleSchema = z.object({
 });
 
 staffRoutes.get('/pos/products', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
   const query = (c.req.query('q') ?? '').trim();
   if (!query) return c.json({ products: [] });
 
@@ -369,7 +369,7 @@ staffRoutes.get('/pos/products', async c => {
 });
 
 staffRoutes.get('/pos/customers', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
   const query = (c.req.query('q') ?? '').trim();
   if (!query) return c.json({ customers: [] });
   const rows = await withDatabase(c.env, db => db.select({
@@ -489,7 +489,7 @@ staffRoutes.post('/pos/sales', async c => {
 });
 
 staffRoutes.get('/pos/sales', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select({
     id: sales.id, saleNumber: sales.saleNumber, status: sales.status, subtotal: sales.subtotal,
     discount: sales.discount, tax: sales.tax, total: sales.total, paymentMethod: sales.paymentMethod,
@@ -543,7 +543,7 @@ staffRoutes.post('/pos/sales/:id/void', async c => {
 });
 
 staffRoutes.get('/pos/sales/:id', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
   const saleRows = await withDatabase(c.env, db => db.select({
     id: sales.id, saleNumber: sales.saleNumber, status: sales.status, subtotal: sales.subtotal,
     discount: sales.discount, tax: sales.tax, total: sales.total, paymentMethod: sales.paymentMethod,
@@ -562,7 +562,7 @@ staffRoutes.get('/pos/sales/:id', async c => {
 });
 
 staffRoutes.get('/orders', async c => {
-  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
   const orders = await withDatabase(c.env, db => db.select().from(storeOrders)
     .where(eq(storeOrders.centerId, auth.user.centerId!)).orderBy(desc(storeOrders.createdAt)));
   return c.json({ orders });

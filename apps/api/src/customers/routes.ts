@@ -1,11 +1,10 @@
 import { and, desc, eq, ilike, or } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { customers } from '../db/schema';
+import { customers, staffProfiles } from '../db/schema';
 import { customerAccounts } from '../db/customer-accounts';
 import { withDatabase } from '../db/client';
 import { getCompany } from '../db/company';
 import { getAuthenticatedUser } from '../auth/session';
-import { staffProfiles } from '../db/schema';
 
 export type CustomerBindings = { HYPERDRIVE?: { connectionString: string }; DATABASE_URL?: string };
 export const customerRoutes = new Hono<{ Bindings: CustomerBindings }>();

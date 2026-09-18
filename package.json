@@ -21,7 +21,8 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.1",
-    "zod": "^4.1.5"
+    "zod": "^4.1.5",
+    "@noble/curves": "^2.4.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260916.1",

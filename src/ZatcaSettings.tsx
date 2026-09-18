@@ -6,12 +6,14 @@ type TaxRate = { id:string; code:string; name:string; rate:string; categoryCode:
 type ZatcaSettings = { id:string; environment:'simulation'|'production'; vatNumber?:string|null; legalName?:string|null; invoiceTypeCode:string; deviceSerial?:string|null; sellerStreet?:string|null; sellerBuildingNumber?:string|null; sellerCity?:string|null; sellerPostalCode?:string|null; sellerCountryCode?:string|null; pih?:string|null; lastIcv:number; status:string; lastError?:string|null };
 type EInvoice = { id:string; invoiceNumber:string; invoiceType:string; status:string; responseCode?:string|null; createdAt:string; submittedAt?:string|null };
 type EligibleSale = { id:string; saleNumber:string; customerId?:string|null; subtotal:string; tax:string; total:string; createdAt:string; invoiceId?:string|null; invoiceStatus?:string|null };
+type ZatcaReadiness = { environment:'simulation'|'production'; checks:Record<string,boolean>; readyForSigning:boolean; note:string };
 
 export default function ZatcaSettings() {
  const [settings,setSettings]=useState<ZatcaSettings|null>(null);
  const [taxRates,setTaxRates]=useState<TaxRate[]>([]);
  const [invoices,setInvoices]=useState<EInvoice[]>([]);
  const [eligibleSales,setEligibleSales]=useState<EligibleSale[]>([]);
+ const [readiness,setReadiness]=useState<ZatcaReadiness|null>(null);
  const [form,setForm]=useState({environment:'simulation' as 'simulation'|'production',vatNumber:'',legalName:'',invoiceTypeCode:'0200000',deviceSerial:'',sellerStreet:'',sellerBuildingNumber:'',sellerCity:'',sellerPostalCode:'',sellerCountryCode:'SA',pih:''});
  const [taxForm,setTaxForm]=useState({code:'',name:'',rate:'',categoryCode:'S',exemptionReasonCode:''});
  const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [message,setMessage]=useState(''); const [error,setError]=useState('');

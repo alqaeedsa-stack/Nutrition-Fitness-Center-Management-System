@@ -8,6 +8,7 @@ import { passwordResetTokens } from '../db/password-reset';
 import { getCompany } from '../db/company';
 import { hashPassword, verifyPassword } from './password';
 import { sendPasswordResetEmail } from './email';
+import { getUserPermissionCodes } from './permissions';
 import {
   clearSessionCookie,
   createSession,
@@ -246,7 +247,7 @@ authRoutes.post('/login', async (c) => {
       phone: user.phone,
       status: user.status,
       role: body.data.portal,
-      ...(body.data.portal === 'staff' ? { staffType: staffProfile[0]?.staffType ?? null } : {}),
+      ...(body.data.portal === 'staff' ? { staffType: staffProfile[0]?.staffType ?? null, permissions: await getUserPermissionCodes(c.env, user.id) } : {}),
     },
     expiresAt: session.expiresAt.toISOString(),
   });
@@ -290,7 +291,7 @@ authRoutes.get('/me', async (c) => {
     return c.json({ error: { code: 'ACCOUNT_ROLE_MISSING', message: 'نوع الحساب غير محدد' } }, 403);
   }
 
-  return c.json({ user: { id: user.userId, centerId: user.centerId, email: user.email, phone: user.phone, status: user.status, role: role.role, ...(role.role === 'staff' ? { staffType: role.staffType } : {}) } });
+  return c.json({ user: { id: user.userId, centerId: user.centerId, email: user.email, phone: user.phone, status: user.status, role: role.role, ...(role.role === 'staff' ? { staffType: role.staffType, permissions: await getUserPermissionCodes(c.env, user.userId) } : {}) } });
 });
 
 authRoutes.post('/forgot-password', async (c) => {

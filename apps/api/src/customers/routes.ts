@@ -5,16 +5,19 @@ import { customerAccounts } from '../db/customer-accounts';
 import { withDatabase } from '../db/client';
 import { getCompany } from '../db/company';
 import { getAuthenticatedUser } from '../auth/session';
+import { z } from 'zod';
 
 export type CustomerBindings = { HYPERDRIVE?: { connectionString: string }; DATABASE_URL?: string };
 export const customerRoutes = new Hono<{ Bindings: CustomerBindings }>();
 
-async function requireStaffUser(c: any) {
+const staffTypeSchema = z.enum(['admin', 'doctor', 'nutritionist', 'trainer', 'employee', 'cashier', 'warehouse']);
+
+async function requireStaffUser(c: any, allowed?: Array<z.infer<typeof staffTypeSchema>>) {
   const user = await getAuthenticatedUser(c.env, c.req.raw);
   if (!user) return { error: c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401) };
 
   const staff = await withDatabase(c.env, async (db) => {
-    const rows = await db.select({ id: staffProfiles.id, active: staffProfiles.active })
+    const rows = await db.select({ id: staffProfiles.id, staffType: staffProfiles.staffType, active: staffProfiles.active })
       .from(staffProfiles)
       .where(eq(staffProfiles.userId, user.userId))
       .limit(1);
@@ -24,13 +27,16 @@ async function requireStaffUser(c: any) {
   if (!staff?.active) {
     return { error: c.json({ error: { code: 'STAFF_ACCESS_REQUIRED', message: 'هذه الوحدة مخصصة لموظفي المركز' } }, 403) };
   }
+  if (allowed && !allowed.includes(staff.staffType as z.infer<typeof staffTypeSchema>)) {
+    return { error: c.json({ error: { code: 'STAFF_PERMISSION_REQUIRED', message: 'لا تملك صلاحية الوصول إلى بيانات العملاء' } }, 403) };
+  }
 
-  return { user };
+  return { user, staff };
 }
 
 customerRoutes.get('/', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
-  const auth = await requireStaffUser(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffUser(c, ['admin', 'doctor', 'nutritionist', 'trainer', 'employee', 'cashier']); if ('error' in auth) return auth.error;
   const search = c.req.query('search')?.trim();
   const status = c.req.query('status')?.trim();
   const parsedLimit = Number(c.req.query('limit') ?? 50);
@@ -54,6 +60,7 @@ customerRoutes.get('/', async (c) => {
   })
     .from(customers)
     .where(and(
+      eq(customers.centerId, auth.user.centerId!),
       ...(status ? [eq(customers.status, status)] : []),
       ...(search ? [or(
         ilike(customers.firstName, `%${search}%`),
@@ -70,15 +77,15 @@ customerRoutes.get('/', async (c) => {
 
 customerRoutes.get('/:id', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
-  const auth = await requireStaffUser(c); if ('error' in auth) return auth.error;
-  const rows = await withDatabase(c.env, db => db.select().from(customers).where(eq(customers.id, c.req.param('id'))).limit(1));
+  const auth = await requireStaffUser(c, ['admin', 'doctor', 'nutritionist', 'trainer', 'employee', 'cashier']); if ('error' in auth) return auth.error;
+  const rows = await withDatabase(c.env, db => db.select().from(customers).where(and(eq(customers.id, c.req.param('id')), eq(customers.centerId, auth.user.centerId!))).limit(1));
   if (!rows[0]) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);
   return c.json({ customer: rows[0] });
 });
 
 customerRoutes.post('/', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
-  const auth = await requireStaffUser(c); if ('error' in auth) return auth.error;
+  const auth = await requireStaffUser(c, ['admin', 'doctor', 'nutritionist', 'trainer', 'employee', 'cashier']); if ('error' in auth) return auth.error;
   const body = await c.req.json<{ customerNumber?: string; firstName?: string; lastName?: string; phone?: string; email?: string; dateOfBirth?: string; gender?: string; source?: string; notes?: string }>();
   const customerNumber = body.customerNumber?.trim();
   const firstName = body.firstName?.trim();

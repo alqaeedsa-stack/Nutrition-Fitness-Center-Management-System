@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { getAuthenticatedUser } from '../auth/session';
@@ -237,6 +237,11 @@ storeRoutes.post('/checkout', async c => {
       .where(and(eq(storeCartItems.cartId, cart.id), eq(products.centerId, auth.user.centerId!), eq(products.active, true)));
 
     if (!lockedProducts.length) throw new Error('CART_EMPTY');
+
+    const productIds = [...new Set(lockedProducts.map(product => product.id))].sort();
+    for (const productId of productIds) {
+      await tx.execute(sql`select id from products where id = ${productId} for update`);
+    }
 
     const cartItems = await tx.select({
       id: storeCartItems.id,

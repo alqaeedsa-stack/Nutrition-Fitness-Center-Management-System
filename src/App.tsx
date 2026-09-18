@@ -277,6 +277,17 @@ function Home() {
 }
 
 function CustomerStore() {
+  const [products, setProducts] = useState<Array<{ id: string; sku: string; name: string; sellingPrice: string; taxCode?: string | null }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    apiFetch<{ products: typeof products }>('/customer-portal/store/products')
+      .then(result => setProducts(result.products))
+      .catch(err => setError(err instanceof Error ? err.message : 'تعذر تحميل منتجات المتجر'))
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <main className="app-shell customer-store-page">
       <header className="app-header">
@@ -286,12 +297,31 @@ function CustomerStore() {
         </div>
         <Link className="secondary-button" to="/customer/home">بوابة العميل</Link>
       </header>
-      <section className="store-empty">
-        <span className="eyebrow">المتجر</span>
-        <h2>المتجر الإلكتروني داخل بوابة العملاء</h2>
-        <p>هذه الصفحة مخصصة للعميل لتصفح المنتجات وإنشاء الطلبات ومتابعة مشترياته. لم يتم إضافة منتجات تجريبية أو بيانات وهمية.</p>
-        <span className="module-status">بانتظار ربط كتالوج المنتجات وطلبات المتجر</span>
+      <section className="store-heading">
+        <p className="eyebrow">منتجات المركز</p>
+        <h2>المنتجات المتاحة</h2>
+        <p>هذه واجهة المتجر الخاصة بالعملاء. الأسعار المعروضة من كتالوج المنتجات الفعلي في النظام.</p>
       </section>
+      {loading && <div className="info-strip">جارٍ تحميل المنتجات...</div>}
+      {error && <div className="info-strip warning">{error}</div>}
+      {!loading && !error && !products.length && (
+        <section className="store-empty">
+          <h2>لا توجد منتجات منشورة حاليًا</h2>
+          <p>سيظهر هنا كتالوج المنتجات بعد أن تضيف الإدارة المنتجات وتفعلها.</p>
+        </section>
+      )}
+      {!!products.length && (
+        <section className="store-product-grid" aria-label="منتجات المتجر">
+          {products.map(product => (
+            <article className="store-product-card" key={product.id}>
+              <span className="module-code">{product.sku}</span>
+              <h3>{product.name}</h3>
+              <strong>{product.sellingPrice} ر.س</strong>
+              <span className="module-status">متاح للشراء عند تفعيل الطلبات الإلكترونية</span>
+            </article>
+          ))}
+        </section>
+      )}
     </main>
   );
 }

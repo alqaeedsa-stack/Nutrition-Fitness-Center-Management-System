@@ -447,7 +447,8 @@ staffRoutes.post('/pos/sales', async c => {
       INSUFFICIENT_STOCK: ['INSUFFICIENT_STOCK', 'المخزون الحالي غير كافٍ لإتمام البيع', 409],
       SALE_CREATE_FAILED: ['SALE_CREATE_FAILED', 'تعذر إنشاء عملية البيع', 500],
     };
-    const [code, message, status] = messages[result.error] ?? ['POS_ERROR', 'تعذر إتمام البيع', 500];
+    const errorCode = result.error ?? 'POS_ERROR';
+    const [code, message, status] = messages[errorCode] ?? ['POS_ERROR', 'تعذر إتمام البيع', 500];
     return c.json({ error: { code, message } }, status as any);
   }
   return c.json({ sale: result.sale }, 201);

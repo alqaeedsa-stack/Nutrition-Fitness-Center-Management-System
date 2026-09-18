@@ -533,7 +533,12 @@ function CustomerStore() {
     </main>
   );
 }
-function StaffPOS() {
+function StaffPOS({ user }: { user: AuthUser }) {
+  const isAdmin = user.staffType === 'admin';
+  const can = (permission: string) => isAdmin || (user.permissions ?? []).includes(permission);
+  const canSell = can('pos.sell');
+  const canVoid = can('pos.void');
+  const canZatca = can('zatca.manage');
   type Product = { id:string; sku:string; name:string; sellingPrice:string; purchaseCost:string; barcode?:string|null; quantity:string };
   type Customer = { id:string; customerNumber:string; firstName:string; lastName:string; phone?:string|null };
   type CartItem = Product & { cartQuantity:number; price:number; discount:number };
@@ -579,7 +584,7 @@ function StaffPOS() {
       </div>}
       <div className="checkout-panel"><div><span className="eyebrow">PAYMENT</span><h3>الإجمالي: {total.toFixed(2)} ر.س</h3><small>قبل الضريبة — محرك الضريبة لم يتم ربطه بعد.</small></div>
         <label>طريقة الدفع<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value as typeof paymentMethod)}><option value="cash">نقدي</option><option value="mada">مدى</option><option value="card">بطاقة</option><option value="bank_transfer">تحويل بنكي</option></select></label>
-        <button className="primary-action button" type="button" onClick={()=>void completeSale()} disabled={loading||!cart.length}>{loading?'جارٍ تسجيل البيع...':'إتمام البيع'}</button><div className="cart-note">البيع يُسجل ذريًا في المبيعات وعناصر البيع وحركة المخزون. لا يتم إنشاء قيد دفع إلكتروني وهمي.</div></div></section></section>
+        {canSell && <button className="primary-action button" type="button" onClick={()=>void completeSale()} disabled={loading||!cart.length}>{loading?'جارٍ تسجيل البيع...':'إتمام البيع'}</button>}<div className="cart-note">البيع يُسجل ذريًا في المبيعات وعناصر البيع وحركة المخزون. لا يتم إنشاء قيد دفع إلكتروني وهمي.</div></div></section></section>
 
     <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">SALES HISTORY</p><h2>آخر المبيعات</h2></div><button className="secondary-button" type="button" onClick={()=>void loadSalesHistory()} disabled={historyLoading}>{historyLoading?'جارٍ التحميل...':'تحديث'}</button></div>
       {!salesHistory.length ? <p className="empty-state">اضغط «المبيعات السابقة» لعرض آخر 100 عملية بيع.</p> :
@@ -590,7 +595,7 @@ function StaffPOS() {
 
     {selectedSale&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">SALE RECEIPT</p><h2>{selectedSale.saleNumber}</h2></div><button className="secondary-button" type="button" onClick={()=>window.print()}>طباعة</button></div>
       <p>{selectedSale.customerName??'عميل نقدي'} · {new Date(selectedSale.createdAt).toLocaleString('ar-SA')} · الحالة: {selectedSale.status}</p>
-      {selectedSale.status === 'completed' && <button className="secondary-button" type="button" onClick={()=>void prepareZatcaInvoice(selectedSale.id)}>تجهيز فاتورة ZATCA</button>}{selectedSale.status === 'completed' && <button className="secondary-button" type="button" onClick={()=>void voidSale(selectedSale.id)}>إلغاء عملية البيع وعكس المخزون</button>}
+      {selectedSale.status === 'completed' && canZatca && <button className="secondary-button" type="button" onClick={()=>void prepareZatcaInvoice(selectedSale.id)}>تجهيز فاتورة ZATCA</button>}{selectedSale.status === 'completed' && canVoid && <button className="secondary-button" type="button" onClick={()=>void voidSale(selectedSale.id)}>إلغاء عملية البيع وعكس المخزون</button>}
       <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المنتج</th><th>SKU</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>{selectedSale.items.map(i=><tr key={i.id}><td>{i.productName}</td><td>{i.sku}</td><td>{i.quantity}</td><td>{i.unitPrice} ر.س</td><td>{i.lineTotal} ر.س</td></tr>)}</tbody></table></div>
       <div className="checkout-panel"><strong>الإجمالي: {selectedSale.total} ر.س</strong><small>الضريبة المسجلة حاليًا: {selectedSale.tax} ر.س</small></div>
     </section>}
@@ -695,7 +700,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
       <section className="panel"><p className="eyebrow">ON HAND</p><h2>الأرصدة الحالية</h2><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>الرصيد</th><th>حد الطلب</th><th>قيمة التكلفة</th></tr></thead><tbody>{inventory.map(x=><tr key={x.productId}><td>{x.sku}</td><td>{x.name}</td><td>{x.quantity}</td><td>{x.reorderPoint}</td><td>{(Number(x.quantity)*Number(x.purchaseCost)).toFixed(2)} ر.س</td></tr>)}</tbody></table></div></section>
     </section>}
 
-    {canManageOrders && tab==='orders'&&<section className="panel"><p className="eyebrow">CUSTOMER ORDERS</p><h2>طلبات العملاء</h2><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الطلب</th><th>الحالة</th><th>الإجمالي</th><th>الدفع</th><th>التاريخ</th><th>إجراء</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.orderNumber}</td><td>{o.status}</td><td>{o.total} ر.س</td><td>{o.paymentStatus}</td><td>{new Date(o.createdAt).toLocaleString('ar-SA')}</td><td>{o.status==='pending'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'confirmed')}>تأكيد</button>}{o.status==='confirmed'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'completed')}>إكمال</button>}{o.status!=='completed'&&o.status!=='cancelled'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'cancelled')}>إلغاء</button>}</td></tr>)}</tbody></table></div></section>}
+    {canManageOrders && tab==='orders'&&<section className="panel"><p className="eyebrow">CUSTOMER ORDERS</p><h2>طلبات العملاء</h2><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الطلب</th><th>الحالة</th><th>الإجمالي</th><th>الدفع</th><th>التاريخ</th><th>إجراء</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.orderNumber}</td><td>{o.status}</td><td>{o.total} ر.س</td><td>{o.paymentStatus}</td><td>{new Date(o.createdAt).toLocaleString('ar-SA')}</td><td>{canUpdateOrders && o.status==='pending'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'confirmed')}>تأكيد</button>}{canUpdateOrders && o.status==='confirmed'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'completed')}>إكمال</button>}{canUpdateOrders && o.status!=='completed'&&o.status!=='cancelled'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'cancelled')}>إلغاء</button>}</td></tr>)}</tbody></table></div></section>}
   </main>;
 }
 
@@ -741,7 +746,7 @@ export default function App() {
       <Route path="/admin/login" element={<Navigate to="/admin" replace />} />
       <Route path="/admin/dashboard" element={staffGuard ? <StaffDashboard user={user} onLogout={async () => { try { await apiFetch('/auth/logout', { method: 'POST' }); } finally { setUser(null); } }} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/staff" element={permissionGuard('staff.manage') ? <StaffManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/pos" element={permissionGuard('pos.read') ? <StaffPOS /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/pos" element={permissionGuard('pos.read') ? <StaffPOS user={user} /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/operations" element={staffGuard && (user?.staffType === 'admin' || ['catalog.read','inventory.read','orders.read'].some(p => (user?.permissions ?? []).includes(p))) ? <StaffOperations user={user} /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/zatca" element={permissionGuard('zatca.manage') ? <ZatcaSettings /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />

@@ -160,8 +160,8 @@ function buildInvoiceXml(input: ZatcaInvoiceInput, qrCode: string) {
     '<cac:PartyLegalEntity><cbc:RegistrationName>' + xml(input.seller.legalName) + '</cbc:RegistrationName></cac:PartyLegalEntity></cac:Party></cac:AccountingSupplierParty>' +
     allowance +
     '<cac:TaxTotal><cbc:TaxAmount currencyID="SAR">' + money(input.tax) + '</cbc:TaxAmount></cac:TaxTotal>' +
-    '<cac:LegalMonetaryTotal><cbc:LineExtensionAmount currencyID="SAR">' + money(input.subtotal - input.discount) + '</cbc:LineExtensionAmount><cbc:TaxExclusiveAmount currencyID="SAR">' + money(input.subtotal - input.discount) + '</cbc:TaxExclusiveAmount><cbc:TaxInclusiveAmount currencyID="SAR">' + money(input.total) + '</cbc:TaxInclusiveAmount><cbc:AllowanceTotalAmount currencyID="SAR">' + money(input.discount) + '</cbc:AllowanceTotalAmount><cbc:PayableAmount currencyID="SAR">' + money(input.total) + '</cbc:PayableAmount></cac:LegalMonetaryTotal>' +
     lines +
+    '<cac:LegalMonetaryTotal><cbc:LineExtensionAmount currencyID="SAR">' + money(input.subtotal - input.discount) + '</cbc:LineExtensionAmount><cbc:TaxExclusiveAmount currencyID="SAR">' + money(input.subtotal - input.discount) + '</cbc:TaxExclusiveAmount><cbc:TaxInclusiveAmount currencyID="SAR">' + money(input.total) + '</cbc:TaxInclusiveAmount><cbc:AllowanceTotalAmount currencyID="SAR">' + money(input.discount) + '</cbc:AllowanceTotalAmount><cbc:PayableAmount currencyID="SAR">' + money(input.total) + '</cbc:PayableAmount></cac:LegalMonetaryTotal>' +
     '</Invoice>';
 }
 

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { withDatabase } from './db/client';
 import { authRoutes } from './auth/routes';
+import { bootstrapAdminRoutes } from './auth/bootstrap-admin';
 import { customerAccountRoutes } from './customer-account/routes';
 import { customerRoutes } from './customers/routes';
 import { staffRoutes } from './staff/routes';
@@ -20,6 +21,7 @@ export type Bindings = {
   DATABASE_URL?: string;
   ZATCA_BINARY_SECURITY_TOKEN?: string;
   ZATCA_SECRET?: string;
+  BOOTSTRAP_ADMIN_TOKEN?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -32,6 +34,7 @@ app.use('*', async (c, next) => {
 });
 
 app.route('/api/v1/auth', authRoutes);
+app.route('/api/v1/auth/bootstrap-admin', bootstrapAdminRoutes);
 app.route('/api/v1/customer-account', customerAccountRoutes);
 app.route('/api/v1/customers', customerRoutes);
 app.route('/api/v1/staff', staffRoutes);

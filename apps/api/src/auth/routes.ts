@@ -248,6 +248,27 @@ authRoutes.post('/login', async (c) => {
   });
 });
 
+authRoutes.post('/logout', async (c) => {
+  const user = await getAuthenticatedUser(c.env, c.req.raw);
+
+  if (user) {
+    await withDatabase(c.env, async (db) => db.insert(auditLogs).values({
+      centerId: user.centerId,
+      actorUserId: user.userId,
+      action: 'auth.logout',
+      resourceType: 'session',
+      resourceId: user.sessionId,
+      result: 'success',
+      ipAddress: c.req.header('CF-Connecting-IP') ?? undefined,
+      userAgent: c.req.header('User-Agent') ?? undefined,
+    }));
+  }
+
+  await revokeSession(c.env, c.req.raw);
+  c.header('Set-Cookie', clearSessionCookie());
+  return c.body(null, 204);
+});
+
 authRoutes.get('/me', async (c) => {
   const user = await getAuthenticatedUser(c.env, c.req.raw);
   if (!user) return c.json({ error: { code: 'UNAUTHENTICATED', message: 'تسجيل الدخول مطلوب' } }, 401);

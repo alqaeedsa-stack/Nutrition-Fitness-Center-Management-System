@@ -770,6 +770,7 @@ export default function App() {
       <Route path="/admin/appointments" element={permissionGuard('appointments.read') ? <Appointments user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/nutrition" element={permissionGuard('nutrition.read') ? <NutritionManagement user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/fitness" element={permissionGuard('fitness.read') ? <FitnessManagement user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/customers" element={permissionGuard('customers.read') ? <Customers user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/customers/:id" element={permissionGuard('customers.read') ? <Customer360 /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/measurements" element={permissionGuard('customers.read') ? <MeasurementsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/follow-ups" element={permissionGuard('customers.read') ? <FollowUpsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />

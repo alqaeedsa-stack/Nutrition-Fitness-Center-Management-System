@@ -14,6 +14,7 @@ type AuthUser = {
   phone?: string | null;
   status: string;
   role: 'customer' | 'staff';
+  staffType?: 'admin' | 'doctor' | 'nutritionist' | 'trainer' | 'employee' | 'cashier' | 'warehouse' | null;
 };
 
 type LoginPortal = 'customer' | 'staff';
@@ -699,6 +700,7 @@ export default function App() {
 
   const customerGuard = user?.role === 'customer';
   const staffGuard = user?.role === 'staff';
+  const adminGuard = staffGuard && user?.staffType === 'admin';
 
   return (
     <Routes>
@@ -716,10 +718,10 @@ export default function App() {
       <Route path="/admin" element={user ? <Navigate to={user.role === 'staff' ? '/admin/dashboard' : '/customer/home'} replace /> : <Login portal="staff" onLogin={setUser} />} />
       <Route path="/admin/login" element={<Navigate to="/admin" replace />} />
       <Route path="/admin/dashboard" element={staffGuard ? <StaffDashboard user={user} onLogout={async () => { try { await apiFetch('/auth/logout', { method: 'POST' }); } finally { setUser(null); } }} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/staff" element={staffGuard ? <StaffManagement /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/staff" element={adminGuard ? <StaffManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/pos" element={staffGuard ? <StaffPOS /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/operations" element={staffGuard ? <StaffOperations /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/zatca" element={staffGuard ? <ZatcaSettings /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/zatca" element={adminGuard ? <ZatcaSettings /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
 
       <Route path="/login" element={<Navigate to="/customer" replace />} />

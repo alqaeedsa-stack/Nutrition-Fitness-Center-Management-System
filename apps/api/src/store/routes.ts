@@ -1,11 +1,11 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { getAuthenticatedUser } from '../auth/session';
 import { withDatabase } from '../db/client';
 import { customerAccounts } from '../db/customer-accounts';
-import { products } from '../db/schema';
-import { storeCartItems, storeCarts } from '../db/store';
+import { products, stockMovements } from '../db/schema';
+import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
 
 export type StoreBindings = {
   HYPERDRIVE?: { connectionString: string };
@@ -37,8 +37,15 @@ async function getOrCreateCart(c: any, customerId: string, centerId: string) {
       .limit(1);
     if (existing[0]) return existing[0];
 
-    const rows = await db.insert(storeCarts).values({ customerId, centerId, status: 'active' }).returning();
-    return rows[0];
+    try {
+      const rows = await db.insert(storeCarts).values({ customerId, centerId, status: 'active' }).returning();
+      return rows[0];
+    } catch {
+      const retry = await db.select().from(storeCarts)
+        .where(and(eq(storeCarts.customerId, customerId), eq(storeCarts.status, 'active')))
+        .limit(1);
+      return retry[0];
+    }
   });
 }
 
@@ -48,6 +55,16 @@ const itemSchema = z.object({
 });
 
 const quantitySchema = z.object({ quantity: z.number().positive().max(9999) });
+
+const checkoutSchema = z.object({
+  paymentMethod: z.enum(['cash_on_delivery', 'bank_transfer', 'mada', 'apple_pay', 'card']),
+});
+
+function orderNumber() {
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+  const suffix = crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
+  return `WEB-${stamp}-${suffix}`;
+}
 
 storeRoutes.get('/cart', async c => {
   const auth = await customerContext(c);
@@ -63,6 +80,7 @@ storeRoutes.get('/cart', async c => {
     unitPrice: storeCartItems.unitPrice,
     name: products.name,
     sku: products.sku,
+    taxCode: products.taxCode,
   }).from(storeCartItems)
     .innerJoin(products, eq(products.id, storeCartItems.productId))
     .where(eq(storeCartItems.cartId, cart.id))
@@ -89,7 +107,11 @@ storeRoutes.post('/cart/items', async c => {
     sellingPrice: products.sellingPrice,
     active: products.active,
     centerId: products.centerId,
-  }).from(products).where(and(eq(products.id, parsed.data.productId), eq(products.centerId, auth.user.centerId!), eq(products.active, true))).limit(1));
+  }).from(products).where(and(
+    eq(products.id, parsed.data.productId),
+    eq(products.centerId, auth.user.centerId!),
+    eq(products.active, true),
+  )).limit(1));
 
   if (!product[0]) return c.json({ error: { code: 'PRODUCT_NOT_AVAILABLE', message: 'المنتج غير متاح حاليًا' } }, 404);
 
@@ -138,6 +160,7 @@ storeRoutes.patch('/cart/items/:id', async c => {
 
   return c.json({ ok: true });
 });
+
 storeRoutes.delete('/cart/items/:id', async c => {
   const auth = await customerContext(c);
   if ('error' in auth) return auth.error;
@@ -152,4 +175,188 @@ storeRoutes.delete('/cart/items/:id', async c => {
 
   await withDatabase(c.env, db => db.delete(storeCartItems).where(eq(storeCartItems.id, item[0].id)));
   return c.json({ ok: true });
+});
+
+storeRoutes.get('/orders', async c => {
+  const auth = await customerContext(c);
+  if ('error' in auth) return auth.error;
+
+  const orders = await withDatabase(c.env, db => db.select().from(storeOrders)
+    .where(eq(storeOrders.customerId, auth.customerId))
+    .orderBy(desc(storeOrders.createdAt)));
+
+  const orderIds = orders.map(order => order.id);
+  const items = orderIds.length
+    ? await withDatabase(c.env, db => db.select()
+      .from(storeOrderItems)
+      .where(inArray(storeOrderItems.orderId, orderIds))
+      .orderBy(asc(storeOrderItems.id)))
+    : [];
+
+  return c.json({
+    orders: orders.map(order => ({
+      ...order,
+      items: items.filter(item => item.orderId === order.id),
+    })),
+  });
+});
+
+storeRoutes.post('/checkout', async c => {
+  const auth = await customerContext(c);
+  if ('error' in auth) return auth.error;
+
+  const parsed = checkoutSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: { code: 'INVALID_PAYMENT_METHOD', message: 'طريقة الدفع غير صحيحة' } }, 400);
+  }
+
+  const paymentMethod = parsed.data.paymentMethod;
+  if (['mada', 'apple_pay', 'card'].includes(paymentMethod)) {
+    return c.json({
+      error: {
+        code: 'PAYMENT_GATEWAY_NOT_CONFIGURED',
+        message: 'الدفع الإلكتروني لهذه الطريقة لم يتم ربطه بعد. لا يتم إنشاء عملية دفع وهمية.',
+      },
+    }, 409);
+  }
+
+  const cart = await getOrCreateCart(c, auth.customerId, auth.user.centerId!);
+  if (!cart) return c.json({ error: { code: 'CART_NOT_FOUND', message: 'السلة غير موجودة' } }, 404);
+
+  const result = await withDatabase(c.env, async db => db.transaction(async tx => {
+    const lockedProducts = await tx.select({
+      id: products.id,
+      name: products.name,
+      sku: products.sku,
+      sellingPrice: products.sellingPrice,
+      active: products.active,
+      centerId: products.centerId,
+    })
+      .from(products)
+      .innerJoin(storeCartItems, eq(storeCartItems.productId, products.id))
+      .where(and(eq(storeCartItems.cartId, cart.id), eq(products.centerId, auth.user.centerId!), eq(products.active, true)));
+
+    if (!lockedProducts.length) throw new Error('CART_EMPTY');
+
+    const cartItems = await tx.select({
+      id: storeCartItems.id,
+      productId: storeCartItems.productId,
+      quantity: storeCartItems.quantity,
+      unitPrice: storeCartItems.unitPrice,
+    }).from(storeCartItems).where(eq(storeCartItems.cartId, cart.id));
+
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000);
+    const pendingRows = await tx.select({
+      productId: storeOrderItems.productId,
+      quantity: storeOrderItems.quantity,
+    })
+      .from(storeOrderItems)
+      .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.orderId))
+      .where(and(
+        eq(storeOrders.centerId, auth.user.centerId!),
+        eq(storeOrders.status, 'pending'),
+      ));
+
+    const reservedByProduct = new Map<string, number>();
+    for (const row of pendingRows) {
+      const order = await tx.select({ createdAt: storeOrders.createdAt })
+        .from(storeOrders)
+        .where(eq(storeOrders.id, row.productId === row.productId ? storeOrderItems.orderId : storeOrderItems.orderId))
+        .limit(1);
+      if (order[0] && order[0].createdAt >= cutoff) {
+        reservedByProduct.set(row.productId, (reservedByProduct.get(row.productId) ?? 0) + Number(row.quantity));
+      }
+    }
+
+    const movements = lockedProducts.length
+      ? await tx.select({
+        productId: stockMovements.productId,
+        quantity: stockMovements.quantity,
+      }).from(stockMovements).where(and(
+        eq(stockMovements.centerId, auth.user.centerId!),
+        inArray(stockMovements.productId, lockedProducts.map(p => p.id)),
+      ))
+      : [];
+
+    const onHand = new Map<string, number>();
+    for (const movement of movements) {
+      onHand.set(movement.productId, (onHand.get(movement.productId) ?? 0) + Number(movement.quantity));
+    }
+
+    const shortages: Array<{ productId: string; name: string; requested: number; available: number }> = [];
+    for (const item of cartItems) {
+      const available = (onHand.get(item.productId) ?? 0) - (reservedByProduct.get(item.productId) ?? 0);
+      if (Number(item.quantity) > available) {
+        const product = lockedProducts.find(p => p.id === item.productId);
+        shortages.push({
+          productId: item.productId,
+          name: product?.name ?? 'منتج',
+          requested: Number(item.quantity),
+          available: Math.max(0, available),
+        });
+      }
+    }
+
+    if (shortages.length) {
+      return { shortages };
+    }
+
+    const subtotal = cartItems.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+    const order = await tx.insert(storeOrders).values({
+      centerId: auth.user.centerId!,
+      customerId: auth.customerId,
+      orderNumber: orderNumber(),
+      status: 'pending',
+      subtotal: subtotal.toFixed(2),
+      discount: '0',
+      tax: '0',
+      total: subtotal.toFixed(2),
+      paymentMethod,
+      paymentStatus: 'unpaid',
+    }).returning();
+
+    if (!order[0]) throw new Error('ORDER_CREATE_FAILED');
+
+    await tx.insert(storeOrderItems).values(cartItems.map(item => {
+      const product = lockedProducts.find(p => p.id === item.productId)!;
+      const lineTotal = (Number(item.quantity) * Number(item.unitPrice)).toFixed(2);
+      return {
+        orderId: order[0].id,
+        productId: item.productId,
+        productName: product.name,
+        sku: product.sku,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discount: '0',
+        tax: '0',
+        lineTotal,
+      };
+    }));
+
+    await tx.update(storeCarts).set({
+      status: 'converted',
+      updatedAt: new Date(),
+    }).where(eq(storeCarts.id, cart.id));
+
+    return { order: order[0] };
+  }));
+
+  if ('shortages' in result && result.shortages.length) {
+    return c.json({
+      error: {
+        code: 'INSUFFICIENT_STOCK',
+        message: 'بعض المنتجات لا تتوفر بالكمية المطلوبة حاليًا',
+        details: result.shortages,
+      },
+    }, 409);
+  }
+
+  return c.json({
+    order: {
+      ...result.order,
+      message: paymentMethod === 'bank_transfer'
+        ? 'تم إنشاء الطلب. حالة الدفع غير مدفوعة، وسيتم تأكيد الطلب بعد التحقق من التحويل البنكي.'
+        : 'تم إنشاء الطلب. الدفع عند الاستلام، وسيتم تأكيد الطلب من المركز.',
+    },
+  }, 201);
 });

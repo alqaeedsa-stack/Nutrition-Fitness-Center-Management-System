@@ -454,6 +454,38 @@ staffRoutes.post('/pos/sales', async c => {
   return c.json({ sale: result.sale }, 201);
 });
 
+staffRoutes.get('/pos/sales', async c => {
+  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const rows = await withDatabase(c.env, db => db.select({
+    id: sales.id, saleNumber: sales.saleNumber, status: sales.status, subtotal: sales.subtotal,
+    discount: sales.discount, tax: sales.tax, total: sales.total, paymentMethod: sales.paymentMethod,
+    createdAt: sales.createdAt, customerName: sql<string | null>`nullif(concat(${customers.firstName}, ' ', ${customers.lastName}), ' ')`,
+  }).from(sales)
+    .leftJoin(customers, eq(customers.id, sales.customerId))
+    .where(eq(sales.centerId, auth.user.centerId!))
+    .orderBy(desc(sales.createdAt)).limit(100));
+  return c.json({ sales: rows });
+});
+
+staffRoutes.get('/pos/sales/:id', async c => {
+  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const saleRows = await withDatabase(c.env, db => db.select({
+    id: sales.id, saleNumber: sales.saleNumber, status: sales.status, subtotal: sales.subtotal,
+    discount: sales.discount, tax: sales.tax, total: sales.total, paymentMethod: sales.paymentMethod,
+    createdAt: sales.createdAt,
+    customerName: sql<string | null>`nullif(concat(${customers.firstName}, ' ', ${customers.lastName}), ' ')`,
+  }).from(sales).leftJoin(customers, eq(customers.id, sales.customerId))
+    .where(and(eq(sales.id, c.req.param('id')), eq(sales.centerId, auth.user.centerId!))).limit(1));
+  if (!saleRows[0]) return c.json({ error: { code: 'SALE_NOT_FOUND', message: 'عملية البيع غير موجودة' } }, 404);
+  const items = await withDatabase(c.env, db => db.select({
+    id: saleItems.id, productId: saleItems.productId, productName: products.name,
+    sku: products.sku, quantity: saleItems.quantity, unitPrice: saleItems.unitPrice,
+    discount: saleItems.discount, tax: saleItems.tax, lineTotal: saleItems.lineTotal,
+  }).from(saleItems).innerJoin(products, eq(products.id, saleItems.productId))
+    .where(eq(saleItems.saleId, saleRows[0].id)).orderBy(asc(products.name)));
+  return c.json({ sale: saleRows[0], items });
+});
+
 staffRoutes.get('/orders', async c => {
   const auth = await requireStaff(c); if ('error' in auth) return auth.error;
   const orders = await withDatabase(c.env, db => db.select().from(storeOrders)

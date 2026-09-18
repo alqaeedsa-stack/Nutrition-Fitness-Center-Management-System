@@ -126,7 +126,7 @@ customerRoutes.get('/:id/360', async (c) => {
         discount: sales.discount,
         tax: sales.tax,
         total: sales.total,
-        paymentMethod: sales.paymentMethod,
+        paymentStatus: sales.paymentStatus,
         createdAt: sales.createdAt,
       }).from(sales)
         .where(and(eq(sales.customerId, customerId), eq(sales.centerId, auth.user.centerId!)))

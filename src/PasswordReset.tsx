@@ -42,7 +42,7 @@ export function ForgotPassword() {
       {message && <div className="info-strip">{message}</div>}
       <button className="primary-action button" type="submit" disabled={loading}>{loading ? 'جارٍ إرسال الرابط...' : 'إرسال رابط إعادة التعيين'}</button>
     </form>
-    <div className="auth-switch"><Link className="text-link" to="/login">العودة إلى تسجيل الدخول</Link></div>
+    <div className="auth-switch"><Link className="text-link" to="/customer">العودة إلى تسجيل الدخول</Link></div>
   </AuthShell>;
 }
 
@@ -52,6 +52,8 @@ export function ResetPassword() {
   const token = params.get('token') ?? '';
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -81,8 +83,18 @@ export function ResetPassword() {
     <h1>تعيين كلمة مرور جديدة</h1>
     <p>اختر كلمة مرور جديدة لا تقل عن 10 أحرف. رابط إعادة التعيين صالح لمدة 30 دقيقة ويستخدم مرة واحدة.</p>
     <form onSubmit={submit} className="form-stack">
-      <label>كلمة المرور الجديدة<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" minLength={10} required /></label>
-      <label>تأكيد كلمة المرور<input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" minLength={10} required /></label>
+      <label className="password-field">كلمة المرور الجديدة
+        <div className="password-input-wrap">
+          <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" minLength={10} required />
+          <button className="password-toggle" type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} title={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}>{showPassword ? 'إخفاء' : 'عرض'}</button>
+        </div>
+      </label>
+      <label className="password-field">تأكيد كلمة المرور
+        <div className="password-input-wrap">
+          <input type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" minLength={10} required />
+          <button className="password-toggle" type="button" onClick={() => setShowConfirmPassword(value => !value)} aria-label={showConfirmPassword ? 'إخفاء تأكيد كلمة المرور' : 'إظهار تأكيد كلمة المرور'} title={showConfirmPassword ? 'إخفاء تأكيد كلمة المرور' : 'إظهار تأكيد كلمة المرور'}>{showConfirmPassword ? 'إخفاء' : 'عرض'}</button>
+        </div>
+      </label>
       {error && <div className="form-error" role="alert">{error}</div>}
       {message && <div className="info-strip">{message} جارٍ تحويلك لتسجيل الدخول...</div>}
       <button className="primary-action button" type="submit" disabled={loading}>{loading ? 'جارٍ حفظ كلمة المرور...' : 'حفظ كلمة المرور الجديدة'}</button>

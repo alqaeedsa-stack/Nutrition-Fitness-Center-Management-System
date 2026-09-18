@@ -15,7 +15,7 @@ type AuthMe = { user: { id: string } };
 type StoreProduct = { id: string; sku: string; name: string; sellingPrice: string; purchaseCost: string; taxCode?: string | null; stock: number; active: boolean };
 type SaleCartItem = StoreProduct & { quantity: number };
 
-const statusLabel: Record<string, string> = { active: 'نشطة', draft: 'مسودة', completed: 'مكتملة', cancelled: 'ملغاة', scheduled: 'مجدول', confirmed: 'مؤكد', no_show: 'لم يحضر', pending: 'قيد المعالجة', completed_sale: 'مكتمل' };
+const statusLabel: Record<string, string> = { active: 'نشطة', draft: 'مسودة', completed: 'مكتملة', cancelled: 'ملغاة', scheduled: 'مجدول', confirmed: 'مؤكد', no_show: 'لم يحضر', pending: 'قيد المعالجة', completed_sale: 'مكتمل', returned: 'مرتجع', refunded: 'مسترد' };
 function label(value: string) { return statusLabel[value] ?? value; }
 
 export default function Customer360() {
@@ -139,6 +139,22 @@ export default function Customer360() {
       setStoreProducts(refreshed.products.filter(product => product.active));
     } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر إنشاء البيع.'); }
     finally { setSaving(false); }
+  }
+
+  async function returnSale(sale: Sale) {
+    if (sale.status === 'returned') return;
+    const confirmed = window.confirm(`سيتم إرجاع كامل البيع ${sale.saleNumber} وإعادة الكميات إلى المخزون. هل تريد المتابعة؟`);
+    if (!confirmed) return;
+    setSaving(true); setActionError(''); setActionMessage('');
+    try {
+      await apiFetch<{ ok: true }>(`/store/admin/sales/${sale.id}/return`, { method: 'POST' });
+      setActionMessage(`تم إرجاع البيع ${sale.saleNumber} وإعادة الكميات إلى المخزون.`);
+      await load(true);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'تعذر إرجاع البيع.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function saveMeasurement(e: FormEvent) {
@@ -396,7 +412,7 @@ export default function Customer360() {
         <article className="module-card"><span className="module-code">NUTRITION</span><h3>الخطط الغذائية</h3>{nutrition.length ? <div className="portal-data-list">{nutrition.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small><button className="text-link button-link" type="button" onClick={() => void openPlanDetails('nutrition', p.id)}>تفاصيل / الوجبات</button></div>)}</div> : <div className="empty-state">لا توجد خطط غذائية.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('nutrition')}>إنشاء خطة غذائية</button></article>
         <article className="module-card"><span className="module-code">FITNESS</span><h3>خطط اللياقة</h3>{fitness.length ? <div className="portal-data-list">{fitness.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small><button className="text-link button-link" type="button" onClick={() => void openPlanDetails('fitness', p.id)}>تفاصيل / التمارين</button></div>)}</div> : <div className="empty-state">لا توجد خطط لياقة.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('fitness')}>إنشاء خطة لياقة</button></article>
         <article className="module-card"><span className="module-code">APPOINTMENTS</span><h3>المواعيد القادمة</h3>{upcoming.length ? <div className="portal-data-list">{upcoming.map(a => <div className="portal-data-row" key={a.id}><strong>{a.appointmentType}</strong><span>{label(a.status)}</span><small>{new Date(a.startsAt).toLocaleString('ar-SA')}{a.staffName ? ` · ${a.staffName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد مواعيد قادمة.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('appointment')}>حجز موعد</button></article>
-        <article className="module-card"><span className="module-code">SALES</span><h3>مشتريات العميل</h3>{sales.length ? <div className="portal-data-list">{sales.slice(0, 8).map(s => <div className="portal-data-row" key={s.id}><strong>{s.saleNumber}</strong><span>{s.total} ر.س</span><small>{label(s.status)} · {new Date(s.createdAt).toLocaleDateString('ar-SA')} · {label(s.paymentStatus)}</small></div>)}</div> : <div className="empty-state">لا توجد مشتريات مرتبطة بالعميل.</div>}</article>
+        <article className="module-card"><span className="module-code">SALES</span><h3>مشتريات العميل</h3>{sales.length ? <div className="portal-data-list">{sales.slice(0, 8).map(s => <div className="portal-data-row" key={s.id}><strong>{s.saleNumber}</strong><span>{s.total} ر.س</span><small>{label(s.status)} · {new Date(s.createdAt).toLocaleDateString('ar-SA')} · {label(s.paymentStatus)}</small>{s.status === 'completed' && <button className="text-link button-link" type="button" disabled={saving} onClick={() => void returnSale(s)}>إرجاع البيع</button>}</div>)}</div> : <div className="empty-state">لا توجد مشتريات مرتبطة بالعميل.</div>}</article>
         <article className="module-card"><span className="module-code">ACTIVITY</span><h3>ملخص العميل</h3><div className="portal-data-list"><div className="portal-data-row"><strong>القياسات</strong><span>{measurements.length}</span></div><div className="portal-data-row"><strong>الخطط الغذائية</strong><span>{nutrition.length}</span></div><div className="portal-data-row"><strong>خطط اللياقة</strong><span>{fitness.length}</span></div><div className="portal-data-row"><strong>المواعيد</strong><span>{appointments.length}</span></div><div className="portal-data-row"><strong>المتابعات</strong><span>{followUps.length}</span></div><div className="portal-data-row"><strong>المبيعات</strong><span>{sales.length}</span></div></div></article>
       </section>
     </main>

@@ -756,7 +756,7 @@ export default function App() {
       <Route path="/forgot-password" element={<Navigate to="/customer/forgot-password" replace />} />
       <Route path="/reset-password" element={<Navigate to="/customer/reset-password" replace />} />
 
-      <Route path="/customers" element={permissionGuard('customers.read') ? <Customers /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/customers" element={permissionGuard('customers.read') ? <Customers user={user!} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

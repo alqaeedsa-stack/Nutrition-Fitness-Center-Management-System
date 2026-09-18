@@ -2,10 +2,11 @@ import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
-import { auditLogs, brands, categories, customers, productBarcodes, products, saleItems, sales, stockMovements, staffProfiles, users } from '../db/schema';
+import { auditLogs, brands, categories, customers, productBarcodes, products, saleItems, sales, stockMovements, staffProfiles, users, permissions, userPermissions } from '../db/schema';
 import { storeOrderItems, storeOrders } from '../db/store';
 import { getCompany } from '../db/company';
 import { getAuthenticatedUser } from '../auth/session';
+import { requirePermission, PERMISSIONS, getUserPermissionCodes, type PermissionCode } from '../auth/permissions';
 import { hashPassword } from '../auth/password';
 import { calculateTax } from '../tax/engine';
 
@@ -32,6 +33,7 @@ const createStaffSchema = z.object({
   email: z.string().trim().email().max(320),
   phone: z.union([z.string().trim().regex(/^\+[1-9]\d{6,14}$/), z.literal('')]).optional(),
   password: z.string().min(10).max(256),
+  permissionCodes: z.array(z.string()).default([]),
 });
 
 async function requireAdmin(c: any) {
@@ -90,7 +92,7 @@ staffRoutes.post('/', async c => {
     return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
   }
 
-  const auth = await requireAdmin(c);
+  const auth = await requirePermission(c, 'staff.manage');
   if ('error' in auth) return auth.error;
 
   const body = createStaffSchema.safeParse(await c.req.json().catch(() => null));
@@ -146,6 +148,14 @@ staffRoutes.post('/', async c => {
     const profile = profileRows[0];
     if (!profile) throw new Error('Staff profile insert returned no row');
 
+    const requestedCodes = data.permissionCodes.filter(code => PERMISSIONS.some(permission => permission.code === code));
+    if (requestedCodes.length) {
+      const permissionRows = await tx.select({ id: permissions.id, code: permissions.code }).from(permissions).where(inArray(permissions.code, requestedCodes));
+      if (permissionRows.length) {
+        await tx.insert(userPermissions).values(permissionRows.map(permission => ({ userId: user.id, permissionId: permission.id })));
+      }
+    }
+
     await tx.insert(auditLogs).values({
       centerId: company.id,
       actorUserId: auth.user.userId,
@@ -167,6 +177,7 @@ staffRoutes.post('/', async c => {
         active: true,
         email: user.email,
         phone: user.phone,
+        permissionCodes: requestedCodes,
       },
     };
   }));
@@ -184,6 +195,63 @@ staffRoutes.post('/', async c => {
   return c.json({ staff: created.staff }, 201);
 });
 
+
+staffRoutes.get('/permissions', async c => {
+  const auth = await requirePermission(c, 'staff.manage');
+  if ('error' in auth) return auth.error;
+  return c.json({ permissions: PERMISSIONS });
+});
+
+staffRoutes.get('/:id/permissions', async c => {
+  const auth = await requirePermission(c, 'staff.manage');
+  if ('error' in auth) return auth.error;
+  const userRow = await withDatabase(c.env, db => db.select({ id: users.id }).from(users)
+    .innerJoin(staffProfiles, eq(staffProfiles.userId, users.id))
+    .where(and(eq(staffProfiles.id, c.req.param('id')), eq(users.centerId, auth.user.centerId!))).limit(1));
+  if (!userRow[0]) return c.json({ error: { code: 'STAFF_NOT_FOUND', message: 'الموظف غير موجود' } }, 404);
+  return c.json({ permissionCodes: await getUserPermissionCodes(c.env, userRow[0].id) });
+});
+
+staffRoutes.put('/:id/permissions', async c => {
+  const auth = await requirePermission(c, 'staff.manage');
+  if ('error' in auth) return auth.error;
+  const body = z.object({ permissionCodes: z.array(z.string()).default([]) }).safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'قائمة الصلاحيات غير صحيحة' } }, 400);
+  const requestedCodes = [...new Set(body.data.permissionCodes.filter(code => PERMISSIONS.some(permission => permission.code === code)))];
+  const result = await withDatabase(c.env, db => db.transaction(async tx => {
+    const staff = await tx.select({ userId: users.id, staffType: staffProfiles.staffType })
+      .from(staffProfiles).innerJoin(users, eq(users.id, staffProfiles.userId))
+      .where(and(eq(staffProfiles.id, c.req.param('id')), eq(users.centerId, auth.user.centerId!))).limit(1);
+    if (!staff[0]) return { error: 'NOT_FOUND' as const };
+    if (staff[0].userId === auth.user.userId && staff[0].staffType === 'admin') {
+      return { error: 'SELF_ADMIN' as const };
+    }
+    const permissionRows = requestedCodes.length
+      ? await tx.select({ id: permissions.id, code: permissions.code }).from(permissions).where(inArray(permissions.code, requestedCodes))
+      : [];
+    await tx.delete(userPermissions).where(eq(userPermissions.userId, staff[0].userId));
+    if (permissionRows.length) {
+      await tx.insert(userPermissions).values(permissionRows.map(permission => ({ userId: staff[0].userId, permissionId: permission.id })));
+    }
+    await tx.insert(auditLogs).values({
+      centerId: auth.user.centerId,
+      actorUserId: auth.user.userId,
+      action: 'staff.permissions.update',
+      resourceType: 'staff_profile',
+      resourceId: c.req.param('id'),
+      result: 'success',
+      metadata: { permissionCodes: requestedCodes },
+      ipAddress: c.req.header('CF-Connecting-IP') ?? undefined,
+      userAgent: c.req.header('User-Agent') ?? undefined,
+    });
+    return { permissionCodes: requestedCodes };
+  }));
+  if ('error' in result) {
+    if (result.error === 'NOT_FOUND') return c.json({ error: { code: 'STAFF_NOT_FOUND', message: 'الموظف غير موجود' } }, 404);
+    return c.json({ error: { code: 'SELF_ADMIN_LOCKOUT', message: 'لا يمكن إزالة صلاحيات حساب الإدارة الحالي من نفسه' } }, 409);
+  }
+  return c.json(result);
+});
 
 const productSchema = z.object({
   sku: z.string().trim().min(1).max(80),
@@ -206,26 +274,22 @@ const stockAdjustmentSchema = z.object({
 });
 
 async function requireStaff(c: any) {
-  const user = await getAuthenticatedUser(c.env, c.req.raw);
-  if (!user) return { error: c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401) };
-  const profile = await withDatabase(c.env, db => db.select({
-    id: staffProfiles.id, staffType: staffProfiles.staffType, active: staffProfiles.active,
-  }).from(staffProfiles).where(eq(staffProfiles.userId, user.userId)).limit(1));
-  if (!profile[0]?.active) return { error: c.json({ error: { code: 'STAFF_ACCESS_REQUIRED', message: 'هذه الوحدة للموظفين فقط' } }, 403) };
-  return { user, profile: profile[0] };
-}
-
-async function requireStaffTypes(c: any, allowed: Array<z.infer<typeof staffTypeSchema>>) {
-  const auth = await requireStaff(c);
+  const auth = await requirePermission(c, 'customers.read');
   if ('error' in auth) return auth;
-  if (!allowed.includes(auth.profile.staffType as z.infer<typeof staffTypeSchema>)) {
-    return { error: c.json({ error: { code: 'STAFF_PERMISSION_REQUIRED', message: 'لا تملك صلاحية تنفيذ هذا الإجراء' } }, 403) };
-  }
   return auth;
 }
 
+async function requireStaffTypes(c: any, allowed: Array<z.infer<typeof staffTypeSchema>>) {
+  const permissionMap: Record<string, PermissionCode> = {
+    'admin,warehouse': 'catalog.read',
+    'admin,cashier': 'pos.read',
+  };
+  const key = allowed.join(',');
+  return requirePermission(c, permissionMap[key] ?? 'customers.read');
+}
+
 staffRoutes.get('/catalog-options', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'warehouse']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'catalog.read'); if ('error' in auth) return auth.error;
   const [categoryRows, brandRows] = await Promise.all([
     withDatabase(c.env, db => db.select({ id: categories.id, name: categories.name }).from(categories)
       .where(and(eq(categories.centerId, auth.user.centerId!), eq(categories.active, true))).orderBy(asc(categories.name))),
@@ -236,7 +300,7 @@ staffRoutes.get('/catalog-options', async c => {
 });
 
 staffRoutes.get('/products', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'warehouse']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'catalog.read'); if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select({
     id: products.id, sku: products.sku, name: products.name, categoryId: products.categoryId,
     brandId: products.brandId, productType: products.productType, purchaseCost: products.purchaseCost,
@@ -250,7 +314,7 @@ staffRoutes.get('/products', async c => {
 });
 
 staffRoutes.post('/products', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'warehouse']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'catalog.write'); if ('error' in auth) return auth.error;
   const body = productSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: body.error.issues[0]?.message ?? 'بيانات المنتج غير صحيحة' } }, 400);
   const data = body.data;
@@ -279,7 +343,7 @@ staffRoutes.post('/products', async c => {
 });
 
 staffRoutes.patch('/products/:id', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'warehouse']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'catalog.write'); if ('error' in auth) return auth.error;
   const body = productSchema.partial().safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'بيانات المنتج غير صحيحة' } }, 400);
   const data = body.data;
@@ -301,7 +365,7 @@ staffRoutes.patch('/products/:id', async c => {
 });
 
 staffRoutes.get('/inventory', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'warehouse']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'inventory.read'); if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select({
     productId: products.id, sku: products.sku, name: products.name, purchaseCost: products.purchaseCost,
     sellingPrice: products.sellingPrice, reorderPoint: products.reorderPoint,
@@ -312,7 +376,7 @@ staffRoutes.get('/inventory', async c => {
 });
 
 staffRoutes.post('/inventory/adjust', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'warehouse']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'inventory.adjust'); if ('error' in auth) return auth.error;
   const body = stockAdjustmentSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: body.error.issues[0]?.message ?? 'بيانات الحركة غير صحيحة' } }, 400);
   const data = body.data;
@@ -346,7 +410,7 @@ const posSaleSchema = z.object({
 });
 
 staffRoutes.get('/pos/products', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'pos.read'); if ('error' in auth) return auth.error;
   const query = (c.req.query('q') ?? '').trim();
   if (!query) return c.json({ products: [] });
 
@@ -369,7 +433,7 @@ staffRoutes.get('/pos/products', async c => {
 });
 
 staffRoutes.get('/pos/customers', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'pos.read'); if ('error' in auth) return auth.error;
   const query = (c.req.query('q') ?? '').trim();
   if (!query) return c.json({ customers: [] });
   const rows = await withDatabase(c.env, db => db.select({
@@ -384,7 +448,7 @@ staffRoutes.get('/pos/customers', async c => {
 });
 
 staffRoutes.post('/pos/sales', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'pos.sell'); if ('error' in auth) return auth.error;
   const body = posSaleSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'بيانات البيع غير صحيحة' } }, 400);
 
@@ -489,7 +553,7 @@ staffRoutes.post('/pos/sales', async c => {
 });
 
 staffRoutes.get('/pos/sales', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'pos.read'); if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select({
     id: sales.id, saleNumber: sales.saleNumber, status: sales.status, subtotal: sales.subtotal,
     discount: sales.discount, tax: sales.tax, total: sales.total, paymentMethod: sales.paymentMethod,
@@ -502,7 +566,7 @@ staffRoutes.get('/pos/sales', async c => {
 });
 
 staffRoutes.post('/pos/sales/:id/void', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'pos.void'); if ('error' in auth) return auth.error;
   const result = await withDatabase(c.env, db => db.transaction(async tx => {
     const saleRows = await tx.select().from(sales).where(and(eq(sales.id, c.req.param('id')), eq(sales.centerId, auth.user.centerId!))).limit(1);
     const sale = saleRows[0];
@@ -543,7 +607,7 @@ staffRoutes.post('/pos/sales/:id/void', async c => {
 });
 
 staffRoutes.get('/pos/sales/:id', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'pos.read'); if ('error' in auth) return auth.error;
   const saleRows = await withDatabase(c.env, db => db.select({
     id: sales.id, saleNumber: sales.saleNumber, status: sales.status, subtotal: sales.subtotal,
     discount: sales.discount, tax: sales.tax, total: sales.total, paymentMethod: sales.paymentMethod,
@@ -562,14 +626,14 @@ staffRoutes.get('/pos/sales/:id', async c => {
 });
 
 staffRoutes.get('/orders', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'orders.read'); if ('error' in auth) return auth.error;
   const orders = await withDatabase(c.env, db => db.select().from(storeOrders)
     .where(eq(storeOrders.centerId, auth.user.centerId!)).orderBy(desc(storeOrders.createdAt)));
   return c.json({ orders });
 });
 
 staffRoutes.patch('/orders/:id/status', async c => {
-  const auth = await requireStaffTypes(c, ['admin', 'cashier']); if ('error' in auth) return auth.error;
+  const auth = await requirePermission(c, 'orders.update'); if ('error' in auth) return auth.error;
   const schema = z.object({ status: z.enum(['pending', 'confirmed', 'completed', 'cancelled']) });
   const body = schema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_STATUS', message: 'حالة الطلب غير صحيحة' } }, 400);

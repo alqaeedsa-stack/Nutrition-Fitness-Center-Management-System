@@ -1,3 +1,5 @@
+import { buildZatcaQrCryptography } from './signing';
+
 export type ZatcaInvoiceLine = {
   id: string;
   productName: string;
@@ -171,13 +173,30 @@ function buildInvoiceXml(input: ZatcaInvoiceInput, qrCode: string | null) {
     '</Invoice>';
 }
 
-export async function generateZatcaInvoice(input: ZatcaInvoiceInput) {
+export async function generateZatcaInvoice(
+  input: ZatcaInvoiceInput,
+  signing?: { privateKeyPem?: string; certificatePem?: string },
+) {
   const issueDate = input.issueDate.toISOString();
   const unsignedWithoutQr = buildInvoiceXml(input, null);
   const invoiceHash = await sha256Base64(unsignedWithoutQr);
-  // Tags 7-9 require the cryptographic stamp generated from the EGS certificate.
-  // Until a real CSID/certificate and XAdES signer are configured, do not fabricate
-  // cryptographic values. The QR remains explicitly unsigned and submission is blocked.
+
+  let signature = '';
+  let publicKey = '';
+  let certificateSignature = '';
+
+  if (signing?.privateKeyPem && signing?.certificatePem) {
+    const hashBytes = Uint8Array.from(atob(invoiceHash), char => char.charCodeAt(0));
+    const cryptography = buildZatcaQrCryptography({
+      privateKeyPem: signing.privateKeyPem,
+      certificatePem: signing.certificatePem,
+      signedTlvPayload: hashBytes,
+    });
+    signature = base64(cryptography.signature);
+    publicKey = base64(cryptography.publicKey);
+    certificateSignature = base64(cryptography.certificateSignature);
+  }
+
   const qrCode = buildQrCode({
     sellerName: input.seller.legalName,
     vatNumber: input.seller.vatNumber,
@@ -185,9 +204,9 @@ export async function generateZatcaInvoice(input: ZatcaInvoiceInput) {
     total: input.total,
     tax: input.tax,
     invoiceHash,
-    publicKey: '',
-    signature: '',
-    certificateSignature: '',
+    publicKey,
+    signature,
+    certificateSignature,
   });
   const xml = buildInvoiceXml(input, qrCode);
   return { xml, invoiceHash, qrCode };

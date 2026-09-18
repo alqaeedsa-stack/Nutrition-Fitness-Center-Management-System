@@ -124,6 +124,26 @@ const prepareSchema = z.object({
   invoiceType: z.enum(['simplified', 'standard']),
 });
 
+zatcaRoutes.get('/sales/eligible', async c => {
+  const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
+  const rows = await withDatabase(c.env, db => db.select({
+    id: sales.id,
+    saleNumber: sales.saleNumber,
+    customerId: sales.customerId,
+    subtotal: sales.subtotal,
+    tax: sales.tax,
+    total: sales.total,
+    createdAt: sales.createdAt,
+    invoiceId: eInvoices.id,
+    invoiceStatus: eInvoices.status,
+  }).from(sales)
+    .leftJoin(eInvoices, eq(eInvoices.saleId, sales.id))
+    .where(and(eq(sales.centerId, auth.user.centerId!), eq(sales.status, 'completed')))
+    .orderBy(desc(sales.createdAt))
+    .limit(100));
+  return c.json({ sales: rows });
+});
+
 zatcaRoutes.post('/sales/:saleId/prepare', async c => {
   const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
   const body = prepareSchema.safeParse(await c.req.json().catch(() => null));

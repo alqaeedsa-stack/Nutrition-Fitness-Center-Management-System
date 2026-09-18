@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
@@ -740,30 +740,48 @@ staffRoutes.get('/reports/summary', async c => {
   const auth = await requirePermission(c, 'reports.read'); if ('error' in auth) return auth.error;
   const from = c.req.query('from') ?? new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
   const to = c.req.query('to') ?? new Date().toISOString().slice(0, 10);
-  const parsed = z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).safeParse({ from, to });
+  const parsed = z.object({
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  }).safeParse({ from, to });
   if (!parsed.success || from > to) return c.json({ error: { code: 'INVALID_DATE_RANGE', message: 'نطاق التاريخ غير صحيح' } }, 400);
+
   const start = new Date(from + 'T00:00:00.000Z');
-  const end = new Date(to + 'T00:00:00.000Z'); end.setUTCDate(end.getUTCDate() + 1);
+  const end = new Date(to + 'T00:00:00.000Z');
+  end.setUTCDate(end.getUTCDate() + 1);
 
   const [summaryRows, dailyRows, inventoryRows] = await Promise.all([
     withDatabase(c.env, db => db.select({
-      salesCount: sql`count(*) filter (where ${sales.status = 'completed')`,
-      salesTotal: sql`coalesce(sum(case when ${sales.status = 'completed' then ${sales.total else 0 end), 0)`,
-      taxTotal: sql`coalesce(sum(case when ${sales.status = 'completed' then ${sales.tax else 0 end), 0)`,
-    }).from(sales).where(and(eq(sales.centerId, auth.user.centerId!), sql`${sales.createdAt >= ${start and ${sales.createdAt < ${end`))),
+      salesCount: sql<number>.raw('count(*)'),
+      salesTotal: sql<string>.raw('coalesce(sum(grand_total), 0)'),
+      taxTotal: sql<string>.raw('coalesce(sum(tax_total), 0)'),
+    }).from(sales).where(and(
+      eq(sales.centerId, auth.user.centerId!),
+      eq(sales.status, 'completed'),
+      gte(sales.createdAt, start),
+      lt(sales.createdAt, end),
+    ))),
     withDatabase(c.env, db => db.select({
-      date: sql`to_char(date_trunc('day', ${sales.createdAt), 'YYYY-MM-DD')`,
-      count: sql`count(*)`,
-      total: sql`coalesce(sum(${sales.total), 0)`,
-    }).from(sales).where(and(eq(sales.centerId, auth.user.centerId!), eq(sales.status, 'completed'), sql`${sales.createdAt >= ${start and ${sales.createdAt < ${end`))
-      .groupBy(sql`date_trunc('day', ${sales.createdAt)`).orderBy(sql`date_trunc('day', ${sales.createdAt)`)),
+      date: sql<string>.raw("to_char(date_trunc('day', created_at), 'YYYY-MM-DD')"),
+      count: sql<number>.raw('count(*)'),
+      total: sql<string>.raw('coalesce(sum(grand_total), 0)'),
+    }).from(sales).where(and(
+      eq(sales.centerId, auth.user.centerId!),
+      eq(sales.status, 'completed'),
+      gte(sales.createdAt, start),
+      lt(sales.createdAt, end),
+    )).groupBy(sql.raw("date_trunc('day', created_at)")).orderBy(sql.raw("date_trunc('day', created_at)"))),
     withDatabase(c.env, db => db.select({
-      productId: products.id, sku: products.sku, name: products.name,
-      quantity: sql`coalesce(sum(${stockMovements.quantity), 0)`,
-      reorderPoint: products.reorderPoint, purchaseCost: products.purchaseCost,
+      productId: products.id,
+      sku: products.sku,
+      name: products.name,
+      quantity: sql<number>.raw('coalesce(sum(quantity), 0)'),
+      reorderPoint: products.reorderPoint,
+      purchaseCost: products.purchaseCost,
     }).from(products).leftJoin(stockMovements, eq(stockMovements.productId, products.id))
       .where(and(eq(products.centerId, auth.user.centerId!), eq(products.active, true)))
-      .groupBy(products.id).orderBy(asc(products.name))),
+      .groupBy(products.id)
+      .orderBy(asc(products.name))),
   ]);
 
   const summary = summaryRows[0] ?? { salesCount: 0, salesTotal: '0', taxTotal: '0' };
@@ -771,9 +789,23 @@ staffRoutes.get('/reports/summary', async c => {
   const inventoryValue = inventoryRows.reduce((sum, row) => sum + Number(row.quantity) * Number(row.purchaseCost), 0);
 
   return c.json({
-    from, to,
-    summary: { salesCount: Number(summary.salesCount), salesTotal: String(summary.salesTotal ?? '0'), taxTotal: String(summary.taxTotal ?? '0'), inventoryValue: inventoryValue.toFixed(2), lowStockCount: lowStock.length },
+    from,
+    to,
+    summary: {
+      salesCount: Number(summary.salesCount),
+      salesTotal: String(summary.salesTotal ?? '0'),
+      taxTotal: String(summary.taxTotal ?? '0'),
+      inventoryValue: inventoryValue.toFixed(2),
+      lowStockCount: lowStock.length,
+    },
     dailySales: dailyRows.map(row => ({ date: row.date, count: Number(row.count), total: String(row.total ?? '0') })),
-    lowStock: lowStock.map(row => ({ productId: row.productId, sku: row.sku, name: row.name, quantity: String(row.quantity ?? '0'), reorderPoint: String(row.reorderPoint ?? '0'), purchaseCost: String(row.purchaseCost ?? '0') })),
+    lowStock: lowStock.map(row => ({
+      productId: row.productId,
+      sku: row.sku,
+      name: row.name,
+      quantity: String(row.quantity ?? '0'),
+      reorderPoint: String(row.reorderPoint ?? '0'),
+      purchaseCost: String(row.purchaseCost ?? '0'),
+    })),
   });
 });

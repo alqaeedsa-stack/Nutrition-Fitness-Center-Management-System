@@ -454,3 +454,11 @@ h2 { font-size: clamp(25px, 5vw, 42px); line-height: 1.25; }
   .permission-group-items label:nth-child(odd) { border-left:0; }
   .permission-group-heading { padding:8px; }
 }
+
+
+/* Password visibility control */
+.password-input-wrap { position: relative; display: flex; align-items: center; }
+.password-input-wrap input { padding-left: 68px; }
+.password-toggle { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); min-width: 52px; min-height: 32px; padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #475569; font-size: 12px; font-weight: 700; cursor: pointer; }
+.password-toggle:hover { background: #f8fafc; color: var(--navy); }
+.password-toggle:focus-visible { outline: 2px solid #64748b; outline-offset: 1px; }

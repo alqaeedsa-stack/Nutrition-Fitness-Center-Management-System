@@ -258,7 +258,7 @@ zatcaRoutes.post('/invoices/:id/submit', async c => {
   )).limit(1));
   const invoice = invoiceRows[0];
   if (!invoice) return c.json({ error: { code: 'EINVOICE_NOT_FOUND', message: 'الفاتورة الإلكترونية غير موجودة' } }, 404);
-  if (!invoice.xml || !invoice.invoiceHash) {
+  if (!invoice.xml || !invoice.invoiceHash || !/<(?:ds:)?Signature\\b/.test(invoice.xml)) {
     return c.json({ error: { code: 'SIGNED_XML_REQUIRED', message: 'يجب توليد وتوقيع XML للفواتير قبل الإرسال إلى فاتورة' } }, 409);
   }
 

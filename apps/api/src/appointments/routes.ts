@@ -193,7 +193,9 @@ appointmentRoutes.patch('/:id', async c => {
       STAFF_NOT_FOUND: ['الموظف المختص غير موجود أو غير نشط', 404],
       STAFF_TIME_CONFLICT: ['يوجد موعد آخر لهذا الموظف في نفس الفترة', 409],
     };
-    const [message, status] = messages[result.error];
+    const entry = messages[String(result.error)];
+    if (!entry) return c.json({ error: { code: String(result.error), message: 'تعذر معالجة الطلب' } }, 500);
+    const [message, status] = entry;
     return c.json({ error: { code: result.error, message } }, status as any);
   }
 

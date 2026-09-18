@@ -55,6 +55,7 @@ staffRoutes.get('/', async c => {
   })
     .from(staffProfiles)
     .innerJoin(users, eq(users.id, staffProfiles.userId))
+    .where(eq(users.centerId, auth.user.centerId!))
     .orderBy(staffProfiles.createdAt));
 
   return c.json({ staff: rows });
@@ -306,21 +307,72 @@ staffRoutes.patch('/products/:id', async c => {
   const body = productSchema.partial().safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'بيانات المنتج غير صحيحة' } }, 400);
   const data = body.data;
-  const row = await withDatabase(c.env, db => db.update(products).set({
-    ...(data.sku !== undefined ? { sku: data.sku } : {}),
-    ...(data.name !== undefined ? { name: data.name } : {}),
-    ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
-    ...(data.brandId !== undefined ? { brandId: data.brandId } : {}),
-    ...(data.productType !== undefined ? { productType: data.productType } : {}),
-    ...(data.purchaseCost !== undefined ? { purchaseCost: data.purchaseCost.toFixed(2) } : {}),
-    ...(data.sellingPrice !== undefined ? { sellingPrice: data.sellingPrice.toFixed(2) } : {}),
-    ...(data.taxCode !== undefined ? { taxCode: data.taxCode } : {}),
-    ...(data.reorderPoint !== undefined ? { reorderPoint: data.reorderPoint.toFixed(3) } : {}),
-    ...(data.active !== undefined ? { active: data.active } : {}),
-    updatedAt: new Date(),
-  }).where(and(eq(products.id, c.req.param('id')), eq(products.centerId, auth.user.centerId!))).returning());
-  if (!row[0]) return c.json({ error: { code: 'PRODUCT_NOT_FOUND', message: 'المنتج غير موجود' } }, 404);
-  return c.json({ product: row[0] });
+  const row = await withDatabase(c.env, db => db.transaction(async tx => {
+    const existing = await tx.select({
+      id: products.id,
+      categoryId: products.categoryId,
+      brandId: products.brandId,
+    }).from(products).where(and(
+      eq(products.id, c.req.param('id')),
+      eq(products.centerId, auth.user.centerId!),
+    )).limit(1);
+    if (!existing[0]) return { error: 'PRODUCT_NOT_FOUND' as const };
+
+    if (data.categoryId !== undefined) {
+      const category = await tx.select({ id: categories.id }).from(categories).where(and(
+        eq(categories.id, data.categoryId),
+        eq(categories.centerId, auth.user.centerId!),
+        eq(categories.active, true),
+      )).limit(1);
+      if (!category[0]) return { error: 'CATEGORY_NOT_FOUND' as const };
+    }
+
+    if (data.brandId !== undefined && data.brandId !== null) {
+      const brand = await tx.select({ id: brands.id }).from(brands).where(and(
+        eq(brands.id, data.brandId),
+        eq(brands.centerId, auth.user.centerId!),
+        eq(brands.active, true),
+      )).limit(1);
+      if (!brand[0]) return { error: 'BRAND_NOT_FOUND' as const };
+    }
+
+    if (data.sku !== undefined) {
+      const duplicate = await tx.select({ id: products.id }).from(products).where(and(
+        eq(products.centerId, auth.user.centerId!),
+        eq(products.sku, data.sku),
+        sql`${products.id} <> ${c.req.param('id')}`,
+      )).limit(1);
+      if (duplicate[0]) return { error: 'SKU_EXISTS' as const };
+    }
+
+    const updated = await tx.update(products).set({
+      ...(data.sku !== undefined ? { sku: data.sku } : {}),
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
+      ...(data.brandId !== undefined ? { brandId: data.brandId } : {}),
+      ...(data.productType !== undefined ? { productType: data.productType } : {}),
+      ...(data.purchaseCost !== undefined ? { purchaseCost: data.purchaseCost.toFixed(2) } : {}),
+      ...(data.sellingPrice !== undefined ? { sellingPrice: data.sellingPrice.toFixed(2) } : {}),
+      ...(data.taxCode !== undefined ? { taxCode: data.taxCode } : {}),
+      ...(data.reorderPoint !== undefined ? { reorderPoint: data.reorderPoint.toFixed(3) } : {}),
+      ...(data.active !== undefined ? { active: data.active } : {}),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(products.id, c.req.param('id')),
+      eq(products.centerId, auth.user.centerId!),
+    )).returning();
+
+    return { product: updated[0] };
+  }));
+
+  if ('error' in row) {
+    if (row.error === 'PRODUCT_NOT_FOUND') return c.json({ error: { code: 'PRODUCT_NOT_FOUND', message: 'المنتج غير موجود' } }, 404);
+    if (row.error === 'CATEGORY_NOT_FOUND') return c.json({ error: { code: 'CATEGORY_NOT_FOUND', message: 'التصنيف غير موجود أو لا يتبع للمركز' } }, 409);
+    if (row.error === 'BRAND_NOT_FOUND') return c.json({ error: { code: 'BRAND_NOT_FOUND', message: 'العلامة التجارية غير موجودة أو لا تتبع للمركز' } }, 409);
+    if (row.error === 'SKU_EXISTS') return c.json({ error: { code: 'SKU_EXISTS', message: 'SKU مستخدم بالفعل في هذا المركز' } }, 409);
+  }
+
+  return c.json({ product: row.product });
 });
 
 staffRoutes.get('/inventory', async c => {

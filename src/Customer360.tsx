@@ -8,7 +8,8 @@ type Customer = {
 };
 type Measurement = { id: string; value: string; measuredAt: string; notes?: string | null; typeName: string; unit?: string | null };
 type Plan = { id: string; title: string; goals?: string | null; startDate: string; endDate?: string | null; status: string; version: number; specialistName?: string | null };
-type FollowUp = { id: string; followUpAt: string; nextFollowUpAt?: string | null; weight?: string | null; height?: string | null; adherenceScore?: number | null; nutritionAdherenceScore?: number | null; fitnessAdherenceScore?: number | null; notes?: string | null; recommendations?: string | null; staffName?: string | null };\ntype Appointment = { id: string; startsAt: string; endsAt: string; appointmentType: string; status: string; notes?: string | null; staffName?: string | null };
+type FollowUp = { id: string; followUpAt: string; nextFollowUpAt?: string | null; weight?: string | null; height?: string | null; adherenceScore?: number | null; nutritionAdherenceScore?: number | null; fitnessAdherenceScore?: number | null; notes?: string | null; recommendations?: string | null; staffName?: string | null };
+type Appointment = { id: string; startsAt: string; endsAt: string; appointmentType: string; status: string; notes?: string | null; staffName?: string | null };
 type Sale = { id: string; saleNumber: string; status: string; subtotal: string; discount: string; tax: string; total: string; paymentMethod: string; createdAt: string };
 
 type Data = { customer: Customer; measurements: Measurement[]; nutrition: Plan[]; fitness: Plan[]; appointments: Appointment[]; sales: Sale[]; followUps: FollowUp[] };
@@ -114,7 +115,8 @@ export default function Customer360() {
             <div className="portal-data-row"><strong>الخطط الغذائية</strong><span>{nutrition.length}</span></div>
             <div className="portal-data-row"><strong>خطط اللياقة</strong><span>{fitness.length}</span></div>
             <div className="portal-data-row"><strong>المواعيد</strong><span>{appointments.length}</span></div>
-            <div className="portal-data-row"><strong>المتابعات</strong><span>{followUps.length}</span></div>\n            <div className="portal-data-row"><strong>المبيعات</strong><span>{sales.length}</span></div>
+            <div className="portal-data-row"><strong>المتابعات</strong><span>{followUps.length}</span></div>
+            <div className="portal-data-row"><strong>المبيعات</strong><span>{sales.length}</span></div>
           </div>
         </article>
       </section>

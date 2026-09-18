@@ -43,7 +43,7 @@ function Login({ onLogin, portal }: { onLogin: (user: AuthUser) => void; portal:
         body: JSON.stringify({ identifier, password, portal }),
       });
       onLogin(result.user);
-      navigate(isStaff ? '/staff/dashboard' : '/customer/home', { replace: true });
+      navigate(isStaff ? '/admin/dashboard' : '/customer/home', { replace: true });
     } catch {
       setError(isStaff
         ? 'تعذر الدخول إلى بوابة الإدارة والموظفين. تحقق من البريد/الجوال وكلمة المرور.'
@@ -88,7 +88,7 @@ function Login({ onLogin, portal }: { onLogin: (user: AuthUser) => void; portal:
         <div className="auth-switch">
           {isStaff
             ? <>عميل؟ <Link className="text-link" to="/customer/login">دخول العملاء والمتجر</Link></>
-            : <>إدارة أو موظف؟ <Link className="text-link" to="/staff/login">دخول الإدارة والموظفين</Link></>}
+            : <>إدارة أو موظف؟ <Link className="text-link" to="/admin/login">دخول الإدارة والموظفين</Link></>}
         </div>
       </section>
     </main>
@@ -190,7 +190,7 @@ function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
 
 function PortalEntry({ portal, user }: { portal: LoginPortal; user: AuthUser | null }) {
   const isStaff = portal === 'staff';
-  if (user) return <Navigate to={user.role === 'staff' ? '/staff/dashboard' : '/customer/home'} replace />;
+  if (user) return <Navigate to={user.role === 'staff' ? '/admin/dashboard' : '/customer/home'} replace />;
 
   return (
     <main className="portal-page">
@@ -202,7 +202,7 @@ function PortalEntry({ portal, user }: { portal: LoginPortal; user: AuthUser | n
           ? 'دخول منفصل للإدارة والأطباء والأخصائيين والموظفين لإدارة العملاء والمواعيد والمخزون ونقاط البيع والتشغيل الداخلي.'
           : 'دخول منفصل للعملاء لمتابعة الحساب والقياسات والخطط والمواعيد والمشتريات والوصول إلى المتجر الإلكتروني.'}</p>
         <div className="portal-actions">
-          <Link className="primary-action button" to={isStaff ? '/staff/login' : '/customer/login'}>{isStaff ? 'دخول الإدارة والموظفين' : 'دخول العملاء'}</Link>
+          <Link className="primary-action button" to={isStaff ? '/admin/login' : '/customer/login'}>{isStaff ? 'دخول الإدارة والموظفين' : 'دخول العملاء'}</Link>
           {!isStaff && <Link className="secondary-button portal-action-link" to="/customer/register">إنشاء حساب عميل</Link>}
         </div>
         <div className="portal-sections">
@@ -303,9 +303,9 @@ function Home() {
             <h2>بوابة الإدارة والموظفين</h2>
             <p>للإدارة والأطباء والأخصائيين والموظفين: العملاء، المواعيد، المخزون، نقطة البيع والتشغيل الداخلي.</p>
             <div className="portal-choice-actions">
-              <Link className="primary-action" to="/staff">دخول بوابة الإدارة</Link>
+              <Link className="primary-action" to="/admin">دخول بوابة الإدارة</Link>
             </div>
-            <span className="portal-url">/staff</span>
+            <span className="portal-url">/admin</span>
           </article>
         </div>
       </section>
@@ -363,24 +363,24 @@ export default function App() {
       <Route path="/health" element={<Health />} />
 
       <Route path="/customer" element={<PortalEntry portal="customer" user={user} />} />
-      <Route path="/customer/login" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/staff/dashboard'} replace /> : <Login portal="customer" onLogin={setUser} />} />
-      <Route path="/customer/register" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/staff/dashboard'} replace /> : <Register onLogin={setUser} />} />
-      <Route path="/customer/forgot-password" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/staff/dashboard'} replace /> : <ForgotPassword />} />
-      <Route path="/customer/reset-password" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/staff/dashboard'} replace /> : <ResetPassword />} />
-      <Route path="/customer/home" element={customerGuard ? <CustomerPortal onLogout={() => setUser(null)} /> : user ? <Navigate to="/staff/dashboard" replace /> : <Navigate to="/customer" replace />} />
-      <Route path="/customer/store" element={customerGuard ? <CustomerStore /> : user ? <Navigate to="/staff/dashboard" replace /> : <Navigate to="/customer" replace />} />
+      <Route path="/customer/login" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/admin/dashboard'} replace /> : <Login portal="customer" onLogin={setUser} />} />
+      <Route path="/customer/register" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/admin/dashboard'} replace /> : <Register onLogin={setUser} />} />
+      <Route path="/customer/forgot-password" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/admin/dashboard'} replace /> : <ForgotPassword />} />
+      <Route path="/customer/reset-password" element={user ? <Navigate to={user.role === 'customer' ? '/customer/home' : '/admin/dashboard'} replace /> : <ResetPassword />} />
+      <Route path="/customer/home" element={customerGuard ? <CustomerPortal onLogout={() => setUser(null)} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/customer" replace />} />
+      <Route path="/customer/store" element={customerGuard ? <CustomerStore /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/customer" replace />} />
 
-      <Route path="/staff" element={<PortalEntry portal="staff" user={user} />} />
-      <Route path="/staff/login" element={user ? <Navigate to={user.role === 'staff' ? '/staff/dashboard' : '/customer/home'} replace /> : <Login portal="staff" onLogin={setUser} />} />
-      <Route path="/staff/dashboard" element={staffGuard ? <StaffDashboard user={user} onLogout={() => setUser(null)} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/staff" replace />} />
-      <Route path="/dashboard" element={<Navigate to="/staff/dashboard" replace />} />
+      <Route path="/admin" element={<PortalEntry portal="staff" user={user} />} />
+      <Route path="/admin/login" element={user ? <Navigate to={user.role === 'staff' ? '/admin/dashboard' : '/customer/home'} replace /> : <Login portal="staff" onLogin={setUser} />} />
+      <Route path="/admin/dashboard" element={staffGuard ? <StaffDashboard user={user} onLogout={() => setUser(null)} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
 
       <Route path="/login" element={<Navigate to="/customer" replace />} />
       <Route path="/register" element={<Navigate to="/customer/register" replace />} />
       <Route path="/forgot-password" element={<Navigate to="/customer/forgot-password" replace />} />
       <Route path="/reset-password" element={<Navigate to="/customer/reset-password" replace />} />
 
-      <Route path="/customers" element={staffGuard ? <Customers /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/staff" replace />} />
+      <Route path="/customers" element={staffGuard ? <Customers /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

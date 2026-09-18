@@ -334,57 +334,9 @@ zatcaRoutes.get('/invoices/:id/readiness', async c => {
 
 zatcaRoutes.post('/invoices/:id/submit', async c => {
   const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;
-  const invoiceRows = await withDatabase(c.env, db => db.select().from(eInvoices).where(and(
-    eq(eInvoices.id, c.req.param('id')), eq(eInvoices.centerId, auth.user.centerId!),
-  )).limit(1));
-  const invoice = invoiceRows[0];
-  if (!invoice) return c.json({ error: { code: 'EINVOICE_NOT_FOUND', message: 'الفاتورة الإلكترونية غير موجودة' } }, 404);
-  if (!invoice.xml || !invoice.invoiceHash || !/<(?:ds:)?Signature\\b/.test(invoice.xml)) {
-    return c.json({ error: { code: 'SIGNED_XML_REQUIRED', message: 'يجب توليد وتوقيع XML للفواتير قبل الإرسال إلى فاتورة' } }, 409);
-  }
-
-  const settingsRows = await withDatabase(c.env, db => db.select().from(zatcaSettings)
-    .where(eq(zatcaSettings.centerId, auth.user.centerId!)).limit(1));
-  const settings = settingsRows[0];
-  if (!settings?.vatNumber) return c.json({ error: { code: 'ZATCA_NOT_CONFIGURED', message: 'الرقم الضريبي وإعدادات ZATCA غير مكتملة' } }, 409);
-
-  const token = c.env.ZATCA_BINARY_SECURITY_TOKEN;
-  const secret = c.env.ZATCA_SECRET;
-  if (!token || !secret) {
-    return c.json({ error: { code: 'ZATCA_CREDENTIALS_MISSING', message: 'بيانات اعتماد ZATCA غير مضافة إلى Cloudflare Secrets' } }, 503);
-  }
-
-  const mode = invoice.invoiceType === 'standard' ? 'clearance' : 'reporting';
-  const result = await submitZatcaInvoice({
-    environment: settings.environment === 'production' ? 'production' : 'simulation',
-    binarySecurityToken: token,
-    secret,
-    invoiceHash: invoice.invoiceHash,
-    uuid: invoice.uuid,
-    xml: invoice.xml,
-    mode,
-  });
-
-  const now = new Date();
-  await withDatabase(c.env, db => db.update(eInvoices).set({
-    status: result.ok ? (mode === 'clearance' ? 'cleared' : 'reported') : 'rejected',
-    reportingStatus: mode === 'reporting' ? (result.ok ? 'reported' : 'rejected') : invoice.reportingStatus,
-    clearanceStatus: mode === 'clearance' ? (result.ok ? 'cleared' : 'rejected') : invoice.clearanceStatus,
-    responseCode: String(result.status),
-    responseBody: result.body as any,
-    submittedAt: now,
-    ...(result.ok ? (mode === 'clearance' ? { clearedAt: now } : { reportedAt: now }) : {}),
-    updatedAt: now,
-  }).where(eq(eInvoices.id, invoice.id)));
-
-  return c.json({
-    ok: result.ok,
-    status: result.status,
-    invoiceId: invoice.id,
-    mode,
-    response: result.body,
-  }, result.ok ? 200 : 502);
+  return c.json({ error: { code: 'SIGNING_ENGINE_NOT_READY', message: 'محرك التوقيع XAdES غير مفعّل بعد. لم يتم إرسال الفاتورة إلى FATOORA.' } }, 409);
 });
+
 
 zatcaRoutes.get('/invoices', async c => {
   const auth = await requirePermission(c, 'zatca.manage'); if ('error' in auth) return auth.error;

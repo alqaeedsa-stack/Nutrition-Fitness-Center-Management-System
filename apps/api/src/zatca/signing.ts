@@ -50,6 +50,60 @@ function findOctetString(bytes: Uint8Array): Uint8Array | null {
   return null;
 }
 
+
+function derLength(length: number) {
+  if (length < 0x80) return Uint8Array.of(length);
+  const bytes: number[] = [];
+  let value = length;
+  while (value > 0) {
+    bytes.unshift(value & 0xff);
+    value >>>= 8;
+  }
+  return Uint8Array.from([0x80 | bytes.length, ...bytes]);
+}
+
+function rawEcdsaToDer(raw: Uint8Array) {
+  if (raw.length !== 64) throw new Error('Invalid P-256 ECDSA signature length');
+  const integer = (value: Uint8Array) => {
+    let start = 0;
+    while (start < value.length - 1 && value[start] === 0) start++;
+    let body = value.slice(start);
+    if (body[0] & 0x80) {
+      const prefixed = new Uint8Array(body.length + 1);
+      prefixed[0] = 0;
+      prefixed.set(body, 1);
+      body = prefixed;
+    }
+    return body;
+  };
+  const r = integer(raw.slice(0, 32));
+  const s = integer(raw.slice(32, 64));
+  const body = new Uint8Array(2 + r.length + 2 + s.length);
+  body[0] = 0x02; body[1] = r.length; body.set(r, 2);
+  const sOffset = 2 + r.length;
+  body[sOffset] = 0x02; body[sOffset + 1] = s.length; body.set(s, sOffset + 2);
+  const length = derLength(body.length);
+  const out = new Uint8Array(1 + length.length + body.length);
+  out[0] = 0x30; out.set(length, 1); out.set(body, 1 + length.length);
+  return out;
+}
+
+function extractCertificatePublicKeyInfo(der: Uint8Array) {
+  const certificate = readDerElement(der, 0);
+  const tbs = readDerElement(der, certificate.valueStart);
+  let offset = tbs.valueStart;
+  const first = readDerElement(der, offset);
+  if (first.tag === 0xa0) offset = first.end;
+  else offset = first.end;
+  for (let i = 0; i < 5; i++) {
+    const element = readDerElement(der, offset);
+    offset = element.end;
+  }
+  const subjectPublicKeyInfo = readDerElement(der, offset);
+  if (subjectPublicKeyInfo.tag !== 0x30) throw new Error('X.509 SubjectPublicKeyInfo not found');
+  return der.slice(offset, subjectPublicKeyInfo.end);
+}
+
 function extractCertificateSignature(der: Uint8Array) {
   const outer = readDerElement(der, 0);
   if (outer.tag !== 0x30) throw new Error('Invalid X.509 certificate');
@@ -93,15 +147,18 @@ export function buildZatcaQrCryptography(input: {
 }) {
   const privateKey = extractP256PrivateKey(input.privateKeyPem);
   const signature = p256.sign(input.signedTlvPayload, privateKey, { prehash: false });
-  const publicKey = p256.getPublicKey(privateKey, false).slice(1);
-  const certificateSignature = extractCertificateSignature(pemToDer(input.certificatePem, 'CERTIFICATE'));
+  const certificateDer = pemToDer(input.certificatePem, 'CERTIFICATE');
+  const publicKey = extractCertificatePublicKeyInfo(certificateDer);
+  const signature = rawEcdsaToDer(new Uint8Array(p256.sign(input.signedTlvPayload, privateKey, { prehash: false })));
+  const certificateSignature = extractCertificateSignature(certificateDer);
   return { signature, publicKey, certificateSignature };
 }
 
 export function validateZatcaSigningMaterial(privateKeyPem: string, certificatePem: string) {
   const privateKey = extractP256PrivateKey(privateKeyPem);
-  const publicKey = p256.getPublicKey(privateKey, false).slice(1);
-  const certificateSignature = extractCertificateSignature(pemToDer(certificatePem, 'CERTIFICATE'));
+  const certificateDer = pemToDer(certificatePem, 'CERTIFICATE');
+  const publicKey = extractCertificatePublicKeyInfo(certificateDer);
+  const certificateSignature = extractCertificateSignature(certificateDer);
   return {
     curve: 'p256' as const,
     privateKeyBytes: privateKey.length,

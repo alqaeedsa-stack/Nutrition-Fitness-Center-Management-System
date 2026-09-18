@@ -414,7 +414,7 @@ staffRoutes.post('/pos/sales', async c => {
 
     const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     const discount = data.items.reduce((sum, item) => sum + item.discount, 0);
-    const taxLines = [];
+    const taxLines: Awaited<ReturnType<typeof calculateTax>>[] = [];
     for (const item of data.items) {
       const product = productMap.get(item.productId)!;
       try {

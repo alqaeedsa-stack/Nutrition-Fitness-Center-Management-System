@@ -143,20 +143,15 @@ customerRoutes.get('/:id/360', async (c) => {
 customerRoutes.post('/', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
   const auth = await requirePermission(c, 'customers.create'); if ('error' in auth) return auth.error;
-  const body = await c.req.json<{ customerNumber?: string; firstName?: string; lastName?: string; phone?: string; email?: string; dateOfBirth?: string; gender?: string; source?: string; notes?: string }>();
-  const customerNumber = body.customerNumber?.trim();
+  const body = await c.req.json<{ firstName?: string; lastName?: string; phone?: string; email?: string; dateOfBirth?: string; gender?: string; source?: string; notes?: string }>();
   const firstName = body.firstName?.trim();
   const lastName = body.lastName?.trim();
   const phone = body.phone?.trim();
-  if (!customerNumber || !firstName || !lastName || !phone) return c.json({ error: { code: 'VALIDATION_ERROR', message: 'رقم العميل والاسم الأول واسم العائلة والجوال حقول مطلوبة' } }, 400);
+  if (!firstName || !lastName || !phone) return c.json({ error: { code: 'VALIDATION_ERROR', message: 'الاسم الأول واسم العائلة والجوال حقول مطلوبة' } }, 400);
 
   const created = await withDatabase(c.env, async db => {
-    const existing = await db.select({ id: customers.id }).from(customers)
-      .where(and(eq(customers.centerId, auth.user.centerId!), eq(customers.customerNumber, customerNumber))).limit(1);
-    if (existing[0]) return { conflict: true as const };
     const values = {
       centerId: auth.user.centerId!,
-      customerNumber,
       firstName,
       lastName,
       phone,
@@ -172,7 +167,6 @@ customerRoutes.post('/', async (c) => {
     return { customer: rows[0] };
   });
 
-  if ('conflict' in created) return c.json({ error: { code: 'CUSTOMER_NUMBER_EXISTS', message: 'رقم العميل مستخدم بالفعل' } }, 409);
   return c.json({ customer: created.customer }, 201);
 });
 

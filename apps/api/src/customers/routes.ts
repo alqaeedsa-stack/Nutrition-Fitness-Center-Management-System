@@ -204,7 +204,6 @@ customerRoutes.patch('/:id', async (c) => {
     updatedAt: new Date(),
   };
   if (Object.keys(data).length <= 2) return c.json({ error: { code: 'VALIDATION_ERROR', message: 'لم يتم إرسال أي بيانات للتعديل' } }, 400);
-  if (data.customerNumber !== undefined && !data.customerNumber) return c.json({ error: { code: 'VALIDATION_ERROR', message: 'رقم العميل لا يمكن أن يكون فارغًا' } }, 400);
   if (data.firstName !== undefined && !data.firstName) return c.json({ error: { code: 'VALIDATION_ERROR', message: 'الاسم الأول لا يمكن أن يكون فارغًا' } }, 400);
   if (data.lastName !== undefined && !data.lastName) return c.json({ error: { code: 'VALIDATION_ERROR', message: 'اسم العائلة لا يمكن أن يكون فارغًا' } }, 400);
 

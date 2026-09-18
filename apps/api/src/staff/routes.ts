@@ -501,7 +501,8 @@ staffRoutes.post('/pos/sales/:id/void', async c => {
       EMPTY_SALE: ['EMPTY_SALE', 'لا يمكن إلغاء عملية بيع بدون أصناف', 409],
       ALREADY_REVERSED: ['ALREADY_REVERSED', 'تم عكس مخزون هذه العملية بالفعل', 409],
     };
-    const [code, message, status] = messages[result.error] ?? ['POS_VOID_ERROR', 'تعذر إلغاء عملية البيع', 500];
+    const errorCode = result.error ?? 'POS_VOID_ERROR';
+    const [code, message, status] = messages[errorCode] ?? ['POS_VOID_ERROR', 'تعذر إلغاء عملية البيع', 500];
     return c.json({ error: { code, message } }, status as any);
   }
   return c.json({ sale: result.sale });

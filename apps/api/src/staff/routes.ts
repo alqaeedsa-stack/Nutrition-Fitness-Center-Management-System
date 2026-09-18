@@ -514,7 +514,7 @@ staffRoutes.post('/pos/sales', async c => {
     const saleNumber = `POS-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 
     const saleRows = await tx.insert(sales).values({
-      centerId: auth.user.centerId!, customerId: data.customerId ?? null, soldBy: auth.user.userId,
+      centerId: auth.user.centerId!, customerId: data.customerId ?? null, cashierId: auth.user.userId,
       saleNumber, status: 'completed', subtotal: subtotal.toFixed(2), discount: discount.toFixed(2),
       tax: tax.toFixed(2), total: total.toFixed(2), paymentMethod: data.paymentMethod,
     }).returning();
@@ -680,7 +680,7 @@ staffRoutes.patch('/orders/:id/status', async c => {
       const saleRows = await tx.insert(sales).values({
         centerId: auth.user.centerId!,
         customerId: order[0].customerId,
-        soldBy: auth.user.userId,
+        cashierId: auth.user.userId,
         saleNumber: order[0].orderNumber,
         status: 'completed',
         subtotal: order[0].subtotal,

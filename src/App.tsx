@@ -255,7 +255,7 @@ function Home() {
             <h2>بوابة العملاء والمتجر</h2>
             <p>للعملاء فقط: الحساب الشخصي، القياسات، الخطط، المواعيد، المشتريات والمتجر الإلكتروني.</p>
             <div className="portal-choice-actions">
-              <Link className="primary-action" to="/customer">دخول بوابة العملاء</Link>
+              <Link className="primary-action" to="/customer">دخول العملاء والمتجر</Link>
               <Link className="secondary-button" to="/customer/register">تسجيل عميل جديد</Link>
             </div>
             <span className="portal-url">/customer</span>

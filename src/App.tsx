@@ -4,6 +4,7 @@ import Customers from './Customers';
 import CustomerPortal from './CustomerPortal';
 import { ForgotPassword, ResetPassword } from './PasswordReset';
 import { apiFetch } from './lib/api';
+import StaffManagement from './StaffManagement';
 
 type AuthUser = {
   id: string;
@@ -201,7 +202,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
 
   const modules = [
     ['الإدارة', 'ADMIN', 'إعدادات المركز وإدارة التشغيل والصلاحيات.', ''],
-    ['الموظفون والأطباء والأخصائيون', 'STAFF', 'إدارة حسابات الطاقم الداخلي والأدوار.', ''],
+    ['الموظفون والأطباء والأخصائيون', 'STAFF', 'إدارة حسابات الطاقم الداخلي والأدوار.', '/admin/staff'],
     ['العملاء', 'CUSTOMERS', 'ملفات العملاء والمتابعة والبيانات الأساسية.', '/customers'],
     ['المواعيد', 'APPOINTMENTS', 'حجوزات المركز ومواعيد الأطباء والأخصائيين.', ''],
     ['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', ''],
@@ -335,6 +336,7 @@ export default function App() {
       <Route path="/admin" element={user ? <Navigate to={user.role === 'staff' ? '/admin/dashboard' : '/customer/home'} replace /> : <Login portal="staff" onLogin={setUser} />} />
       <Route path="/admin/login" element={<Navigate to="/admin" replace />} />
       <Route path="/admin/dashboard" element={staffGuard ? <StaffDashboard user={user} onLogout={() => setUser(null)} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/staff" element={staffGuard ? <StaffManagement /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
 
       <Route path="/login" element={<Navigate to="/customer" replace />} />

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { customerAccounts } from '../db/customer-accounts';
 import { customers } from '../db/schema';
 import { withDatabase } from '../db/client';
@@ -32,7 +32,7 @@ customerAccountRoutes.get('/me', async (c) => {
     })
       .from(customerAccounts)
       .innerJoin(customers, eq(customers.id, customerAccounts.customerId))
-      .where(eq(customerAccounts.userId, user.userId))
+      .where(and(eq(customerAccounts.userId, user.userId), eq(customers.centerId, user.centerId!)))
       .limit(1);
 
     return rows[0] ?? null;

@@ -91,9 +91,9 @@ function buildQrCode(input: {
     tlv(4, money(input.total)),
     tlv(5, money(input.tax)),
     tlv(6, input.invoiceHash),
-    tlv(7, input.signature),
-    tlv(8, input.publicKey),
-    tlv(9, input.certificateSignature),
+    tlv(7, input.publicKey),
+    tlv(8, input.signature),
+    ...(input.certificateSignature ? [tlv(9, input.certificateSignature)] : []),
   ];
   const length = parts.reduce((sum, part) => sum + part.length, 0);
   const payload = new Uint8Array(length);

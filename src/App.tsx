@@ -233,6 +233,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
     ...(can('staff.manage') ? [['الموظفون والأطباء والأخصائيون', 'STAFF', 'إدارة حسابات الطاقم الداخلي والصلاحيات.', '/admin/staff']] : []),
     ...(canCustomers ? [['العملاء', 'CUSTOMERS', 'ملفات العملاء والمتابعة والبيانات الأساسية.', '/customers']] : []),
     ...(can('appointments.read') ? [['المواعيد', 'APPOINTMENTS', 'حجوزات المركز ومواعيد الأطباء والأخصائيين.', '/admin/appointments']] : []),
+    ...(canCustomers ? [['متابعة العملاء', 'FOLLOW-UP', 'سجل الزيارات والمتابعات الدورية والتوصيات لكل عميل.', '/admin/follow-ups']] : []),
     ...(canPos ? [['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', '/admin/pos']] : []),
     ...(canOperations ? [['المخزون والمنتجات والطلبات', 'OPERATIONS', 'المنتجات والأرصدة وحركات المخزون وطلبات المتجر.', '/admin/operations']] : []),
     ...(can('nutrition.read') ? [['الخطط الغذائية', 'NUTRITION', 'إعداد ومتابعة الخطط الغذائية.', '/admin/nutrition']] : []),

@@ -214,12 +214,12 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
     ...(isAdmin ? [['الإدارة', 'ADMIN', 'إعدادات المركز وإدارة التشغيل والصلاحيات.', '']] : []),
     ...(can('staff.manage') ? [['الموظفون والأطباء والأخصائيون', 'STAFF', 'إدارة حسابات الطاقم الداخلي والصلاحيات.', '/admin/staff']] : []),
     ...(canCustomers ? [['العملاء', 'CUSTOMERS', 'ملفات العملاء والمتابعة والبيانات الأساسية.', '/customers']] : []),
-    ...(isAdmin ? [['المواعيد', 'APPOINTMENTS', 'حجوزات المركز ومواعيد الأطباء والأخصائيين.', '']] : []),
+    ...(can('appointments.read') ? [['المواعيد', 'APPOINTMENTS', 'حجوزات المركز ومواعيد الأطباء والأخصائيين.', '']] : []),
     ...(canPos ? [['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', '/admin/pos']] : []),
     ...(canOperations ? [['المخزون والمنتجات والطلبات', 'OPERATIONS', 'المنتجات والأرصدة وحركات المخزون وطلبات المتجر.', '/admin/operations']] : []),
-    ...(isAdmin || staffType === 'nutritionist' ? [['الخطط الغذائية', 'NUTRITION', 'إعداد ومتابعة الخطط الغذائية.', '']] : []),
-    ...(isAdmin || staffType === 'trainer' ? [['الخطط الرياضية', 'FITNESS', 'إعداد ومتابعة خطط اللياقة.', '']] : []),
-    ...(isAdmin ? [['التقارير', 'REPORTS', 'تقارير التشغيل والمبيعات والمخزون.', '']] : []),
+    ...(can('nutrition.read') ? [['الخطط الغذائية', 'NUTRITION', 'إعداد ومتابعة الخطط الغذائية.', '']] : []),
+    ...(can('fitness.read') ? [['الخطط الرياضية', 'FITNESS', 'إعداد ومتابعة خطط اللياقة.', '']] : []),
+    ...(can('reports.read') ? [['التقارير', 'REPORTS', 'تقارير التشغيل والمبيعات والمخزون.', '']] : []),
     ...(can('zatca.manage') ? [['الضرائب والفوترة الإلكترونية', 'ZATCA', 'إعداد الضرائب ومتابعة الفواتير الإلكترونية المتوافقة مع مسار فاتورة.', '/admin/zatca']] : []),
   ] as const;
 
@@ -622,14 +622,19 @@ function StaffOperations({ user }: { user: AuthUser }) {
 
   async function load() {
     try {
-      const [p,i,o,opt]=await Promise.all([
-        apiFetch<{products:Product[]}>('/staff/products'),
-        apiFetch<{inventory:Inventory[]}>('/staff/inventory'),
-        apiFetch<{orders:Order[]}>('/staff/orders'),
-        apiFetch<{categories:{id:string;name:string}[];brands:{id:string;name:string}[]}>('/staff/catalog-options')
-      ]);
-      setProducts(p.products); setInventory(i.inventory); setOrders(o.orders); setCategories(opt.categories); setBrands(opt.brands);
-      if (!form.categoryId && opt.categories[0]) setForm(v=>({...v,categoryId:opt.categories[0].id}));
+      if (canManageCatalog || canManageInventory) {
+        const [p,i,opt] = await Promise.all([
+          canManageCatalog ? apiFetch<{products:Product[]}>('/staff/products') : Promise.resolve({products: [] as Product[]}),
+          canManageInventory ? apiFetch<{inventory:Inventory[]}>('/staff/inventory') : Promise.resolve({inventory: [] as Inventory[]}),
+          canManageCatalog ? apiFetch<{categories:{id:string;name:string}[];brands:{id:string;name:string}[]}>('/staff/catalog-options') : Promise.resolve({categories: [], brands: []}),
+        ]);
+        setProducts(p.products); setInventory(i.inventory); setCategories(opt.categories); setBrands(opt.brands);
+        if (!form.categoryId && opt.categories[0]) setForm(v=>({...v,categoryId:opt.categories[0].id}));
+      }
+      if (canManageOrders) {
+        const o = await apiFetch<{orders:Order[]}>('/staff/orders');
+        setOrders(o.orders);
+      }
     } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل بيانات التشغيل');}
   }
   useEffect(()=>{void load()},[]);
@@ -717,7 +722,6 @@ export default function App() {
 
   const customerGuard = user?.role === 'customer';
   const staffGuard = user?.role === 'staff';
-  const adminGuard = staffGuard && user?.staffType === 'admin';
   const permissionGuard = (code: string) => staffGuard && (user?.staffType === 'admin' || (user?.permissions ?? []).includes(code));
 
   return (

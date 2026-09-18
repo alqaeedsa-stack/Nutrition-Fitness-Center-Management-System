@@ -5,7 +5,6 @@ import { withDatabase } from '../db/client';
 import { auditLogs, brands, categories, customers, productBarcodes, products, saleItems, sales, stockMovements, staffProfiles, users, permissions, userPermissions } from '../db/schema';
 import { storeOrderItems, storeOrders } from '../db/store';
 import { getCompany } from '../db/company';
-import { getAuthenticatedUser } from '../auth/session';
 import { requirePermission, PERMISSIONS, getUserPermissionCodes, type PermissionCode } from '../auth/permissions';
 import { hashPassword } from '../auth/password';
 import { calculateTax } from '../tax/engine';
@@ -36,38 +35,12 @@ const createStaffSchema = z.object({
   permissionCodes: z.array(z.string()).default([]),
 });
 
-async function requireAdmin(c: any) {
-  const user = await getAuthenticatedUser(c.env, c.req.raw);
-  if (!user) {
-    return { error: c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401) };
-  }
-
-  const profile = await withDatabase(c.env, async db => {
-    const rows = await db.select({
-      id: staffProfiles.id,
-      staffType: staffProfiles.staffType,
-      active: staffProfiles.active,
-    })
-      .from(staffProfiles)
-      .where(eq(staffProfiles.userId, user.userId))
-      .limit(1);
-
-    return rows[0] ?? null;
-  });
-
-  if (!profile?.active || profile.staffType !== 'admin') {
-    return { error: c.json({ error: { code: 'ADMIN_ACCESS_REQUIRED', message: 'إدارة الموظفين متاحة لحسابات الإدارة فقط' } }, 403) };
-  }
-
-  return { user, profile };
-}
-
 staffRoutes.get('/', async c => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) {
     return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
   }
 
-  const auth = await requireAdmin(c);
+  const auth = await requirePermission(c, 'staff.manage');
   if ('error' in auth) return auth.error;
 
   const rows = await withDatabase(c.env, db => db.select({

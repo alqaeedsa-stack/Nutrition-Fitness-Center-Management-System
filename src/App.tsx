@@ -33,6 +33,7 @@ function Login({ onLogin, portal }: { onLogin: (user: AuthUser) => void; portal:
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const isStaff = portal === 'staff';
@@ -74,9 +75,20 @@ function Login({ onLogin, portal }: { onLogin: (user: AuthUser) => void; portal:
             {isStaff ? 'البريد الإلكتروني أو الجوال' : 'البريد الإلكتروني'}
             <input type={isStaff ? 'text' : 'email'} value={identifier} onChange={e => setIdentifier(e.target.value)} autoComplete="username" required />
           </label>
-          <label>
+          <label className="password-field">
             كلمة المرور
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required />
+            <div className="password-input-wrap">
+              <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required />
+              <button
+                className="password-toggle"
+                type="button"
+                onClick={() => setShowPassword(value => !value)}
+                aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                title={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+              >
+                {showPassword ? 'إخفاء' : 'عرض'}
+              </button>
+            </div>
           </label>
           {error && <div className="form-error" role="alert">{error}</div>}
           <button className="primary-action button" type="submit" disabled={loading}>

@@ -78,6 +78,12 @@ export const rolePermissions = pgTable('role_permissions', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [primaryKey({ columns: [table.roleId, table.permissionId] })]);
 
+export const userPermissions = pgTable('user_permissions', {
+  userId: uuid('user_id').notNull().references(() => users.id),
+  permissionId: uuid('permission_id').notNull().references(() => permissions.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [primaryKey({ columns: [table.userId, table.permissionId] })]);
+
 export const staffProfiles = pgTable('staff_profiles', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().unique().references(() => users.id),

@@ -540,6 +540,7 @@ function StaffPOS() {
   async function searchCustomers(value:string) { setCustomerQuery(value); if(!value.trim()){setCustomers([]);return;} try { const r=await apiFetch<{customers:Customer[]}>('/staff/pos/customers?q='+encodeURIComponent(value.trim()));setCustomers(r.customers); } catch(e){setError(e instanceof Error?e.message:'تعذر البحث عن العميل');} }
   async function loadSalesHistory(){ setHistoryLoading(true); try { const r=await apiFetch<{sales:Sale[]}>('/staff/pos/sales'); setSalesHistory(r.sales); } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل المبيعات');} finally{setHistoryLoading(false);} }
   async function openSale(id:string){ try { const r=await apiFetch<{sale:SaleDetail}>('/staff/pos/sales/'+id); setSelectedSale(r.sale); } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل تفاصيل البيع');} }
+  async function voidSale(id:string){ if(!window.confirm('سيتم إلغاء عملية البيع وعكس كميات المخزون. هل تريد المتابعة؟')) return; try { await apiFetch('/staff/pos/sales/'+id+'/void',{method:'POST',body:JSON.stringify({})}); setMessage('تم إلغاء عملية البيع وعكس المخزون.'); await loadSalesHistory(); await openSale(id); } catch(e){setError(e instanceof Error?e.message:'تعذر إلغاء عملية البيع');} }
   const subtotal=cart.reduce((s,x)=>s+x.cartQuantity*x.price,0); const discount=cart.reduce((s,x)=>s+x.discount,0); const total=Math.max(0,subtotal-discount);
   async function completeSale(){ if(!cart.length){setError('السلة فارغة');return;} setLoading(true);setError('');setMessage(''); try { const r=await apiFetch<{sale:{id:string;saleNumber:string;total:string}}>('/staff/pos/sales',{method:'POST',body:JSON.stringify({customerId:customer?.id??null,paymentMethod,items:cart.map(x=>({productId:x.id,quantity:x.cartQuantity,unitPrice:x.price,discount:x.discount}))})}); setMessage('تم تسجيل البيع '+r.sale.saleNumber+' بإجمالي '+r.sale.total+' ر.س');setCart([]);setCustomer(null);setCustomerQuery(''); await loadSalesHistory(); await openSale(r.sale.id); } catch(e){setError(e instanceof Error?e.message:'تعذر إتمام البيع');} finally{setLoading(false);} }
 
@@ -576,7 +577,8 @@ function StaffPOS() {
     </section>
 
     {selectedSale&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">SALE RECEIPT</p><h2>{selectedSale.saleNumber}</h2></div><button className="secondary-button" type="button" onClick={()=>window.print()}>طباعة</button></div>
-      <p>{selectedSale.customerName??'عميل نقدي'} · {new Date(selectedSale.createdAt).toLocaleString('ar-SA')}</p>
+      <p>{selectedSale.customerName??'عميل نقدي'} · {new Date(selectedSale.createdAt).toLocaleString('ar-SA')} · الحالة: {selectedSale.status}</p>
+      {selectedSale.status === 'completed' && <button className="secondary-button" type="button" onClick={()=>void voidSale(selectedSale.id)}>إلغاء عملية البيع وعكس المخزون</button>}
       <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المنتج</th><th>SKU</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>{selectedSale.items.map(i=><tr key={i.id}><td>{i.productName}</td><td>{i.sku}</td><td>{i.quantity}</td><td>{i.unitPrice} ر.س</td><td>{i.lineTotal} ر.س</td></tr>)}</tbody></table></div>
       <div className="checkout-panel"><strong>الإجمالي: {selectedSale.total} ر.س</strong><small>الضريبة المسجلة حاليًا: {selectedSale.tax} ر.س</small></div>
     </section>}

@@ -232,7 +232,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
   const modules = [
     ...(isAdmin ? [['الإدارة', 'ADMIN', 'إعدادات المركز وإدارة التشغيل والصلاحيات.', '']] : []),
     ...(can('staff.manage') ? [['الموظفون والأطباء والأخصائيون', 'STAFF', 'إدارة حسابات الطاقم الداخلي والصلاحيات.', '/admin/staff']] : []),
-    ...(canCustomers ? [['العملاء', 'CUSTOMERS', 'ملفات العملاء والمتابعة والبيانات الأساسية.', '/customers']] : []),
+    ...(canCustomers ? [['العملاء', 'CUSTOMERS', 'ملفات العملاء والمتابعة والبيانات الأساسية.', '/admin/customers']] : []),
     ...(can('appointments.read') ? [['المواعيد', 'APPOINTMENTS', 'حجوزات المركز ومواعيد الأطباء والأخصائيين.', '/admin/appointments']] : []),
     ...(canCustomers ? [['متابعة العملاء', 'FOLLOW-UP', 'سجل الزيارات والمتابعات الدورية والتوصيات لكل عميل.', '/admin/follow-ups']] : []),
     ...(canPos ? [['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', '/admin/pos']] : []),

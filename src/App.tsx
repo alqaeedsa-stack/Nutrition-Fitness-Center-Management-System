@@ -3,6 +3,7 @@ import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import Customers from './Customers';
 import Appointments from './Appointments';
 import NutritionManagement from './NutritionManagement';
+import FitnessManagement from './FitnessManagement';
 import CustomerPortal from './CustomerPortal';
 import { ForgotPassword, ResetPassword } from './PasswordReset';
 import { apiFetch } from './lib/api';
@@ -232,7 +233,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
     ...(canPos ? [['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', '/admin/pos']] : []),
     ...(canOperations ? [['المخزون والمنتجات والطلبات', 'OPERATIONS', 'المنتجات والأرصدة وحركات المخزون وطلبات المتجر.', '/admin/operations']] : []),
     ...(can('nutrition.read') ? [['الخطط الغذائية', 'NUTRITION', 'إعداد ومتابعة الخطط الغذائية.', '/admin/nutrition']] : []),
-    ...(can('fitness.read') ? [['الخطط الرياضية', 'FITNESS', 'إعداد ومتابعة خطط اللياقة.', '']] : []),
+    ...(can('fitness.read') ? [['الخطط الرياضية', 'FITNESS', 'إعداد ومتابعة خطط اللياقة.', '/admin/fitness']] : []),
     ...(can('reports.read') ? [['التقارير', 'REPORTS', 'تقارير التشغيل والمبيعات والمخزون.', '']] : []),
     ...(can('zatca.manage') ? [['الضرائب والفوترة الإلكترونية', 'ZATCA', 'إعداد الضرائب ومتابعة الفواتير الإلكترونية المتوافقة مع مسار فاتورة.', '/admin/zatca']] : []),
   ] as const;
@@ -763,6 +764,7 @@ export default function App() {
       <Route path="/admin/pos" element={permissionGuard('pos.read') ? <StaffPOS user={user!} /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/appointments" element={permissionGuard('appointments.read') ? <Appointments user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/nutrition" element={permissionGuard('nutrition.read') ? <NutritionManagement user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/fitness" element={permissionGuard('fitness.read') ? <FitnessManagement user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/operations" element={staffGuard && (user?.staffType === 'admin' || ['catalog.read','inventory.read','orders.read'].some(p => (user?.permissions ?? []).includes(p))) ? <StaffOperations user={user} /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/zatca" element={permissionGuard('zatca.manage') ? <ZatcaSettings /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />

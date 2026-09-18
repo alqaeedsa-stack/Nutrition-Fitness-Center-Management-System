@@ -467,6 +467,46 @@ staffRoutes.get('/pos/sales', async c => {
   return c.json({ sales: rows });
 });
 
+staffRoutes.post('/pos/sales/:id/void', async c => {
+  const auth = await requireStaff(c); if ('error' in auth) return auth.error;
+  const result = await withDatabase(c.env, db => db.transaction(async tx => {
+    const saleRows = await tx.select().from(sales).where(and(eq(sales.id, c.req.param('id')), eq(sales.centerId, auth.user.centerId!))).limit(1);
+    const sale = saleRows[0];
+    if (!sale) return { error: 'SALE_NOT_FOUND' as const };
+    if (sale.status === 'voided') return { error: 'ALREADY_VOIDED' as const };
+    if (sale.status !== 'completed') return { error: 'INVALID_STATUS' as const };
+    const items = await tx.select().from(saleItems).where(eq(saleItems.saleId, sale.id));
+    if (!items.length) return { error: 'EMPTY_SALE' as const };
+    const existingReversal = await tx.select({ id: stockMovements.id }).from(stockMovements)
+      .where(and(eq(stockMovements.referenceType, 'pos_void'), eq(stockMovements.referenceId, sale.id))).limit(1);
+    if (existingReversal[0]) return { error: 'ALREADY_REVERSED' as const };
+    const productIds = [...new Set(items.map(item => item.productId))];
+    const productRows = await tx.select({ id: products.id, purchaseCost: products.purchaseCost })
+      .from(products).where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds)));
+    const costByProduct = new Map(productRows.map(product => [product.id, Number(product.purchaseCost)]));
+    await tx.insert(stockMovements).values(items.map(item => ({
+      centerId: auth.user.centerId!, productId: item.productId, movementType: 'return',
+      quantity: Number(item.quantity).toFixed(3), unitCost: (costByProduct.get(item.productId) ?? 0).toFixed(2),
+      referenceType: 'pos_void', referenceId: sale.id, occurredAt: new Date(), createdBy: auth.user.userId,
+      notes: `عكس صرف عملية البيع ${sale.saleNumber}`,
+    })));
+    const updated = await tx.update(sales).set({ status: 'voided', updatedAt: new Date() }).where(eq(sales.id, sale.id)).returning();
+    return { sale: updated[0] };
+  }));
+  if ('error' in result) {
+    const messages: Record<string, [string, string, number]> = {
+      SALE_NOT_FOUND: ['SALE_NOT_FOUND', 'عملية البيع غير موجودة', 404],
+      ALREADY_VOIDED: ['ALREADY_VOIDED', 'عملية البيع ملغاة بالفعل', 409],
+      INVALID_STATUS: ['INVALID_STATUS', 'لا يمكن إلغاء هذه العملية من حالتها الحالية', 409],
+      EMPTY_SALE: ['EMPTY_SALE', 'لا يمكن إلغاء عملية بيع بدون أصناف', 409],
+      ALREADY_REVERSED: ['ALREADY_REVERSED', 'تم عكس مخزون هذه العملية بالفعل', 409],
+    };
+    const [code, message, status] = messages[result.error] ?? ['POS_VOID_ERROR', 'تعذر إلغاء عملية البيع', 500];
+    return c.json({ error: { code, message } }, status as any);
+  }
+  return c.json({ sale: result.sale });
+});
+
 staffRoutes.get('/pos/sales/:id', async c => {
   const auth = await requireStaff(c); if ('error' in auth) return auth.error;
   const saleRows = await withDatabase(c.env, db => db.select({

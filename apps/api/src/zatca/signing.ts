@@ -67,7 +67,7 @@ function extractCertificateSignature(der: Uint8Array) {
   return der.slice(signature.valueStart + 1, signature.valueEnd);
 }
 
-export function extractSecp256k1PrivateKey(privateKeyPem: string) {
+export function extractP256PrivateKey(privateKeyPem: string) {
   const labels = ['EC PRIVATE KEY', 'PRIVATE KEY'];
   let der: Uint8Array | null = null;
   for (const label of labels) {
@@ -91,15 +91,15 @@ export function buildZatcaQrCryptography(input: {
   certificatePem: string;
   signedTlvPayload: Uint8Array;
 }) {
-  const privateKey = extractSecp256k1PrivateKey(input.privateKeyPem);
-  const signature = p256.sign(input.signedTlvPayload, privateKey).toBytes();
+  const privateKey = extractP256PrivateKey(input.privateKeyPem);
+  const signature = p256.sign(input.signedTlvPayload, privateKey, { prehash: false });
   const publicKey = p256.getPublicKey(privateKey, false).slice(1);
   const certificateSignature = extractCertificateSignature(pemToDer(input.certificatePem, 'CERTIFICATE'));
   return { signature, publicKey, certificateSignature };
 }
 
 export function validateZatcaSigningMaterial(privateKeyPem: string, certificatePem: string) {
-  const privateKey = extractSecp256k1PrivateKey(privateKeyPem);
+  const privateKey = extractP256PrivateKey(privateKeyPem);
   const publicKey = p256.getPublicKey(privateKey, false).slice(1);
   const certificateSignature = extractCertificateSignature(pemToDer(certificatePem, 'CERTIFICATE'));
   return {

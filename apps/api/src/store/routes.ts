@@ -33,7 +33,7 @@ async function customerContext(c: any) {
 async function getOrCreateCart(c: any, customerId: string, centerId: string) {
   return withDatabase(c.env, async db => {
     const existing = await db.select().from(storeCarts)
-      .where(and(eq(storeCarts.customerId, customerId), eq(storeCarts.status, 'active')))
+      .where(and(eq(storeCarts.customerId, customerId), eq(storeCarts.centerId, centerId), eq(storeCarts.status, 'active')))
       .limit(1);
     if (existing[0]) return existing[0];
 
@@ -147,7 +147,7 @@ storeRoutes.patch('/cart/items/:id', async c => {
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'الكمية غير صحيحة' } }, 400);
 
   const cart = await withDatabase(c.env, db => db.select({ id: storeCarts.id })
-    .from(storeCarts).where(and(eq(storeCarts.customerId, auth.customerId), eq(storeCarts.status, 'active'))).limit(1));
+    .from(storeCarts).where(and(eq(storeCarts.customerId, auth.customerId), eq(storeCarts.centerId, auth.user.centerId!), eq(storeCarts.status, 'active'))).limit(1));
   if (!cart[0]) return c.json({ error: { code: 'CART_NOT_FOUND', message: 'السلة غير موجودة' } }, 404);
 
   const item = await withDatabase(c.env, db => db.select({ id: storeCartItems.id })
@@ -182,7 +182,7 @@ storeRoutes.get('/orders', async c => {
   if ('error' in auth) return auth.error;
 
   const orders = await withDatabase(c.env, db => db.select().from(storeOrders)
-    .where(eq(storeOrders.customerId, auth.customerId))
+    .where(and(eq(storeOrders.customerId, auth.customerId), eq(storeOrders.centerId, auth.user.centerId!)))
     .orderBy(desc(storeOrders.createdAt)));
 
   const orderIds = orders.map(order => order.id);

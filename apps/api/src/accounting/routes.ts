@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
-import { requirePermission } from '../auth/permissions';
+import { requirePermission, hasPermission } from '../auth/permissions';
 
 export type AccountingBindings = { HYPERDRIVE?: { connectionString: string }; DATABASE_URL?: string };
 export const accountingRoutes = new Hono<{ Bindings: AccountingBindings }>();
@@ -28,7 +28,12 @@ const accountSchema=z.object({
 accountingRoutes.get('/accounts',async c=>{
   const auth=await access(c,'accounting.read'); if('error' in auth)return auth.error;
   const rows=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",a.parent_id as "parentId",p.code as "parentCode",p.name as "parentName",a.is_active as "isActive",a.is_system as "isSystem",a.statement_section as "statementSection",a.allow_reconciliation as "allowReconciliation" from accounting_accounts a left join accounting_accounts p on p.id=a.parent_id where a.center_id=${auth.user.centerId!} order by a.code`));
-  return c.json({accounts:rows.rows});
+  const canManageAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.update');
+  const canCreateAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.create');
+  const canDuplicateAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.duplicate');
+  const canArchiveAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.archive');
+  const canDeleteAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.delete');
+  return c.json({accounts:rows.rows,permissions:{canManageAccounts,canCreateAccounts,canDuplicateAccounts,canArchiveAccounts,canDeleteAccounts}});
 });
 accountingRoutes.put('/accounts/:id',async c=>{
   const auth=await access(c,'accounting.accounts.update'); if('error' in auth)return auth.error;

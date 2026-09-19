@@ -140,6 +140,10 @@ export async function getInventoryValue(tx: any, args: {
     return Number(rows.rows[0]?.quantity ?? 0) * Number(args.standardCost ?? 0);
   }
   const rows = await movementLayers(tx, args.centerId, args.productId);
+  if (method === 'average') {
+    const quantity = rows.reduce((sum, row) => sum + Number(row.quantity), 0);
+    return Math.max(0, quantity) * averageInventoryCost(rows, Number(args.standardCost ?? 0));
+  }
   const layers = rebuildLayers(rows);
   return layers.reduce((sum, layer) => sum + layer.quantity * layer.unitCost, 0);
 }

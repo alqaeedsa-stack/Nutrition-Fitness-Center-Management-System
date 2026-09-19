@@ -44,6 +44,13 @@ export default function MeasurementsManagement() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const [tableSearch, setTableSearch] = useState('');
+  const measurementKpis = [
+    [t('إجمالي القياسات','Total measurements'), rows.length],
+    [t('أنواع القياس','Measurement types'), new Set(rows.map(r => r.typeId)).size],
+    [t('عملاء مقاسون','Customers measured'), new Set(rows.map(r => r.customerId)).size],
+    [t('آخر قياس','Latest measurement'), rows.length ? new Date(Math.max(...rows.map(r => new Date(r.measuredAt).getTime()))).toLocaleDateString(isArabic ? 'ar-SA' : 'en-US') : '—'],
+  ] as const;
 
   async function load() {
     try {
@@ -117,6 +124,8 @@ export default function MeasurementsManagement() {
       setError(e instanceof Error ? e.message : 'تعذر حذف القياس');
     }
   }
+
+  const visibleRows = rows.filter(row => { const q = tableSearch.trim().toLowerCase(); return !q || (row.customerName+' '+row.customerLastName+' '+row.typeName).toLowerCase().includes(q); });
 
   return (
     <main className="app-shell">
@@ -224,7 +233,7 @@ export default function MeasurementsManagement() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={row.id}>
                   <td>
                     {row.customerName} {row.customerLastName}

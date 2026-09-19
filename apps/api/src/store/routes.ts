@@ -65,6 +65,7 @@ storeRoutes.get('/admin/products', async c => {
     id: products.id,
     sku: products.sku,
     name: products.name,
+    productType: products.productType,
     sellingPrice: products.sellingPrice,
     purchaseCost: products.purchaseCost,
     taxCode: products.taxCode,
@@ -162,7 +163,7 @@ storeRoutes.post('/admin/sales', async c => {
 
     const productIds = [...new Set(parsed.data.items.map(item => item.productId))];
     const productRows = await tx.select({
-      id: products.id, sku: products.sku, name: products.name, sellingPrice: products.sellingPrice, purchaseCost: products.purchaseCost, taxCode: products.taxCode, active: products.active,
+      id: products.id, sku: products.sku, name: products.name, productType: products.productType, sellingPrice: products.sellingPrice, purchaseCost: products.purchaseCost, taxCode: products.taxCode, active: products.active,
     }).from(products).where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds), eq(products.active, true)));
     if (productRows.length !== productIds.length) return { error: 'PRODUCT_NOT_FOUND' as const };
 
@@ -185,8 +186,9 @@ storeRoutes.post('/admin/sales', async c => {
     const requested = new Map<string, number>();
     for (const item of parsed.data.items) requested.set(item.productId, (requested.get(item.productId) ?? 0) + item.quantity);
     for (const [productId, quantity] of requested) {
+      const product = productRows.find(row => row.id === productId)!;
       const available = onHand.get(productId) ?? 0;
-      if (quantity > available) return { error: 'INSUFFICIENT_STOCK' as const, productId, available, requested: quantity };
+      if (product.productType !== 'subscription' && quantity > available) return { error: 'INSUFFICIENT_STOCK' as const, productId, available, requested: quantity };
     }
 
     for (const item of parsed.data.items) {
@@ -230,14 +232,16 @@ storeRoutes.post('/admin/sales', async c => {
       await tx.insert(saleItems).values({
         saleId: sale[0].id, productId: product.id, quantity: item.quantity.toString(), unitPrice: product.sellingPrice, discount: '0', tax: taxAmount.toFixed(2), lineTotal: lineTotal.toFixed(2),
       });
-      await tx.insert(stockMovements).values({
-        centerId: auth.user.centerId!, productId: product.id, movementType: 'sale', quantity: (-item.quantity).toString(), unitCost: product.purchaseCost,
-        referenceType: 'sale', referenceId: sale[0].id, occurredAt: new Date(), createdBy: auth.user.userId, notes: 'صرف من نقطة البيع',
-      });
+      if (product.productType !== 'subscription') {
+        await tx.insert(stockMovements).values({
+          centerId: auth.user.centerId!, productId: product.id, movementType: 'sale', quantity: (-item.quantity).toString(), unitCost: product.purchaseCost,
+          referenceType: 'sale', referenceId: sale[0].id, occurredAt: new Date(), createdBy: auth.user.userId, notes: 'صرف من نقطة البيع',
+        });
+      }
     }
     const accountingPaymentMethod = parsed.data.paymentStatus === 'unpaid' ? 'unpaid' : parsed.data.paymentStatus === 'paid' ? parsed.data.paymentMethod : 'partial';
     try {
-      const cogs = lineCalculations.reduce((sum, line) => sum + Number(line.item.quantity) * Number(line.product.purchaseCost), 0);
+      const cogs = lineCalculations.reduce((sum, line) => sum + (line.product.productType === 'subscription' ? 0 : Number(line.item.quantity) * Number(line.product.purchaseCost)), 0);
       const entry = await postSale(tx, { centerId: auth.user.centerId!, saleId: sale[0].id, saleNumber: sale[0].saleNumber, saleDate: new Date().toISOString().slice(0,10), subtotal, tax: taxTotal, total: grandTotal, cogs, paymentMethod: accountingPaymentMethod, createdBy: auth.user.userId });
       return { sale: sale[0], journalEntry: entry };
     } catch (e) {
@@ -323,7 +327,7 @@ storeRoutes.post('/admin/sales/:saleId/void', async c => {
     const alreadyReturned = new Map<string,number>();
     for(const row of returnedRows) alreadyReturned.set(row.productId,(alreadyReturned.get(row.productId)??0)+Number(row.quantity));
 
-    const productsRows = await tx.select({id:products.id,purchaseCost:products.purchaseCost})
+    const productsRows = await tx.select({id:products.id,purchaseCost:products.purchaseCost,productType:products.productType})
       .from(products).where(and(eq(products.centerId,auth.user.centerId!),inArray(products.id,[...new Set(lines.map(x=>x.productId))])));
     const productMap = new Map(productsRows.map(x=>[x.id,x]));
     for(const line of lines){
@@ -331,11 +335,13 @@ storeRoutes.post('/admin/sales/:saleId/void', async c => {
       if(remaining<=0) continue;
       const product=productMap.get(line.productId);
       if(!product) return {error:'PRODUCT_NOT_FOUND' as const};
-      await tx.insert(stockMovements).values({
-        centerId:auth.user.centerId!,productId:line.productId,movementType:'return_in',quantity:remaining.toString(),
-        unitCost:product.purchaseCost,referenceType:'sale_return',referenceId:saleId,occurredAt:new Date(),createdBy:auth.user.userId,
-        notes:'عكس بيع وإرجاع المخزون '+saleRows[0].saleNumber,
-      });
+      if (product.productType !== 'subscription') {
+        await tx.insert(stockMovements).values({
+          centerId:auth.user.centerId!,productId:line.productId,movementType:'return_in',quantity:remaining.toString(),
+          unitCost:product.purchaseCost,referenceType:'sale_return',referenceId:saleId,occurredAt:new Date(),createdBy:auth.user.userId,
+          notes:'عكس بيع وإرجاع المخزون '+saleRows[0].saleNumber,
+        });
+      }
     }
 
     const journalEntry=await reverseSale(tx,{centerId:auth.user.centerId!,saleId,saleNumber:saleRows[0].saleNumber,date:new Date().toISOString().slice(0,10),createdBy:auth.user.userId});

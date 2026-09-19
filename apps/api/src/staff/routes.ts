@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gte, inArray, lt, ne, notInArray, or, sql } from 'd
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
-import { auditLogs, brands, categories, centers, customers, productBarcodes, products, saleItems, sales, stockMovements, staffProfiles, users, permissions, userPermissions } from '../db/schema';
+import { auditLogs, brands, categories, centers, customers, productBarcodes, productSerials, products, saleItems, sales, stockMovements, staffProfiles, users, permissions, userPermissions } from '../db/schema';
 import { storeOrderItems, storeOrders } from '../db/store';
 import { requirePermission, PERMISSIONS, getUserPermissionCodes, type PermissionCode } from '../auth/permissions';
 import { hashPassword } from '../auth/password';
@@ -523,7 +523,7 @@ staffRoutes.post('/inventory/receipt', async c => {
   const result = await withDatabase(c.env, db => db.transaction(async tx => {
     const productIds = [...new Set(body.data.items.map(item => item.productId))];
     const productRows = await tx.select({
-      id: products.id, sku: products.sku, name: products.name, productType: products.productType, purchaseCost: products.purchaseCost, active: products.active,
+      id: products.id, sku: products.sku, name: products.name, productType: products.productType, purchaseCost: products.purchaseCost, active: products.active, inventoryTracking: products.inventoryTracking, serialAutoGenerate: products.serialAutoGenerate, serialPrefix: products.serialPrefix,
     }).from(products).where(and(
       eq(products.centerId, auth.user.centerId!),
       inArray(products.id, productIds),
@@ -536,6 +536,20 @@ staffRoutes.post('/inventory/receipt', async c => {
 
     const reference = body.data.reference?.trim() || null;
     const now = new Date();
+    const serialRows: { centerId:string; productId:string; serialNumber:string; status:string }[] = [];
+    for (const item of body.data.items) {
+      const product = productMap.get(item.productId)!;
+      if (product.inventoryTracking === 'serial') {
+        if (!Number.isInteger(item.quantity)) return { error: 'SERIAL_QUANTITY_MUST_BE_INTEGER' as const };
+        if (!product.serialAutoGenerate) return { error: 'SERIAL_MANUAL_REQUIRED' as const };
+        const prefix = product.serialPrefix?.trim() || `SRL-${product.sku}-`;
+        for (let i=0;i<item.quantity;i++) serialRows.push({
+          centerId:auth.user.centerId!, productId:item.productId,
+          serialNumber:`${prefix}${new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14)}-${crypto.randomUUID().replace(/-/g,'').slice(0,10).toUpperCase()}`,
+          status:'available'
+        });
+      }
+    }
     const inserted = await tx.insert(stockMovements).values(body.data.items.map(item => {
       const product = productMap.get(item.productId)!;
       return {
@@ -551,8 +565,8 @@ staffRoutes.post('/inventory/receipt', async c => {
         notes: body.data.notes?.trim() || null,
       };
     })).returning({ id: stockMovements.id });
-
-    return { receivedLines: inserted.length, reference };
+    if (serialRows.length) await tx.insert(productSerials).values(serialRows);
+    return { receivedLines: inserted.length, generatedSerials: serialRows.length, reference };
   }));
 
   if ('error' in result) {
@@ -664,7 +678,7 @@ staffRoutes.post('/pos/sales', async c => {
     const ids = [...new Set(data.items.map(item => item.productId))].sort();
     const locked = await tx.select({
       id: products.id, sku: products.sku, name: products.name, productType: products.productType,
-      purchaseCost: products.purchaseCost, sellingPrice: products.sellingPrice, taxCode: products.taxCode, active: products.active,
+      purchaseCost: products.purchaseCost, sellingPrice: products.sellingPrice, taxCode: products.taxCode, active: products.active, posAvailable: products.posAvailable, minimumSalesPrice: products.minimumSalesPrice, inventoryTracking: products.inventoryTracking,
     }).from(products).where(and(
       eq(products.centerId, auth.user.centerId!), inArray(products.id, ids), eq(products.active, true),
     ));
@@ -688,8 +702,15 @@ staffRoutes.post('/pos/sales', async c => {
 
     for (const item of data.items) {
       const product = productMap.get(item.productId)!;
-      if (item.unitPrice < Number(product.purchaseCost)) return { error: 'BELOW_COST' as const, productId: item.productId };
+      if (!product.posAvailable) return { error: 'POS_PRODUCT_DISABLED' as const, productId: item.productId };
+      if (product.minimumSalesPrice != null && item.unitPrice < Number(product.minimumSalesPrice)) return { error: 'BELOW_MINIMUM_PRICE' as const, productId: item.productId };
+      if (product.productType === 'product' && item.unitPrice < Number(product.purchaseCost)) return { error: 'BELOW_COST' as const, productId: item.productId };
+      if (product.inventoryTracking === 'serial' && !Number.isInteger(item.quantity)) return { error: 'SERIAL_QUANTITY_MUST_BE_INTEGER' as const, productId: item.productId };
       if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) && item.quantity > (available.get(item.productId) ?? 0)) return { error: 'INSUFFICIENT_STOCK' as const, productId: item.productId };
+      if (product.inventoryTracking === 'serial') {
+        const serials = await tx.execute(sql`select id from product_serials where center_id=${auth.user.centerId!} and product_id=${item.productId} and status='available' order by created_at,id limit ${Math.trunc(item.quantity)} for update`);
+        if (serials.rows.length < item.quantity) return { error: 'INSUFFICIENT_SERIALS' as const, productId: item.productId };
+      }
     }
 
     const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
@@ -734,6 +755,12 @@ staffRoutes.post('/pos/sales', async c => {
       };
     }));
 
+    for (const item of data.items) {
+      const product = productMap.get(item.productId)!;
+      if (product.inventoryTracking === 'serial') {
+        await tx.execute(sql`update product_serials set status='sold', sale_id=${sale.id}, updated_at=now() where id in (select id from product_serials where center_id=${auth.user.centerId!} and product_id=${item.productId} and status='available' order by created_at,id limit ${Math.trunc(item.quantity)})`);
+      }
+    }
     const stockLines = data.items.filter(item => !NON_STOCK_PRODUCT_TYPES.includes(productMap.get(item.productId)!.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]));
     if (stockLines.length) {
       await tx.insert(stockMovements).values(stockLines.map(item => ({
@@ -752,7 +779,11 @@ staffRoutes.post('/pos/sales', async c => {
     const messages: Record<string, [string, string, number]> = {
       PRODUCT_NOT_FOUND: ['PRODUCT_NOT_FOUND', 'يوجد منتج غير متاح أو غير تابع للمركز', 404],
       CUSTOMER_NOT_FOUND: ['CUSTOMER_NOT_FOUND', 'العميل غير موجود أو غير نشط', 404],
-      BELOW_COST: ['BELOW_COST', 'لا يمكن بيع منتج بسعر أقل من تكلفة الشراء', 409],
+      BELOW_COST: ['BELOW_COST', 'لا يمكن بيع منتج مخزني بسعر أقل من تكلفة الشراء', 409],
+      BELOW_MINIMUM_PRICE: ['BELOW_MINIMUM_PRICE', 'سعر البيع أقل من الحد الأدنى المحدد للصنف', 409],
+      POS_PRODUCT_DISABLED: ['POS_PRODUCT_DISABLED', 'الصنف غير متاح في نقطة البيع حسب إعداداته', 409],
+      SERIAL_QUANTITY_MUST_BE_INTEGER: ['SERIAL_QUANTITY_MUST_BE_INTEGER', 'الصنف المتتبع بالسيريال يجب بيعه بكميات صحيحة', 409],
+      INSUFFICIENT_SERIALS: ['INSUFFICIENT_SERIALS', 'لا توجد سيريالات متاحة بالكمية المطلوبة للصنف', 409],
       INSUFFICIENT_STOCK: ['INSUFFICIENT_STOCK', 'المخزون الحالي غير كافٍ لإتمام البيع', 409],
       SALE_CREATE_FAILED: ['SALE_CREATE_FAILED', 'تعذر إنشاء عملية البيع', 500],
       TAX_RATE_NOT_CONFIGURED: ['TAX_RATE_NOT_CONFIGURED', 'كود الضريبة للمنتج غير مُهيأ في إعدادات الضرائب', 409],

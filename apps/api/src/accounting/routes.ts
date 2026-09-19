@@ -146,11 +146,11 @@ accountingRoutes.delete('/accounts/:id',async c=>{
     if(current.rows[0].isSystem)return c.json({error:{code:'SYSTEM_ACCOUNT_LOCKED',message:'حسابات النظام لا يمكن حذفها'}},409);
     const refs=await withDatabase(c.env,db=>db.execute(sql`
       select
-        (select count(*) from journal_entry_lines where account_id=${accountId}) as journal_lines,
-        (select count(*) from accounting_accounts where parent_id=${accountId}) as children,
-        (select count(*) from products where inventory_account_id=${accountId} or cost_of_sales_account_id=${accountId} or revenue_account_id=${accountId} or purchase_account_id=${accountId} or sales_return_account_id=${accountId} or purchase_return_account_id=${accountId} or deferred_revenue_account_id=${accountId} or subscription_revenue_account_id=${accountId}) as product_refs,
-        (select count(*) from accounting_settings where inventory_account_id=${accountId} or input_vat_account_id=${accountId} or accounts_payable_account_id=${accountId} or cash_bank_account_id=${accountId} or accounts_receivable_account_id=${accountId} or revenue_account_id=${accountId} or output_vat_account_id=${accountId} or cost_of_sales_account_id=${accountId} or deferred_revenue_account_id=${accountId} or subscription_revenue_account_id=${accountId}) as settings_refs,
-        (select count(*) from customer_subscriptions where deferred_revenue_account_id=${accountId} or revenue_account_id=${accountId}) as subscription_refs
+        (select count(*) from journal_entry_lines l join journal_entries j on j.id=l.journal_entry_id where l.account_id=${accountId} and j.center_id=${auth.user.centerId!}) as journal_lines,
+        (select count(*) from accounting_accounts where parent_id=${accountId} and center_id=${auth.user.centerId!}) as children,
+        (select count(*) from products where center_id=${auth.user.centerId!} and (inventory_account_id=${accountId} or cost_of_sales_account_id=${accountId} or revenue_account_id=${accountId} or purchase_account_id=${accountId} or sales_return_account_id=${accountId} or purchase_return_account_id=${accountId} or deferred_revenue_account_id=${accountId} or subscription_revenue_account_id=${accountId})) as product_refs,
+        (select count(*) from accounting_settings where center_id=${auth.user.centerId!} and (inventory_account_id=${accountId} or input_vat_account_id=${accountId} or accounts_payable_account_id=${accountId} or cash_bank_account_id=${accountId} or accounts_receivable_account_id=${accountId} or revenue_account_id=${accountId} or output_vat_account_id=${accountId} or cost_of_sales_account_id=${accountId} or deferred_revenue_account_id=${accountId} or subscription_revenue_account_id=${accountId})) as settings_refs,
+        (select count(*) from customer_subscriptions where center_id=${auth.user.centerId!} and (deferred_revenue_account_id=${accountId} or revenue_account_id=${accountId})) as subscription_refs
     `));
     const ref=refs.rows[0] as any;
     if(Number(ref.journal_lines)>0||Number(ref.children)>0||Number(ref.product_refs)>0||Number(ref.settings_refs)>0||Number(ref.subscription_refs)>0)return c.json({error:{code:'ACCOUNT_IN_USE',message:'لا يمكن حذف الحساب لأنه مستخدم في قيود أو حسابات فرعية أو إعدادات منتجات. استخدم الأرشفة بدلًا من الحذف.'}},409);

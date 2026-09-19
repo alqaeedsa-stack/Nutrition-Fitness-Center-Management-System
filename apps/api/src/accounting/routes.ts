@@ -47,7 +47,7 @@ accountingRoutes.post('/settings',async c=>{
 });
 accountingRoutes.get('/journal-entries',async c=>{
   const auth=await access(c,'purchases.read'); if('error' in auth)return auth.error;
-  const r=await withDatabase(c.env,db=>db.execute(sql`select j.id,j.entry_number as "entryNumber",j.entry_date as "entryDate",j.source_type as "sourceType",j.source_id as "sourceId",j.description,j.status,j.created_at as "createdAt",coalesce(sum(l.debit),0)::numeric(18,2) as debit,coalesce(sum(l.credit),0)::numeric(18,2) as credit from journal_entries j left join journal_entry_lines l on l.journal_entry_id=j.id where j.center_id=${auth.user.centerId!} group by j.id order by j.entry_date desc,j.created_at desc`));
+  const r=await withDatabase(c.env,db=>db.execute(sql`select j.id,j.entry_number as "entryNumber",j.entry_date as "entryDate",j.source_type as "sourceType",j.source_id as "sourceId",j.description,j.status,j.created_at as "createdAt",coalesce(sum(case when j.id is not null then l.debit else 0 end),0)::numeric(18,2) as debit,coalesce(sum(case when j.id is not null then l.credit else 0 end),0)::numeric(18,2) as credit from journal_entries j left join journal_entry_lines l on l.journal_entry_id=j.id where j.center_id=${auth.user.centerId!} group by j.id order by j.entry_date desc,j.created_at desc`));
   return c.json({entries:r.rows});
 });
 accountingRoutes.get('/journal-entries/:id',async c=>{
@@ -59,24 +59,24 @@ accountingRoutes.get('/journal-entries/:id',async c=>{
 });
 accountingRoutes.get('/reports/trial-balance',async c=>{
   const auth=await access(c,'purchases.read'); if('error' in auth)return auth.error;
-  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(l.debit),0)::numeric(18,2) as debit,coalesce(sum(l.credit),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} group by a.id order by a.code`));
+  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(case when j.id is not null then l.debit else 0 end),0)::numeric(18,2) as debit,coalesce(sum(case when j.id is not null then l.credit else 0 end),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} group by a.id order by a.code`));
   return c.json({accounts:r.rows});
 });
 accountingRoutes.get('/reports/income-statement',async c=>{
   const auth=await access(c,'purchases.read'); if('error' in auth)return auth.error;
-  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(l.debit),0)::numeric(18,2) as debit,coalesce(sum(l.credit),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} and a.account_type in ('revenue','expense') group by a.id order by a.account_type,a.code`));
+  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(case when j.id is not null then l.debit else 0 end),0)::numeric(18,2) as debit,coalesce(sum(case when j.id is not null then l.credit else 0 end),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} and a.account_type in ('revenue','expense') group by a.id order by a.account_type,a.code`));
   return c.json({accounts:r.rows});
 });
 accountingRoutes.get('/reports/balance-sheet',async c=>{
   const auth=await access(c,'purchases.read'); if('error' in auth)return auth.error;
-  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(l.debit),0)::numeric(18,2) as debit,coalesce(sum(l.credit),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} and a.account_type in ('asset','liability','equity') group by a.id order by a.account_type,a.code`));
+  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(case when j.id is not null then l.debit else 0 end),0)::numeric(18,2) as debit,coalesce(sum(case when j.id is not null then l.credit else 0 end),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} and a.account_type in ('asset','liability','equity') group by a.id order by a.account_type,a.code`));
   return c.json({accounts:r.rows});
 });
 accountingRoutes.get('/ledger/:accountId',async c=>{
   const auth=await access(c,'purchases.read'); if('error' in auth)return auth.error;
   const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType" from accounting_accounts a where a.id=${c.req.param('accountId')} and a.center_id=${auth.user.centerId!} limit 1`));
   if(!r.rows[0])return c.json({error:{code:'NOT_FOUND',message:'الحساب غير موجود'}},404);
-  const lines=await withDatabase(c.env,db=>db.execute(sql`select j.entry_number as "entryNumber",j.entry_date as "entryDate",j.description,l.debit,l.credit from journal_entry_lines l join journal_entries j on j.id=l.journal_entry_id where l.account_id=${c.req.param('accountId')} and j.center_id=${auth.user.centerId!} order by j.entry_date,j.created_at,l.id`));
+  const lines=await withDatabase(c.env,db=>db.execute(sql`select j.entry_number as "entryNumber",j.entry_date as "entryDate",j.description,l.debit,l.credit from journal_entry_lines l join journal_entries j on j.id=l.journal_entry_id and j.status='posted' where l.account_id=${c.req.param('accountId')} and j.center_id=${auth.user.centerId!} order by j.entry_date,j.created_at,l.id`));
   let balance=0; const ledger=lines.rows.map((x:any)=>{balance+=Number(x.debit)-Number(x.credit);return {...x,balance:balance.toFixed(2)};});
   return c.json({account:r.rows[0],ledger});
 });

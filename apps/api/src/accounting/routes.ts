@@ -127,7 +127,7 @@ accountingRoutes.post('/accounts',async c=>{
       if (!parent.rows[0]) return c.json({error:{code:'ACCOUNT_PARENT_INVALID',message:'الحساب الأب غير تابع للمركز'}},400);
       if (parent.rows[0].accountType !== x.accountType) return c.json({error:{code:'ACCOUNT_TYPE_MISMATCH',message:'نوع الحساب يجب أن يطابق نوع الحساب الأب'}},400);
     }
-    const r=await withDatabase(c.env,db=>db.execute(sql`insert into accounting_accounts(center_id,parent_id,code,name,account_type,created_by) values(${auth.user.centerId!},${x.parentId??null},${x.code},${x.name},${x.accountType},${auth.user.userId}) returning id,code,name,account_type as "accountType",parent_id as "parentId"`));
+    const r=await withDatabase(c.env,db=>db.execute(sql`insert into accounting_accounts(center_id,parent_id,code,name,account_type,statement_section,allow_reconciliation,created_by) values(${auth.user.centerId!},${x.parentId??null},${x.code},${x.name},${x.accountType},${x.statementSection},${x.allowReconciliation},${auth.user.userId}) returning id,code,name,account_type as "accountType",parent_id as "parentId",statement_section as "statementSection",allow_reconciliation as "allowReconciliation"`));
     return c.json({account:r.rows[0]},201);
   }catch(e){return c.json({error:{code:'ACCOUNT_CREATE_FAILED',message:'تعذر إنشاء الحساب',detail:e instanceof Error?e.message:'unknown'}},400);}
 });

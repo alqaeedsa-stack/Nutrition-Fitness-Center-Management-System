@@ -62,15 +62,15 @@ export default function ZatcaSettings() {
    </section>}
    <section className='staff-management-grid'>
     <section className='panel'><p className='eyebrow'>ZATCA CONFIGURATION</p><h2>إعدادات المنشأة</h2><form className='form-stack' onSubmit={saveSettings}>
-     <label>بيئة الإرسال<select value={form.environment} onChange={e=>setForm(v=>({...v,environment:e.target.value as 'simulation'|'production'}))}><option value='simulation'>المحاكاة — Simulation</option><option value='production'>الإنتاج — Production</option></select></label>
+     <label>بيئة الإرسال<select value={form.environment} onChange={e=>setForm(v=>({...v,environment:e.target.value as 'simulation'|'production'}))}><option value='simulation'>المحاكاة</option><option value='production'>الإنتاج — Production</option></select></label>
      <label>الرقم الضريبي<input dir='ltr' value={form.vatNumber} onChange={e=>setForm(v=>({...v,vatNumber:e.target.value}))} placeholder='الرقم الضريبي' /></label>
      <label>الاسم القانوني للمنشأة<input value={form.legalName} onChange={e=>setForm(v=>({...v,legalName:e.target.value}))}/></label>
-     <label>Invoice Type Code<input dir='ltr' value={form.invoiceTypeCode} onChange={e=>setForm(v=>({...v,invoiceTypeCode:e.target.value}))}/></label>
+     <label>نوع الفاتورة<input dir='ltr' value={form.invoiceTypeCode} onChange={e=>setForm(v=>({...v,invoiceTypeCode:e.target.value}))}/></label>
      <label>الرقم التسلسلي للجهاز<input dir='ltr' value={form.deviceSerial} onChange={e=>setForm(v=>({...v,deviceSerial:e.target.value}))}/></label>
      <div className='form-row'><label>الشارع<input value={form.sellerStreet} onChange={e=>setForm(v=>({...v,sellerStreet:e.target.value}))}/></label><label>رقم المبنى<input dir='ltr' value={form.sellerBuildingNumber} onChange={e=>setForm(v=>({...v,sellerBuildingNumber:e.target.value}))}/></label></div>
      <div className='form-row'><label>المدينة<input value={form.sellerCity} onChange={e=>setForm(v=>({...v,sellerCity:e.target.value}))}/></label><label>الرمز البريدي<input dir='ltr' value={form.sellerPostalCode} onChange={e=>setForm(v=>({...v,sellerPostalCode:e.target.value}))}/></label></div>
      <label>رمز الدولة<input dir='ltr' maxLength={2} value={form.sellerCountryCode} onChange={e=>setForm(v=>({...v,sellerCountryCode:e.target.value}))}/></label>
-     <label>PIH السابق<input dir='ltr' value={form.pih} onChange={e=>setForm(v=>({...v,pih:e.target.value}))}/></label>
+     <label>سلسلة الفاتورة السابقة<input dir='ltr' value={form.pih} onChange={e=>setForm(v=>({...v,pih:e.target.value}))}/></label>
      <button className='primary-action button' disabled={saving}>{saving?'جارٍ الحفظ...':'حفظ الإعدادات'}</button>
     </form>{settings&&<div className='cart-note'>الحالة: <strong>{settings.status}</strong> · ICV الحالي: <strong>{settings.lastIcv}</strong>{settings.lastError?' · آخر خطأ: '+settings.lastError:''}</div>}</section>
     <section className='panel'><p className='eyebrow'>TAX RATES</p><h2>أكواد الضرائب</h2>

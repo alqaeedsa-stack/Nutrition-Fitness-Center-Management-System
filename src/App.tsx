@@ -686,13 +686,14 @@ function StaffPOS({ user }: { user: AuthUser }) {
   async function openSale(id:string){ try { const r=await apiFetch<{sale:SaleDetail}>('/store/admin/sales/'+id); setSelectedSale(r.sale); } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل تفاصيل البيع');} }
   async function voidSale(id:string){ if(!window.confirm('سيتم إلغاء عملية البيع وعكس كميات المخزون. هل تريد المتابعة؟')) return; try { await apiFetch('/store/admin/sales/'+id+'/void',{method:'POST',body:JSON.stringify({})}); setMessage('تم إلغاء عملية البيع وعكس المخزون.'); await loadSalesHistory(); await openSale(id); } catch(e){setError(e instanceof Error?e.message:'تعذر إلغاء عملية البيع');} }
   async function prepareZatcaInvoice(id:string){ setError(''); setMessage(''); try { const r=await apiFetch<{invoice:{invoiceNumber:string;status:string}}>('/zatca/sales/'+id+'/prepare',{method:'POST',body:JSON.stringify({invoiceType:'simplified'})}); setMessage('تم تجهيز الفاتورة الإلكترونية '+r.invoice.invoiceNumber+' بصيغة ZATCA. التوقيع والإرسال إلى FATOORA ما زالا يحتاجان CSID.'); } catch(e){setError(e instanceof Error?e.message:'تعذر تجهيز الفاتورة الإلكترونية');} }
+  const subtotal=cart.reduce((s,x)=>s+x.cartQuantity*x.price,0); const discount=cart.reduce((s,x)=>s+x.discount,0); const total=Math.max(0,subtotal-discount);
   const posKpis=[
     ['أصناف السلة',cart.reduce((s,x)=>s+x.cartQuantity,0)],
     ['قيمة السلة',total.toFixed(2)+' ر.س'],
     ['المبيعات اليوم',salesHistory.filter(s=>new Date(s.createdAt).toDateString()===new Date().toDateString()).length],
     ['آخر بيع',salesHistory[0]?.total ? salesHistory[0].total+' ر.س' : '—'],
   ] as const;
-  const subtotal=cart.reduce((s,x)=>s+x.cartQuantity*x.price,0); const discount=cart.reduce((s,x)=>s+x.discount,0); const total=Math.max(0,subtotal-discount);
+
   async function completeSale(){ if(!cart.length){setError('السلة فارغة');return;} if(!customer){setError('اختر العميل قبل إتمام البيع.');return;} setLoading(true);setError('');setMessage(''); try { const r=await apiFetch<{sale:{id:string;saleNumber:string;total:string}}>('/staff/pos/sales',{method:'POST',body:JSON.stringify({customerId:customer.id,paymentMethod,paymentStatus:'paid',items:cart.map(x=>({productId:x.id,quantity:x.cartQuantity}))})}); setMessage('تم تسجيل البيع '+r.sale.saleNumber+' بإجمالي '+r.sale.total+' ر.س');setCart([]);setCustomer(null);setCustomerQuery(''); await loadSalesHistory(); await openSale(r.sale.id); } catch(e){setError(e instanceof Error?e.message:'تعذر إتمام البيع');} finally{setLoading(false);} }
 
   return <main className="app-shell"><header className="app-header"><div><span className="eyebrow">نقطة البيع</span><h1>نقطة البيع</h1></div><div className="portal-choice-actions"><button className="secondary-button" type="button" onClick={()=>void loadSalesHistory()}>المبيعات السابقة</button><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></div></header>

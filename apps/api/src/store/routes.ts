@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getAuthenticatedUser } from '../auth/session';
 import { withDatabase } from '../db/client';
 import { customerAccounts } from '../db/customer-accounts';
-import { customers, products, productBarcodes, sales, saleItems, stockMovements, taxRates } from '../db/schema';
+import { customers, products, sales, saleItems, stockMovements, taxRates } from '../db/schema';
 import { requirePermission } from '../auth/permissions';
 import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
 import { postSale, reverseSale } from '../accounting/service';

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from './lib/api';
+import PurchaseWorkspaceNav from './PurchaseWorkspaceNav';
 
 type Vendor = { id:string; code:string; name:string; taxNumber?:string|null; phone?:string|null; email?:string|null; address?:string|null; paymentTerms?:string|null; active:boolean };
 type Product = { id:string; sku:string; name:string; purchaseCost:string };
@@ -101,7 +102,7 @@ export default function Vendors(){
     }catch(e){setError(e instanceof Error?e.message:'تعذر تسجيل الاستلام')}finally{setBusy(false)}
   }
 
-  return <main className="app-shell">
+  return <main className="app-shell"><div className="odoo-workspace"><PurchaseWorkspaceNav /><div className="odoo-workspace-main">
     <header className="app-header">
       <div><span className="eyebrow">PURCHASE MANAGEMENT</span><h1>المشتريات والموردون</h1><p>دورة شراء منظمة: مورد ← طلب عرض/مسودة ← أمر شراء ← استلام ← مرتجع.</p></div>
       <Link className="secondary-button" to="/admin/operations">المخزون والمنتجات</Link>
@@ -172,5 +173,5 @@ export default function Vendors(){
     {tab==='returns'&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">PURCHASE RETURNS</p><h2>سجل مرتجعات الموردين</h2><p>كل مرتجع مرتبط بالمورد وأمر الشراء وحركة المخزون.</p></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
       <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المرتجع</th><th>المورد</th><th>أمر الشراء</th><th>التاريخ</th><th>القيمة</th><th>الحالة</th></tr></thead><tbody>{returnRows.map(r=><tr key={r.id}><td>{r.returnNumber}</td><td>{r.vendorName}</td><td>{r.poNumber||'—'}</td><td>{r.returnDate}</td><td>{Number(r.total).toFixed(2)} ر.س</td><td><span className={'status-badge '+(statusClass[r.status]??'active')}>{statusLabel[r.status]??r.status}</span></td></tr>)}</tbody></table></div>
     </section>}
-  </main>;
+  </div></div></main>;
 }

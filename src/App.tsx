@@ -231,57 +231,135 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
   const canCustomers = can('customers.read');
   const canPos = can('pos.read');
   const canOperations = can('catalog.read') || can('inventory.read') || can('orders.read');
-
   const navigate = useNavigate();
+
   async function logout() {
-    try {
-      await apiFetch<void>('/auth/logout', { method: 'POST' });
-    } finally {
-      onLogout();
-      navigate('/admin', { replace: true });
-    }
+    try { await apiFetch<void>('/auth/logout', { method: 'POST' }); }
+    finally { onLogout(); navigate('/admin', { replace: true }); }
   }
 
-  const modules = [
-    ...(isAdmin ? [['الإدارة', 'ADMIN', 'إعدادات المركز وإدارة التشغيل والصلاحيات.', '']] : []),
-    ...(can('staff.manage') ? [['الموظفون والأطباء والأخصائيون', 'STAFF', 'إدارة حسابات الطاقم الداخلي والصلاحيات.', '/admin/staff']] : []),
-    ...(canCustomers ? [['العملاء', 'CUSTOMERS', 'ملفات العملاء والمتابعة والبيانات الأساسية.', '/admin/customers']] : []),
-    ...(can('appointments.read') ? [['المواعيد', 'APPOINTMENTS', 'حجوزات المركز ومواعيد الأطباء والأخصائيين.', '/admin/appointments']] : []),
-    ...(canCustomers ? [['متابعة العملاء', 'FOLLOW-UP', 'سجل الزيارات والمتابعات الدورية والتوصيات لكل عميل.', '/admin/follow-ups']] : []),
-    ...(canPos ? [['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', '/admin/pos']] : []),
-    ...(canOperations ? [['المخزون والمنتجات والطلبات', 'OPERATIONS', 'المنتجات والأرصدة وحركات المخزون وطلبات المتجر.', '/admin/operations']] : []),
-    ...(can('inventory.read') ? [['الموردون والمشتريات', 'PURCHASE', 'الموردون وأوامر الشراء والاستلام الجزئي والكامل وربطها بحركات المخزون.', '/admin/purchases']] : []),
-    ...(can('purchases.read') ? [['فواتير ومدفوعات الموردين', 'PAYABLES', 'فواتير الموردين وترحيلها ومدفوعاتها وكشوف حساب الموردين.', '/admin/purchase-billing']] : []),
-    ...(can('nutrition.read') ? [['الخطط الغذائية', 'NUTRITION', 'إعداد ومتابعة الخطط الغذائية.', '/admin/nutrition']] : []),
-    ...(can('fitness.read') ? [['الخطط الرياضية', 'FITNESS', 'إعداد ومتابعة خطط اللياقة.', '/admin/fitness']] : []),
-    ...(can('reports.read') ? [['التقارير', 'REPORTS', 'تقارير التشغيل والمبيعات والمخزون.', '/admin/reports']] : []),
-    ...(can('zatca.manage') ? [['الضرائب والفوترة الإلكترونية', 'ZATCA', 'إعداد الضرائب ومتابعة الفواتير الإلكترونية المتوافقة مع مسار فاتورة.', '/admin/zatca']] : []),
-  ] as const;
+  const groups = [
+    {
+      title: 'العملاء والخدمات',
+      code: 'FRONT OFFICE',
+      items: [
+        ...(canCustomers ? [['العملاء', 'CUSTOMERS', 'ملفات العملاء والبيانات الأساسية.', '/admin/customers']] : []),
+        ...(can('appointments.read') ? [['المواعيد', 'APPOINTMENTS', 'الحجوزات ومواعيد الأطباء والأخصائيين.', '/admin/appointments']] : []),
+        ...(canCustomers ? [['متابعة العملاء', 'FOLLOW-UP', 'الزيارات والمتابعات الدورية والتوصيات.', '/admin/follow-ups']] : []),
+        ...(can('nutrition.read') ? [['الخطط الغذائية', 'NUTRITION', 'إعداد ومتابعة الخطط الغذائية.', '/admin/nutrition']] : []),
+        ...(can('fitness.read') ? [['الخطط الرياضية', 'FITNESS', 'إعداد ومتابعة خطط اللياقة.', '/admin/fitness']] : []),
+      ] as string[][],
+    },
+    {
+      title: 'المبيعات والمتجر',
+      code: 'SALES',
+      items: [
+        ...(canPos ? [['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', '/admin/pos']] : []),
+        ...(canOperations ? [['المنتجات والمخزون والطلبات', 'INVENTORY', 'المنتجات والأرصدة وحركات المخزون والطلبات.', '/admin/operations']] : []),
+      ] as string[][],
+    },
+    {
+      title: 'المشتريات والموردون',
+      code: 'PURCHASE',
+      items: [
+        ...(can('inventory.read') ? [['الموردون والمشتريات', 'PURCHASE', 'الموردون وأوامر الشراء والاستلام وحركات المخزون.', '/admin/purchases']] : []),
+        ...(can('purchases.read') ? [['فواتير ومدفوعات الموردين', 'PAYABLES', 'فواتير الموردين والترحيل والمدفوعات وكشوف الحساب.', '/admin/purchase-billing']] : []),
+      ] as string[][],
+    },
+    {
+      title: 'المحاسبة والتقارير',
+      code: 'ACCOUNTING',
+      items: [
+        ...(can('purchases.read') ? [['المحاسبة', 'ACCOUNTING', 'دليل الحسابات والقيود والترحيل والتقارير المالية.', '/admin/accounting']] : []),
+        ...(can('reports.read') ? [['التقارير', 'REPORTS', 'تقارير التشغيل والمبيعات والمخزون.', '/admin/reports']] : []),
+        ...(can('zatca.manage') ? [['الضرائب والفوترة الإلكترونية', 'ZATCA', 'إعداد الضرائب ومتابعة الفوترة الإلكترونية.', '/admin/zatca']] : []),
+      ] as string[][],
+    },
+    ...(isAdmin || can('staff.manage') ? [{
+      title: 'الإدارة',
+      code: 'ADMIN',
+      items: [
+        ...(can('staff.manage') ? [['الموظفون والأطباء والأخصائيون', 'STAFF', 'حسابات الطاقم والصلاحيات.', '/admin/staff']] : []),
+      ] as string[][],
+    }] : []),
+  ];
+
+  const visibleGroups = groups.filter(group => group.items.length > 0);
 
   return (
-    <main className="app-shell staff-workspace">
-      <header className="app-header">
-        <div className="brand-inline">
+    <main className="app-shell odoo-dashboard-page">
+      <header className="odoo-dashboard-topbar">
+        <div className="odoo-dashboard-brand">
           <div className="brand-mark">N</div>
-          <div><span className="eyebrow">INTERNAL WORKSPACE</span><h1>بوابة الإدارة والموظفين</h1></div>
+          <div>
+            <span className="eyebrow">NUTRITION & FITNESS CENTER</span>
+            <h1>مساحة عمل الإدارة</h1>
+          </div>
         </div>
-        <button className="secondary-button" onClick={logout}>تسجيل الخروج</button>
+        <div className="odoo-dashboard-user">
+          <div className="odoo-user-info">
+            <strong>{user.email ?? user.phone ?? 'حساب موظف'}</strong>
+            <span>{isAdmin ? 'مدير النظام' : 'موظف'}</span>
+          </div>
+          <button className="secondary-button" onClick={logout}>تسجيل الخروج</button>
+        </div>
       </header>
-      <section className="dashboard-intro">
-        <p className="eyebrow">الإدارة والتشغيل الداخلي</p>
-        <h2>مساحة عمل الإدارة والطاقم</h2>
-        <p>هذه البوابة منفصلة عن بوابة العملاء والمتجر. تظهر هنا وظائف التشغيل الداخلية فقط.</p>
-      </section>
-      <section className="workspace-grid" aria-label="وحدات بوابة الإدارة والموظفين">
-        {modules.map(([title, code, description, path]) => (
-          <article className="workspace-card" key={code}>
-            <span className="module-code">{code}</span>
-            <h3>{title}</h3>
-            <p>{description}</p>
-            {path ? <Link className="module-link" to={path}>فتح الوحدة ←</Link> : <span className="module-status">قيد البناء</span>}
-          </article>
-        ))}
-      </section>
+
+      <div className="odoo-dashboard-layout">
+        <aside className="odoo-dashboard-sidebar">
+          <div className="odoo-sidebar-title">
+            <span className="eyebrow">WORKSPACE</span>
+            <strong>الوحدات</strong>
+          </div>
+          <nav>
+            {visibleGroups.map(group => (
+              <div className="odoo-sidebar-group" key={group.code}>
+                <span>{group.title}</span>
+                {group.items.map(([, title, , path]) => <Link key={path} to={path}>{title}</Link>)}
+              </div>
+            ))}
+          </nav>
+        </aside>
+
+        <section className="odoo-dashboard-main">
+          <div className="odoo-dashboard-welcome">
+            <div>
+              <span className="eyebrow">الإدارة والتشغيل الداخلي</span>
+              <h2>لوحة العمل</h2>
+              <p>اختر الوحدة التي تريد العمل عليها. تظهر لك فقط الوحدات المسموح بها لحسابك.</p>
+            </div>
+            <div className="odoo-dashboard-quick">
+              {canCustomers && <Link to="/admin/customers">العملاء</Link>}
+              {canPos && <Link to="/admin/pos">نقطة البيع</Link>}
+              {can('inventory.read') && <Link to="/admin/purchases">المشتريات</Link>}
+              {can('purchases.read') && <Link to="/admin/accounting">المحاسبة</Link>}
+            </div>
+          </div>
+
+          {visibleGroups.map(group => (
+            <section className="odoo-module-section" key={group.code}>
+              <div className="odoo-section-heading">
+                <div>
+                  <span className="eyebrow">{group.code}</span>
+                  <h3>{group.title}</h3>
+                </div>
+                <span>{group.items.length} وحدات</span>
+              </div>
+              <div className="odoo-module-grid">
+                {group.items.map(([code, title, description, path]) => (
+                  <Link className="odoo-module-tile" to={path} key={code}>
+                    <span className="odoo-tile-code">{code}</span>
+                    <strong>{title}</strong>
+                    <p>{description}</p>
+                    <span className="odoo-tile-open">فتح الوحدة ←</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ))}
+        </section>
+      </div>
+
       <footer className="app-footer"><span>بوابة الإدارة والموظفين</span><span>{user.email ?? user.phone ?? 'حساب موظف'}</span></footer>
     </main>
   );

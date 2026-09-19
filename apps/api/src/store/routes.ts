@@ -234,7 +234,7 @@ storeRoutes.post('/admin/sales', async c => {
       await tx.insert(saleItems).values({
         saleId: sale[0].id, productId: product.id, quantity: item.quantity.toString(), unitPrice: product.sellingPrice, discount: '0', tax: taxAmount.toFixed(2), lineTotal: lineTotal.toFixed(2),
       });
-      if (product.productType !== 'subscription') {
+      if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number])) {
         await tx.insert(stockMovements).values({
           centerId: auth.user.centerId!, productId: product.id, movementType: 'sale', quantity: (-item.quantity).toString(), unitCost: product.purchaseCost,
           referenceType: 'sale', referenceId: sale[0].id, occurredAt: new Date(), createdBy: auth.user.userId, notes: 'صرف من نقطة البيع',
@@ -337,7 +337,7 @@ storeRoutes.post('/admin/sales/:saleId/void', async c => {
       if(remaining<=0) continue;
       const product=productMap.get(line.productId);
       if(!product) return {error:'PRODUCT_NOT_FOUND' as const};
-      if (product.productType !== 'subscription') {
+      if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number])) {
         await tx.insert(stockMovements).values({
           centerId:auth.user.centerId!,productId:line.productId,movementType:'return_in',quantity:remaining.toString(),
           unitCost:product.purchaseCost,referenceType:'sale_return',referenceId:saleId,occurredAt:new Date(),createdBy:auth.user.userId,
@@ -664,9 +664,22 @@ storeRoutes.post('/checkout', async c => {
 
     if (!lockedProducts.length) return { cartEmpty: true };
 
-    const taxConfigured = lockedProducts.every(product => !product.taxCode);
-    if (!taxConfigured) {
-      return { taxConfigurationRequired: true };
+    const taxCodes = [...new Set(lockedProducts.map(product => product.taxCode).filter((code): code is string => Boolean(code)))];
+    if (taxCodes.length) {
+      const taxRows = await tx.select({
+        code: taxRates.code,
+        rate: taxRates.rate,
+        categoryCode: taxRates.categoryCode,
+        exemptionReasonCode: taxRates.exemptionReasonCode,
+      }).from(taxRates).where(and(
+        eq(taxRates.centerId, auth.user.centerId!),
+        inArray(taxRates.code, taxCodes),
+        eq(taxRates.active, true),
+      ));
+      const taxMap = new Map(taxRows.map(row => [row.code, row]));
+      for (const code of taxCodes) {
+        if (!taxMap.has(code)) return { taxConfigurationRequired: true, taxCode: code };
+      }
     }
 
     const productIds = [...new Set(lockedProducts.map(product => product.id))].sort();
@@ -735,7 +748,27 @@ storeRoutes.post('/checkout', async c => {
       return { shortages };
     }
 
+    const taxRows = taxCodes.length
+      ? await tx.select({
+        code: taxRates.code,
+        rate: taxRates.rate,
+        categoryCode: taxRates.categoryCode,
+      }).from(taxRates).where(and(
+        eq(taxRates.centerId, auth.user.centerId!),
+        inArray(taxRates.code, taxCodes),
+        eq(taxRates.active, true),
+      ))
+      : [];
+    const taxMap = new Map(taxRows.map(row => [row.code, row]));
     const subtotal = cartItems.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+    const taxTotal = cartItems.reduce((sum, item) => {
+      const product = lockedProducts.find(p => p.id === item.productId);
+      const config = product?.taxCode ? taxMap.get(product.taxCode) : null;
+      return sum + (config?.categoryCode === 'S'
+        ? Number(item.quantity) * Number(item.unitPrice) * Number(config.rate) / 100
+        : 0);
+    }, 0);
+    const total = subtotal + taxTotal;
     const order = await tx.insert(storeOrders).values({
       centerId: auth.user.centerId!,
       customerId: auth.customerId,
@@ -743,8 +776,8 @@ storeRoutes.post('/checkout', async c => {
       status: 'pending',
       subtotal: subtotal.toFixed(2),
       discount: '0',
-      tax: '0',
-      total: subtotal.toFixed(2),
+      tax: taxTotal.toFixed(2),
+      total: total.toFixed(2),
       paymentMethod,
       paymentStatus: 'unpaid',
     }).returning();
@@ -753,7 +786,11 @@ storeRoutes.post('/checkout', async c => {
 
     await tx.insert(storeOrderItems).values(cartItems.map(item => {
       const product = lockedProducts.find(p => p.id === item.productId)!;
-      const lineTotal = (Number(item.quantity) * Number(item.unitPrice)).toFixed(2);
+      const product = lockedProducts.find(p => p.id === item.productId)!;
+      const config = product.taxCode ? taxMap.get(product.taxCode) : null;
+      const base = Number(item.quantity) * Number(item.unitPrice);
+      const lineTax = config?.categoryCode === 'S' ? base * Number(config.rate) / 100 : 0;
+      const lineTotal = (base + lineTax).toFixed(2);
       return {
         orderId: order[0].id,
         productId: item.productId,
@@ -762,7 +799,7 @@ storeRoutes.post('/checkout', async c => {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         discount: '0',
-        tax: '0',
+        tax: lineTax.toFixed(2),
         lineTotal,
       };
     }));

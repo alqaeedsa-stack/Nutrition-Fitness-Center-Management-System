@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
@@ -33,7 +33,7 @@ purchaseBillingRoutes.get('/billing-orders', async c => {
     status: purchaseOrders.status,
     total: purchaseOrders.total,
   }).from(purchaseOrders).innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId))
-    .where(and(eq(purchaseOrders.centerId, auth.user.centerId!), eq(purchaseOrders.status, 'received')))
+    .where(and(eq(purchaseOrders.centerId, auth.user.centerId!), inArray(purchaseOrders.status, ['partially_received', 'received'])))
     .orderBy(desc(purchaseOrders.orderDate)));
   return c.json({ orders: rows });
 });

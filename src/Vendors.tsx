@@ -6,7 +6,7 @@ type Vendor = { id:string; code:string; name:string; taxNumber?:string|null; pho
 type Product = { id:string; sku:string; name:string; purchaseCost:string };
 type Order = { id:string; poNumber:string; status:string; orderDate:string; expectedDate?:string|null; subtotal:string; tax:string; total:string; vendorId:string; vendorName:string };
 type OrderItem = { id:string; productId:string; productName:string; sku:string; quantity:string; receivedQuantity:string; returnedQuantity:string; unitCost:string; tax:string; lineTotal:string };
-type ReturnRow = { id:string; returnNumber:string; status:string; returnDate:string; total:string; notes?:string|null; vendorId:string; vendorName:string; poNumber?:string|null };
+type ReceiptRow = { id:string; receiptNumber:string; receiptDate:string; status:string; poNumber:string; vendorName:string };\ntype ReturnRow = { id:string; returnNumber:string; status:string; returnDate:string; total:string; notes?:string|null; vendorId:string; vendorName:string; poNumber?:string|null };
 type VendorDetail = { vendor:Vendor; orders:Pick<Order,'id'|'poNumber'|'status'|'orderDate'|'total'>[]; returns:Pick<ReturnRow,'id'|'returnNumber'|'returnDate'|'total'|'poNumber'>[]; totals:{orders:string;returns:string} };
 type Dashboard = { activeVendors:number; openOrders:number; purchaseTotal:string; returnTotal:string; orderCounts:{draft:number;sent:number;confirmed:number;received:number;partial:number;cancelled:number;total:number} };
 
@@ -14,11 +14,11 @@ const statusLabel:Record<string,string>={draft:'مسودة',sent:'مرسل',conf
 const statusClass:Record<string,string>={draft:'inactive',sent:'inactive',confirmed:'active',partially_received:'active',received:'active',cancelled:'inactive',posted:'active'};
 
 export default function Vendors(){
-  const [tab,setTab]=useState<'overview'|'vendors'|'orders'|'returns'>('overview');
+  const [tab,setTab]=useState<'overview'|'vendors'|'orders'|'receipts'|'returns'>('overview');
   const [vendors,setVendors]=useState<Vendor[]>([]);
   const [products,setProducts]=useState<Product[]>([]);
   const [orders,setOrders]=useState<Order[]>([]);
-  const [returnRows,setReturnRows]=useState<ReturnRow[]>([]);
+  const [returnRows,setReturnRows]=useState<ReturnRow[]>([]);\n  const [receiptRows,setReceiptRows]=useState<ReceiptRow[]>([]);
   const [dashboard,setDashboard]=useState<Dashboard|null>(null);
   const [selected,setSelected]=useState<{order:Order;items:OrderItem[]}|null>(null);
   const [vendorDetail,setVendorDetail]=useState<VendorDetail|null>(null);
@@ -34,14 +34,14 @@ export default function Vendors(){
 
   async function load(){
     try{
-      const [v,p,o,d,r]=await Promise.all([
+      const [v,p,o,d,r,g]=await Promise.all([
         apiFetch<{vendors:Vendor[]}>('/purchases/vendors'),
         apiFetch<{products:Product[]}>('/staff/products'),
         apiFetch<{orders:Order[]}>('/purchases/orders'),
         apiFetch<Dashboard>('/purchases/dashboard'),
         apiFetch<{returns:ReturnRow[]}>('/purchases/returns')
       ]);
-      setVendors(v.vendors); setProducts(p.products); setOrders(o.orders); setDashboard(d); setReturnRows(r.returns);
+      setVendors(v.vendors); setProducts(p.products); setOrders(o.orders); setDashboard(d); setReturnRows(r.returns); setReceiptRows(g.receipts);
       if(!order.vendorId && v.vendors[0]) setOrder(x=>({...x,vendorId:v.vendors[0].id}));
     }catch(e){setError(e instanceof Error?e.message:'تعذر تحميل بيانات المشتريات');}
   }
@@ -106,7 +106,7 @@ export default function Vendors(){
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
 
     <nav className="portal-choice-actions" aria-label="أقسام المشتريات">
-      {(['overview','vendors','orders','returns'] as const).map(x=><button key={x} className={'secondary-button '+(tab===x?'active':'')} onClick={()=>setTab(x)}>{x==='overview'?'نظرة عامة':x==='vendors'?'الموردون':x==='orders'?'طلبات الشراء':'المرتجعات'}</button>)}
+      {(['overview','vendors','orders','receipts','returns'] as const).map(x=><button key={x} className={'secondary-button '+(tab===x?'active':'')} onClick={()=>setTab(x)}>{x==='overview'?'نظرة عامة':x==='vendors'?'الموردون':x==='orders'?'طلبات الشراء':x==='receipts'?'الاستلامات':'المرتجعات'}</button>)}
     </nav>
 
     {tab==='overview'&&<section className="staff-management-grid">
@@ -160,6 +160,10 @@ export default function Vendors(){
       <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المنتج</th><th>المطلوب</th><th>المستلم</th><th>مرتجع</th><th>المتاح للمرتجع</th><th>تكلفة الوحدة</th><th>استلام الآن</th></tr></thead><tbody>{selected.items.map(x=><tr key={x.id}><td>{x.productName}<small>{x.sku}</small></td><td>{Number(x.quantity).toFixed(3)}</td><td>{Number(x.receivedQuantity).toFixed(3)}</td><td>{Number(x.returnedQuantity).toFixed(3)}</td><td>{Math.max(0,Number(x.receivedQuantity)-Number(x.returnedQuantity)).toFixed(3)}</td><td>{Number(x.unitCost).toFixed(2)} ر.س</td><td><input type="number" min="0" max={Math.max(0,Number(x.quantity)-Number(x.receivedQuantity))} step="0.001" disabled={selected.order.status!=='confirmed'&&selected.order.status!=='partially_received'} value={receive[x.id]??''} onChange={e=>setReceive(v=>({...v,[x.id]:e.target.value}))}/></td></tr>)}</tbody></table></div>
       {(selected.order.status==='confirmed'||selected.order.status==='partially_received')&&<form className="form-stack" onSubmit={receiveOrder}><button className="primary-action button" disabled={busy}>{busy?'جارٍ التسجيل...':'تسجيل الاستلام وتحديث المخزون'}</button></form>}
       {selected.items.some(x=>Number(x.receivedQuantity)>Number(x.returnedQuantity))&&<form className="form-stack" onSubmit={returnOrder}><div className="form-row"><label>تاريخ المرتجع<input type="date" required value={returnDate} onChange={e=>setReturnDate(e.target.value)}/></label></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المنتج</th><th>متاح للمرتجع</th><th>المرتجع الآن</th></tr></thead><tbody>{selected.items.filter(x=>Number(x.receivedQuantity)>Number(x.returnedQuantity)).map(x=><tr key={x.id}><td>{x.productName}</td><td>{Math.max(0,Number(x.receivedQuantity)-Number(x.returnedQuantity)).toFixed(3)}</td><td><input type="number" min="0" max={Math.max(0,Number(x.receivedQuantity)-Number(x.returnedQuantity))} step="0.001" value={returns[x.id]??''} onChange={e=>setReturns(v=>({...v,[x.id]:e.target.value}))}/></td></tr>)}</tbody></table></div><button className="secondary-button button" disabled={busy}>{busy?'جارٍ التسجيل...':'تسجيل مرتجع جزئي'}</button></form>}
+    </section>}
+
+    {tab==='receipts'&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">GOODS RECEIPTS</p><h2>الاستلامات</h2><p>كل استلام أصبح مستندًا مستقلًا مرتبطًا بأمر الشراء وحركات المخزون.</p></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
+      <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>رقم الاستلام</th><th>التاريخ</th><th>أمر الشراء</th><th>المورد</th><th>الحالة</th></tr></thead><tbody>{receiptRows.map(x=><tr key={x.id}><td>{x.receiptNumber}</td><td>{x.receiptDate}</td><td>{x.poNumber}</td><td>{x.vendorName}</td><td><span className="status-badge active">{statusLabel[x.status]||x.status}</span></td></tr>)}{!receiptRows.length&&<tr><td colSpan={5}>لا توجد استلامات حتى الآن.</td></tr>}</tbody></table></div>
     </section>}
 
     {tab==='returns'&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">PURCHASE RETURNS</p><h2>سجل مرتجعات الموردين</h2><p>كل مرتجع مرتبط بالمورد وأمر الشراء وحركة المخزون.</p></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>

@@ -42,7 +42,7 @@ export default function VendorBilling(){
   async function load(){
     setError('');
     try{
-      const [o,b,p]=await Promise.all([
+      const [o,b,p,s]=await Promise.all([
         apiFetch<{orders:BillingOrder[]}>('/purchases/billing-orders'),
         apiFetch<{bills:Bill[]}>('/purchases/bills'),
         apiFetch<{payments:Payment[]}>('/purchases/payments'),

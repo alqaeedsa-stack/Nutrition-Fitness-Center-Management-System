@@ -29,7 +29,27 @@ const accountSchema=z.object({
 
 accountingRoutes.get('/accounts',async c=>{
   const auth=await access(c,'accounting.read'); if('error' in auth)return auth.error;
-  const rows=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",a.parent_id as "parentId",p.code as "parentCode",p.name as "parentName",a.is_active as "isActive",a.is_system as "isSystem",a.statement_section as "statementSection",a.allow_reconciliation as "allowReconciliation",a.account_subtype as "accountSubtype",a.internal_group as "internalGroup",a.is_deprecated as "isDeprecated" from accounting_accounts a left join accounting_accounts p on p.id=a.parent_id where a.center_id=${auth.user.centerId!} order by a.code`));
+  const rows=await withDatabase(c.env,db=>db.execute(sql`with recursive account_tree as (
+    select a.id as root_id,a.id,a.parent_id from accounting_accounts a where a.center_id=${auth.user.centerId!}
+    union all
+    select t.root_id,a.id,a.parent_id from accounting_accounts a join account_tree t on a.parent_id=t.id where a.center_id=${auth.user.centerId!}
+  ), balances as (
+    select t.root_id,
+      coalesce(sum(case when j.status='posted' then l.debit else 0 end),0)::numeric(18,2) as debit,
+      coalesce(sum(case when j.status='posted' then l.credit else 0 end),0)::numeric(18,2) as credit
+    from account_tree t
+    left join journal_entry_lines l on l.account_id=t.id
+    left join journal_entries j on j.id=l.journal_entry_id and j.center_id=${auth.user.centerId!}
+    group by t.root_id
+  )
+  select a.id,a.code,a.name,a.account_type as "accountType",a.parent_id as "parentId",p.code as "parentCode",p.name as "parentName",
+    a.is_active as "isActive",a.is_system as "isSystem",a.statement_section as "statementSection",a.allow_reconciliation as "allowReconciliation",
+    a.account_subtype as "accountSubtype",a.internal_group as "internalGroup",a.is_deprecated as "isDeprecated",
+    coalesce(b.debit,0) as debit,coalesce(b.credit,0) as credit,(coalesce(b.debit,0)-coalesce(b.credit,0))::numeric(18,2) as balance
+  from accounting_accounts a
+  left join accounting_accounts p on p.id=a.parent_id and p.center_id=a.center_id
+  left join balances b on b.root_id=a.id
+  where a.center_id=${auth.user.centerId!} order by a.code`));
   const canManageAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.update');
   const canCreateAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.create');
   const canDuplicateAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.duplicate');

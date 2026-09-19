@@ -205,8 +205,8 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
     const lines = await tx.select({
       id: purchaseOrderItems.id, productId: purchaseOrderItems.productId,
       quantity: purchaseOrderItems.quantity, receivedQuantity: purchaseOrderItems.receivedQuantity,
-      unitCost: purchaseOrderItems.unitCost,
-    }).from(purchaseOrderItems).where(and(eq(purchaseOrderItems.purchaseOrderId, order[0].id), inArray(purchaseOrderItems.id, itemIds)));
+      unitCost: purchaseOrderItems.unitCost, costMethod: products.costMethod, purchaseCost: products.purchaseCost,
+    }).from(purchaseOrderItems).innerJoin(products,eq(products.id,purchaseOrderItems.productId)).where(and(eq(purchaseOrderItems.purchaseOrderId, order[0].id), inArray(purchaseOrderItems.id, itemIds)));
     if (lines.length !== itemIds.length) return { error: 'PO_ITEM_NOT_FOUND' as const };
 
     const receipt = await tx.insert(purchaseReceipts).values({
@@ -255,8 +255,10 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
         referenceType: 'purchase_receipt', referenceId: receipt[0].id, occurredAt: new Date(),
         createdBy: auth.user.userId, notes: parsed.data.notes || ('استلام من أمر الشراء ' + order[0].poNumber),
       });
-      await tx.update(products).set({ purchaseCost: weightedCost.toFixed(2), updatedAt: new Date() })
-        .where(and(eq(products.id, line.productId), eq(products.centerId, auth.user.centerId!)));
+      if (line.costMethod === 'average') {
+        await tx.update(products).set({ purchaseCost: weightedCost.toFixed(2), updatedAt: new Date() })
+          .where(and(eq(products.id, line.productId), eq(products.centerId, auth.user.centerId!)));
+      }
       receivedAny = true;
     }
 

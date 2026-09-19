@@ -6,6 +6,7 @@ type BillingOrder={id:string;poNumber:string;vendorId:string;vendorName:string;o
 type Candidate={id:string;productId:string;productName:string;description:string|null;ordered:string;received:string;returned:string;unitCost:string;alreadyBilled:number;availableToBill:number};
 type Bill={id:string;billNumber:string;vendorInvoiceNumber:string|null;billDate:string;dueDate:string|null;status:string;vendorId:string;vendorName:string;poNumber:string|null;subtotal:string;tax:string;total:string;paidAmount:string;balanceDue:string};
 type Payment={id:string;paymentNumber:string;paymentDate:string;amount:string;paymentMethod:string;reference:string|null;vendorName:string;billNumber:string|null};
+type BillingSummary={draft:number;posted:number;partiallyPaid:number;paid:number;overdue:number;totalDue:string};
 type Statement={vendor:{id:string;code:string;name:string};summary:{totalBills:string;totalPaid:string;balanceDue:string};ledger:Array<{type:string;id:string;number:string;date:string;description:string;debit:number;credit:number;balance:string;billNumber?:string|null}>};
 type LineState={quantity:string;unitCost:string;taxRate:string};
 
@@ -18,6 +19,7 @@ export default function VendorBilling(){
   const [bills,setBills]=useState<Bill[]>([]);
   const [payments,setPayments]=useState<Payment[]>([]);
   const [statement,setStatement]=useState<Statement|null>(null);
+  const [summary,setSummary]=useState<BillingSummary|null>(null);
   const [selectedOrder,setSelectedOrder]=useState('');
   const [candidates,setCandidates]=useState<Candidate[]>([]);
   const [lines,setLines]=useState<Record<string,LineState>>({});
@@ -43,9 +45,10 @@ export default function VendorBilling(){
       const [o,b,p]=await Promise.all([
         apiFetch<{orders:BillingOrder[]}>('/purchases/billing-orders'),
         apiFetch<{bills:Bill[]}>('/purchases/bills'),
-        apiFetch<{payments:Payment[]}>('/purchases/payments')
+        apiFetch<{payments:Payment[]}>('/purchases/payments'),
+        apiFetch<{summary:BillingSummary}>('/purchases/billing-summary')
       ]);
-      setOrders(o.orders);setBills(b.bills);setPayments(p.payments);
+      setOrders(o.orders);setBills(b.bills);setPayments(p.payments);setSummary(s.summary);
       if(!selectedOrder&&o.orders[0]) setSelectedOrder(o.orders[0].id);
       if(!paymentBill){const open=b.bills.find(x=>['posted','partially_paid'].includes(x.status));if(open)setPaymentBill(open.id);}
       if(!statementVendor && o.orders[0]) setStatementVendor(o.orders[0].vendorId);
@@ -101,6 +104,13 @@ export default function VendorBilling(){
       <div><span className="eyebrow">VENDOR ACCOUNTING</span><h1>فواتير الموردين والمدفوعات</h1><p>فصل واضح بين الاستلام التشغيلي والفاتورة والالتزام المالي والدفع.</p></div>
     </header>
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
+    {summary&&<section className="stats-grid odoo-kpi-grid">
+      <div className="stat-card"><span>فواتير مسودة</span><strong>{summary.draft}</strong></div>
+      <div className="stat-card"><span>فواتير مستحقة</span><strong>{summary.posted+summary.partiallyPaid}</strong></div>
+      <div className="stat-card"><span>متأخر</span><strong>{summary.overdue}</strong></div>
+      <div className="stat-card"><span>إجمالي المستحق</span><strong>{Number(summary.totalDue).toFixed(2)} ر.س</strong></div>
+    </section>}
+
     <nav className="portal-choice-actions" aria-label="الحسابات الدائنة">
       <button className={'secondary-button '+(tab==='bills'?'active':'')} onClick={()=>setTab('bills')}>فواتير الموردين</button>
       <button className={'secondary-button '+(tab==='payments'?'active':'')} onClick={()=>setTab('payments')}>مدفوعات الموردين</button>

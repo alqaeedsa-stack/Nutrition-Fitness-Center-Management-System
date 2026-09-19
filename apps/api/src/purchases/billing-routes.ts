@@ -2,7 +2,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
-import { purchaseBillItems, purchaseBills, purchaseOrderItems, purchaseOrders, purchasePayments, products, vendors } from '../db/schema';
+import { purchaseBillItems, purchaseBills, purchaseOrderItems, purchaseOrders, purchasePayments, purchaseReceiptItems, products, vendors } from '../db/schema';
 import { requirePermission } from '../auth/permissions';
 
 export type PurchaseBillingBindings = { HYPERDRIVE?: { connectionString: string }; DATABASE_URL?: string };
@@ -72,7 +72,27 @@ purchaseBillingRoutes.post('/bills', async c => {
     for(const item of input.items){ let productId=item.productId??null,description=item.description,unitCost=item.unitCost;
       if(item.purchaseOrderItemId){ const row=await tx.select({productId:purchaseOrderItems.productId,description:purchaseOrderItems.description,received:purchaseOrderItems.receivedQuantity,returned:purchaseOrderItems.returnedQuantity,unitCost:purchaseOrderItems.unitCost}).from(purchaseOrderItems).innerJoin(purchaseOrders,eq(purchaseOrders.id,purchaseOrderItems.purchaseOrderId)).where(and(eq(purchaseOrderItems.id,item.purchaseOrderItemId),eq(purchaseOrders.centerId,auth.user.centerId!))).limit(1); if(!row[0]) throw new Error('بند أمر الشراء غير موجود'); productId=row[0].productId; description=row[0].description||item.description; unitCost=item.unitCost;
         const billed=await tx.select({quantity:purchaseBillItems.quantity}).from(purchaseBillItems).innerJoin(purchaseBills,eq(purchaseBills.id,purchaseBillItems.purchaseBillId)).where(and(eq(purchaseBillItems.purchaseOrderItemId,item.purchaseOrderItemId),eq(purchaseBills.centerId,auth.user.centerId!))); const already=billed.reduce((n,v)=>n+Number(v.quantity),0); const available=Math.max(0,Number(row[0].received)-Number(row[0].returned)-already); if(item.quantity>available+0.000001) throw new Error('الكمية المفوترة تتجاوز الكمية المستلمة غير المفوترة'); }
-      const lineSubtotal=Math.round(item.quantity*unitCost*100)/100; const lineTax=Math.round(lineSubtotal*(item.taxRate/100)*100)/100; subtotal+=lineSubtotal; tax+=lineTax; normalized.push({...item,productId,description,unitCost,taxAmount:lineTax,lineTotal:lineSubtotal+lineTax});
+      const lineSubtotal=Math.round(item.quantity*unitCost*100)/100; const lineTax=Math.round(lineSubtotal*(item.taxRate/100)*100)/100; subtotal+=lineSubtotal; tax+=lineTax;
+      if(item.purchaseOrderItemId){
+        const receipts=await tx.select({id:purchaseReceiptItems.id,quantity:purchaseReceiptItems.quantity,unitCost:purchaseReceiptItems.unitCost}).from(purchaseReceiptItems).where(eq(purchaseReceiptItems.purchaseOrderItemId,item.purchaseOrderItemId)).orderBy(purchaseReceiptItems.createdAt);
+        let remainingToAllocate=item.quantity;
+        for(const receipt of receipts){
+          if(remainingToAllocate<=0.000001) break;
+          const alreadyReceiptBilled=await tx.select({quantity:purchaseBillItems.quantity}).from(purchaseBillItems).where(eq(purchaseBillItems.purchaseReceiptItemId,receipt.id));
+          const billedQty=alreadyReceiptBilled.reduce((n,v)=>n+Number(v.quantity),0);
+          const availableReceipt=Math.max(0,Number(receipt.quantity)-billedQty);
+          const allocated=Math.min(remainingToAllocate,availableReceipt);
+          if(allocated>0.000001){
+            const allocatedSubtotal=Math.round(allocated*unitCost*100)/100;
+            const allocatedTax=Math.round(allocatedSubtotal*(item.taxRate/100)*100)/100;
+            normalized.push({...item,purchaseReceiptItemId:receipt.id,quantity:allocated,productId,description,unitCost,taxAmount:allocatedTax,lineTotal:allocatedSubtotal+allocatedTax});
+            remainingToAllocate-=allocated;
+          }
+        }
+        if(remainingToAllocate>0.000001) normalized.push({...item,purchaseReceiptItemId:null,quantity:remainingToAllocate,productId,description,unitCost,taxAmount:Math.round((remainingToAllocate*unitCost)*(item.taxRate/100)*100)/100,lineTotal:Math.round((remainingToAllocate*unitCost)*(1+item.taxRate/100)*100)/100});
+      } else {
+        normalized.push({...item,productId,description,unitCost,taxAmount:lineTax,lineTotal:lineSubtotal+lineTax});
+      }
     }
     subtotal=Math.round(subtotal*100)/100; tax=Math.round(tax*100)/100; const total=Math.round((subtotal+tax)*100)/100; const number=billNumber();
     const inserted=await tx.insert(purchaseBills).values({centerId:auth.user.centerId!,vendorId:input.vendorId,purchaseOrderId:input.purchaseOrderId??null,billNumber:number,vendorInvoiceNumber:input.vendorInvoiceNumber??null,billDate:input.billDate,dueDate:input.dueDate??null,status:'draft',subtotal:subtotal.toFixed(2),tax:tax.toFixed(2),total:total.toFixed(2),paidAmount:'0',balanceDue:total.toFixed(2),notes:input.notes??null,createdBy:auth.user.userId}).returning({id:purchaseBills.id,billNumber:purchaseBills.billNumber});

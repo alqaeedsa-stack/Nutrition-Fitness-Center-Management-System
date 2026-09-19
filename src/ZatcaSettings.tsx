@@ -54,26 +54,26 @@ export default function ZatcaSettings() {
   {error&&<div className='info-strip warning'>{error}</div>}{message&&<div className='info-strip'>{message}</div>}
   {loading?<section className='panel'><p>جارٍ تحميل الإعدادات...</p></section>:<>
    {readiness&&<section className='panel'>
-    <div className='panel-heading-row'><div><p className='eyebrow'>ZATCA READINESS</p><h2>حالة الجاهزية</h2><small>فحص الإعدادات والأسرار المطلوبة قبل تفعيل التوقيع والإرسال.</small></div><span className={readiness.readyForSigning?'status-badge active':'status-badge'}>{readiness.readyForSigning?'جاهز للفحص النهائي':'غير جاهز'}</span></div>
+    <div className='panel-heading-row'><div><p className='eyebrow'>جاهزية الفوترة الإلكترونية</p><h2>حالة الجاهزية</h2><small>فحص الإعدادات والأسرار المطلوبة قبل تفعيل التوقيع والإرسال.</small></div><span className={readiness.readyForSigning?'status-badge active':'status-badge'}>{readiness.readyForSigning?'جاهز للفحص النهائي':'غير جاهز'}</span></div>
     <div className='stats-grid'>
      {Object.entries({sellerConfiguration:'بيانات المنشأة',sellerAddress:'عنوان المنشأة',binarySecurityToken:'رمز الربط',secret:'سر الربط',privateKey:'المفتاح الخاص',certificate:'الشهادة',signingEngine:'محرك XAdES'}).map(([key,label])=><div className='stat-card' key={key}><span>{label}</span><strong>{readiness.checks[key]?'مكتمل':'غير مكتمل'}</strong></div>)}
     </div>
     <p className='cart-note'>{readiness.note}</p>
    </section>}
    <section className='staff-management-grid'>
-    <section className='panel'><p className='eyebrow'>ZATCA CONFIGURATION</p><h2>إعدادات المنشأة</h2><form className='form-stack' onSubmit={saveSettings}>
+    <section className='panel'><p className='eyebrow'>إعدادات الفوترة الإلكترونية</p><h2>إعدادات المنشأة</h2><form className='form-stack' onSubmit={saveSettings}>
      <label>بيئة الإرسال<select value={form.environment} onChange={e=>setForm(v=>({...v,environment:e.target.value as 'simulation'|'production'}))}><option value='simulation'>المحاكاة</option><option value='production'>الإنتاج</option></select></label>
      <label>الرقم الضريبي<input dir='ltr' value={form.vatNumber} onChange={e=>setForm(v=>({...v,vatNumber:e.target.value}))} placeholder='الرقم الضريبي' /></label>
      <label>الاسم القانوني للمنشأة<input value={form.legalName} onChange={e=>setForm(v=>({...v,legalName:e.target.value}))}/></label>
      <label>نوع الفاتورة<input dir='ltr' value={form.invoiceTypeCode} onChange={e=>setForm(v=>({...v,invoiceTypeCode:e.target.value}))}/></label>
-     <label>الرقم التسلسلي للجهاز<input dir='ltr' value={form.deviceSerial} onChange={e=>setForm(v=>({...v,deviceSerial:e.target.value}))}/></label>
+     <label>الرقم التسلسلي لنقطة البيع<input dir='ltr' value={form.deviceSerial} onChange={e=>setForm(v=>({...v,deviceSerial:e.target.value}))}/></label>
      <div className='form-row'><label>الشارع<input value={form.sellerStreet} onChange={e=>setForm(v=>({...v,sellerStreet:e.target.value}))}/></label><label>رقم المبنى<input dir='ltr' value={form.sellerBuildingNumber} onChange={e=>setForm(v=>({...v,sellerBuildingNumber:e.target.value}))}/></label></div>
      <div className='form-row'><label>المدينة<input value={form.sellerCity} onChange={e=>setForm(v=>({...v,sellerCity:e.target.value}))}/></label><label>الرمز البريدي<input dir='ltr' value={form.sellerPostalCode} onChange={e=>setForm(v=>({...v,sellerPostalCode:e.target.value}))}/></label></div>
      <label>رمز الدولة<input dir='ltr' maxLength={2} value={form.sellerCountryCode} onChange={e=>setForm(v=>({...v,sellerCountryCode:e.target.value}))}/></label>
-     <label>سلسلة الفاتورة السابقة<input dir='ltr' value={form.pih} onChange={e=>setForm(v=>({...v,pih:e.target.value}))}/></label>
+     <label>مرجع الفاتورة السابقة<input dir='ltr' value={form.pih} onChange={e=>setForm(v=>({...v,pih:e.target.value}))}/></label>
      <button className='primary-action button' disabled={saving}>{saving?'جارٍ الحفظ...':'حفظ الإعدادات'}</button>
     </form>{settings&&<div className='cart-note'>الحالة: <strong>{settings.status}</strong> · ICV الحالي: <strong>{settings.lastIcv}</strong>{settings.lastError?' · آخر خطأ: '+settings.lastError:''}</div>}</section>
-    <section className='panel'><p className='eyebrow'>TAX RATES</p><h2>أكواد الضرائب</h2>
+    <section className='panel'><p className='eyebrow'>أكواد الضرائب</p><h2>أكواد الضرائب</h2>
      <form className='form-stack' onSubmit={createTaxRate}><label>الكود<input dir='ltr' required value={taxForm.code} onChange={e=>setTaxForm(v=>({...v,code:e.target.value}))} placeholder='VAT15'/></label>
       <label>الاسم<input required value={taxForm.name} onChange={e=>setTaxForm(v=>({...v,name:e.target.value}))} placeholder='ضريبة القيمة المضافة'/></label>
       <div className='form-row'><label>النسبة %<input type='number' min='0' max='100' step='0.01' required value={taxForm.rate} onChange={e=>setTaxForm(v=>({...v,rate:e.target.value}))}/></label>
@@ -83,11 +83,11 @@ export default function ZatcaSettings() {
      <div className='staff-table-wrap'><table className='staff-table'><thead><tr><th>الكود</th><th>الاسم</th><th>النسبة</th><th>الفئة</th><th>الحالة</th><th></th></tr></thead><tbody>{taxRates.map(t=><tr key={t.id}><td dir='ltr'>{t.code}</td><td>{t.name}</td><td>{t.rate}%</td><td>{t.categoryCode}</td><td>{t.active?'نشط':'موقوف'}</td><td><button className='secondary-button' type='button' onClick={()=>void toggleTaxRate(t)}>{t.active?'إيقاف':'تفعيل'}</button></td></tr>)}</tbody></table></div>
     </section>
    </section>
-   <section className='panel'><div className='panel-heading-row'><div><p className='eyebrow'>POS → E-INVOICE</p><h2>تجهيز فواتير المبيعات</h2><small>تجهيز الفاتورة المبسطة من عملية بيع مكتملة. لا يتم الإرسال إلى فاتورة من هذه الشاشة.</small></div><button className='secondary-button' type='button' onClick={()=>void load()}>تحديث</button></div>
+   <section className='panel'><div className='panel-heading-row'><div><p className='eyebrow'>المبيعات ← الفاتورة الإلكترونية</p><h2>تجهيز فواتير المبيعات</h2><small>تجهيز الفاتورة المبسطة من عملية بيع مكتملة. لا يتم إرسال الفاتورة إلى هيئة الزكاة والضريبة والجمارك من هذه الشاشة.</small></div><button className='secondary-button' type='button' onClick={()=>void load()}>تحديث</button></div>
     {!eligibleSales.length?<p className='empty-state'>لا توجد عمليات بيع مكتملة.</p>:<div className='staff-table-wrap'><table className='staff-table'><thead><tr><th>رقم البيع</th><th>الصافي</th><th>الضريبة</th><th>الإجمالي</th><th>التاريخ</th><th>الفاتورة</th><th>إجراء</th></tr></thead><tbody>{eligibleSales.map(sale=><tr key={sale.id}><td dir='ltr'>{sale.saleNumber}</td><td>{Number(sale.subtotal).toFixed(2)} ر.س</td><td>{Number(sale.tax).toFixed(2)} ر.س</td><td>{Number(sale.total).toFixed(2)} ر.س</td><td>{new Date(sale.createdAt).toLocaleString('ar-SA')}</td><td>{sale.invoiceStatus??'غير مجهزة'}</td><td>{sale.invoiceId?<span className='status-badge active'>مجهزة</span>:<button className='secondary-button' type='button' disabled={saving} onClick={()=>void prepareInvoice(sale.id)}>تجهيز فاتورة</button>}</td></tr>)}</tbody></table></div>}
    </section>
 
-   <section className='panel'><div className='panel-heading-row'><div><p className='eyebrow'>E-INVOICES</p><h2>الفواتير الإلكترونية</h2></div><button className='secondary-button' type='button' onClick={()=>void load()}>تحديث</button></div>
+   <section className='panel'><div className='panel-heading-row'><div><p className='eyebrow'>الفواتير الإلكترونية</p><h2>الفواتير الإلكترونية</h2></div><button className='secondary-button' type='button' onClick={()=>void load()}>تحديث</button></div>
     {!invoices.length?<p className='empty-state'>لا توجد فواتير إلكترونية حتى الآن.</p>:<div className='staff-table-wrap'><table className='staff-table'><thead><tr><th>رقم الفاتورة</th><th>النوع</th><th>الحالة</th><th>كود الاستجابة</th><th>التاريخ</th></tr></thead><tbody>{invoices.map(i=><tr key={i.id}><td dir='ltr'>{i.invoiceNumber}</td><td>{i.invoiceType}</td><td>{i.status}</td><td>{i.responseCode??'—'}</td><td>{new Date(i.createdAt).toLocaleString('ar-SA')}</td></tr>)}</tbody></table></div>}</section>
   </>}
  </main>;

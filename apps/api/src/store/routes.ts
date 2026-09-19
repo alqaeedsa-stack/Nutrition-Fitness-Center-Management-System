@@ -216,9 +216,9 @@ storeRoutes.post('/admin/sales', async c => {
           : (product.subscriptionRevenueAccountId ?? product.revenueAccountId ?? null);
         if (!accountingAccount) {
           return {
-            error: (product.subscriptionDeferredRevenueEnabled
+            error: product.subscriptionDeferredRevenueEnabled
               ? 'SUBSCRIPTION_DEFERRED_ACCOUNT_REQUIRED'
-              : 'SUBSCRIPTION_REVENUE_ACCOUNT_REQUIRED') as const,
+              : 'SUBSCRIPTION_REVENUE_ACCOUNT_REQUIRED',
             productId: product.id,
           };
         }

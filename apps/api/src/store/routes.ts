@@ -527,6 +527,7 @@ storeRoutes.post('/cart/items', async c => {
     id: products.id,
     name: products.name,
     sku: products.sku,
+    productType: products.productType,
     sellingPrice: products.sellingPrice,
     active: products.active,
     centerId: products.centerId,
@@ -537,6 +538,7 @@ storeRoutes.post('/cart/items', async c => {
   )).limit(1));
 
   if (!product[0]) return c.json({ error: { code: 'PRODUCT_NOT_AVAILABLE', message: 'المنتج غير متاح حاليًا' } }, 404);
+  if (NON_STOCK_PRODUCT_TYPES.includes(product[0].productType as (typeof NON_STOCK_PRODUCT_TYPES)[number])) return c.json({ error: { code: 'NON_STOCK_PRODUCT_REQUIRES_STAFF', message: 'هذا النوع من المنتجات يتم تفعيله من ملف العميل بواسطة الموظف المختص' } }, 409);
 
   await withDatabase(c.env, async db => db.transaction(async tx => {
     const existing = await tx.select({ id: storeCartItems.id, quantity: storeCartItems.quantity })

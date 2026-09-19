@@ -21,6 +21,7 @@ export default function NutritionManagement({ user }: { user: User }) {
   const [planForm, setPlanForm] = useState({ customerId:'', specialistId:'', title:'', goals:'', startDate:new Date().toISOString().slice(0,10), endDate:'', status:'draft' });
   const [itemForm, setItemForm] = useState({ mealType:'وجبة رئيسية', itemName:'', quantity:'', unit:'', calories:'', notes:'' });
   const [error,setError]=useState(''); const [message,setMessage]=useState(''); const [saving,setSaving]=useState(false);
+  const [planSearch,setPlanSearch]=useState(''); const [statusFilter,setStatusFilter]=useState('all');
 
   async function load() {
     try {
@@ -57,6 +58,8 @@ export default function NutritionManagement({ user }: { user: User }) {
     catch(e){setError(e instanceof Error?e.message:'تعذر حذف العنصر');}
   }
 
+  const filteredPlans=plans.filter(p=>{const q=planSearch.trim().toLowerCase();return (statusFilter==='all'||p.status===statusFilter)&&(!q||(p.title+' '+p.customerName+' '+p.customerLastName+' '+p.specialistName).toLowerCase().includes(q));});
+  const planKpis=[['إجمالي الخطط',plans.length],['مسودة',plans.filter(p=>p.status==='draft').length],['نشطة',plans.filter(p=>p.status==='active').length],['مكتملة',plans.filter(p=>p.status==='completed').length]] as const;
   const selected=plans.find(p=>p.id===selectedId);
   return <main className="app-shell">
     <header className="app-header"><div><span className="eyebrow">التغذية</span><h1>الخطط الغذائية</h1></div><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></header>
@@ -72,7 +75,9 @@ export default function NutritionManagement({ user }: { user: User }) {
         {canWrite&&<button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'إنشاء الخطة'}</button>}
       </form></section>
       <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">الخطط</p><h2>الخطط الحالية</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
-        {!plans.length?<p className="empty-state">لا توجد خطط غذائية مسجلة.</p>:<div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الخطة</th><th>العميل</th><th>الأخصائي</th><th>البداية</th><th>الحالة</th><th></th></tr></thead><tbody>{plans.map(p=><tr key={p.id}><td>{p.title}<small> الإصدار {p.version}</small></td><td>{p.customerName} {p.customerLastName}</td><td>{p.specialistName}</td><td>{p.startDate}</td><td>{statusLabel[p.status] ?? p.status}</td><td><button className="secondary-button" onClick={()=>setSelectedId(p.id)}>فتح</button></td></tr>)}</tbody></table></div>}
+        <div className="erp-kpi-strip">{planKpis.map(([label,value])=><div className="erp-kpi" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+        <div className="module-toolbar"><div className="toolbar-filters"><input value={planSearch} onChange={e=>setPlanSearch(e.target.value)} placeholder="بحث باسم الخطة أو العميل أو الأخصائي"/><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">كل الحالات</option>{Object.entries(statusLabel).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div></div>
+        {!filteredPlans.length?<p className="empty-state">لا توجد خطط مطابقة.</p>:<div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الخطة</th><th>العميل</th><th>الأخصائي</th><th>البداية</th><th>الحالة</th><th></th></tr></thead><tbody>{filteredPlans.map(p=><tr key={p.id}><td>{p.title}<small> الإصدار {p.version}</small></td><td>{p.customerName} {p.customerLastName}</td><td>{p.specialistName}</td><td>{p.startDate}</td><td>{statusLabel[p.status] ?? p.status}</td><td><button className="secondary-button" onClick={()=>setSelectedId(p.id)}>فتح</button></td></tr>)}</tbody></table></div>}
       </section>
     </section>
     {selected&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">تفاصيل الخطة</p><h2>{selected.title}</h2><p>{selected.customerName} {selected.customerLastName} · {selected.specialistName}</p></div></div>

@@ -506,6 +506,7 @@ export const purchaseBills = pgTable('purchase_bills', {
   paidAmount: numeric('paid_amount', { precision: 14, scale: 2 }).notNull().default('0'),
   balanceDue: numeric('balance_due', { precision: 14, scale: 2 }).notNull().default('0'),
   notes: text('notes'),
+  journalEntryId: uuid('journal_entry_id'),
   createdBy: uuid('created_by').notNull().references(() => users.id),
   ...auditTimestamps,
 }, (table) => [
@@ -545,6 +546,7 @@ export const purchasePayments = pgTable('purchase_payments', {
   reference: varchar('reference', { length: 150 }),
   notes: text('notes'),
   status: varchar('status', { length: 30 }).notNull().default('posted'),
+  journalEntryId: uuid('journal_entry_id'),
   createdBy: uuid('created_by').notNull().references(() => users.id),
   ...auditTimestamps,
 }, (table) => [

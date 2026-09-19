@@ -21,6 +21,7 @@ export default function NutritionManagement({ user }: { user: User }) {
   const [itemForm, setItemForm] = useState({ mealType:'وجبة رئيسية', itemName:'', quantity:'', unit:'', calories:'', notes:'' });
   const [error,setError]=useState(''); const [message,setMessage]=useState(''); const [saving,setSaving]=useState(false);
   const [planSearch,setPlanSearch]=useState(''); const [statusFilter,setStatusFilter]=useState('all');
+  const [view,setView]=useState<'list'|'kanban'>('list');
 
   async function load() {
     try {

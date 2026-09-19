@@ -622,3 +622,63 @@ textarea:focus-visible {
 @media (max-width: 380px) {
   .erp-kpi-strip { grid-template-columns: 1fr; }
 }
+
+
+/* Shared Odoo ERP interaction layer */
+.erp-breadcrumbs{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;color:var(--odoo-muted);font-size:12px}
+.erp-breadcrumbs span{display:inline-flex;align-items:center;gap:8px}
+.erp-breadcrumbs b{color:#ADB5BD;font-weight:500}
+.erp-breadcrumbs a{color:#495057;text-decoration:none}
+.erp-breadcrumbs a:hover{text-decoration:underline}
+.erp-page-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.erp-search-toolbar{display:flex;align-items:center;gap:7px;flex:1;min-width:280px;flex-wrap:wrap}
+.erp-search-input{display:flex;align-items:center;gap:7px;flex:1 1 260px;min-height:38px;border:1px solid var(--odoo-border);border-radius:7px;background:#fff;padding:0 10px}
+.erp-search-input span{color:#6C757D;font-size:18px}
+.erp-search-input input{border:0!important;outline:0!important;box-shadow:none!important;width:100%;min-height:34px;padding:5px 2px!important}
+.erp-search-toolbar select{min-height:38px;border:1px solid var(--odoo-border);border-radius:7px;background:#fff;padding:0 10px}
+.erp-view-switcher{display:inline-flex;border:1px solid var(--odoo-border);border-radius:7px;background:#fff;overflow:hidden}
+.erp-view-switcher button{border:0;border-inline-start:1px solid var(--odoo-border);background:#fff;color:#495057;min-height:36px;padding:0 11px;cursor:pointer}
+.erp-view-switcher button:first-child{border-inline-start:0}
+.erp-view-switcher button.active{background:#E9ECEF;color:var(--odoo-text)}
+.erp-action-menu{position:relative}
+.erp-action-menu-popover{position:absolute;z-index:30;inset-inline-end:0;top:calc(100% + 5px);min-width:190px;padding:5px;border:1px solid var(--odoo-border);border-radius:7px;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,.12)}
+.erp-action-menu-popover button{display:block;width:100%;padding:9px 10px;border:0;background:#fff;text-align:start;color:#212529;border-radius:5px;cursor:pointer}
+.erp-action-menu-popover button:hover{background:#F3F4F6}
+.erp-action-menu-popover button:disabled{opacity:.45;cursor:not-allowed}
+.erp-smart-buttons{display:flex;align-items:stretch;gap:7px;flex-wrap:wrap;margin:0 0 16px}
+.erp-smart-buttons button{display:flex;align-items:center;gap:7px;min-width:105px;padding:7px 10px;border:1px solid var(--odoo-border);border-radius:7px;background:#fff;cursor:pointer;text-align:start}
+.erp-smart-buttons button:hover{background:#F8F9FA;border-color:#C8CDD2}
+.erp-smart-buttons button:disabled{cursor:default;opacity:.75}
+.erp-smart-buttons strong{font-size:15px;color:var(--odoo-text)}
+.erp-smart-buttons span{font-size:12px;color:var(--odoo-muted)}
+.erp-chatter{margin-top:18px;border:1px solid var(--odoo-border);border-radius:8px;background:#fff}
+.erp-chatter-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--odoo-border)}
+.erp-chatter-head span{min-width:24px;text-align:center;border-radius:999px;background:#E9ECEF;color:#495057;font-size:11px;padding:2px 6px}
+.erp-chatter-body{padding:10px 14px;display:grid;gap:8px}
+.erp-chatter-body article{padding:9px 10px;border:1px solid #EDF0F2;border-radius:6px;background:#FCFCFD}
+.erp-chatter-body article b{display:block;color:#495057;font-size:12px}
+.erp-chatter-body article small{display:block;color:#98A0A8;margin-top:2px}
+.erp-chatter-body article p{margin:5px 0 0;color:#495057;font-size:13px}
+.erp-wizard-backdrop{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;padding:18px;background:rgba(33,37,41,.34)}
+.erp-wizard{width:min(720px,100%);max-height:min(86vh,760px);overflow:auto;border:1px solid var(--odoo-border);border-radius:9px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.2)}
+.erp-wizard>header,.erp-wizard>footer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid var(--odoo-border)}
+.erp-wizard>header h2{margin:0;font-size:18px}
+.erp-wizard>footer{border-top:1px solid var(--odoo-border);border-bottom:0;justify-content:flex-start}
+.erp-wizard-body{padding:16px}
+.erp-kanban-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.erp-kanban-card{padding:13px;border:1px solid var(--odoo-border);border-radius:8px;background:#fff;min-height:120px}
+.erp-kanban-card[role=button]{cursor:pointer}
+.erp-kanban-card[role=button]:hover{border-color:#C8CDD2;box-shadow:0 5px 16px rgba(15,23,42,.06)}
+.erp-kanban-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.erp-kanban-card-head strong{color:var(--odoo-text);font-size:14px}
+.erp-kanban-card>small{display:block;margin-top:5px;color:var(--odoo-muted)}
+.erp-kanban-card-body{margin-top:10px;padding-top:9px;border-top:1px solid #EDF0F2}
+.erp-pivot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.erp-pivot>div{display:flex;flex-direction:column;gap:6px;padding:18px;border:1px solid var(--odoo-border);border-radius:8px;background:#fff}
+.erp-pivot strong{font-size:12px;color:var(--odoo-muted)}
+.erp-pivot b{font-size:22px;color:var(--odoo-text)}
+.erp-graph{display:flex;align-items:flex-end;gap:8px;min-height:220px;padding:15px;border:1px solid var(--odoo-border);border-radius:8px;background:#fff;overflow-x:auto}
+.erp-bar{position:relative;min-width:26px;max-width:44px;flex:1;background:#714B67;border-radius:4px 4px 0 0}
+.erp-bar span{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);font-size:10px;color:#495057;margin-bottom:3px}
+@media(max-width:800px){.erp-kanban-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.erp-page-tools{align-items:stretch}.erp-search-toolbar{min-width:100%;flex-direction:column;align-items:stretch}.erp-search-input,.erp-search-toolbar select{width:100%}.erp-view-switcher{width:100%}.erp-view-switcher button{flex:1}.erp-kanban-grid,.erp-pivot{grid-template-columns:1fr}.erp-smart-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.erp-smart-buttons button{min-width:0}}

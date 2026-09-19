@@ -83,7 +83,7 @@ export default function CustomerPortal({ onLogout }: Props) {
         <div className="brand-inline">
           <div className="brand-mark">N</div>
           <div>
-            <span className="eyebrow">CUSTOMER PORTAL</span>
+            <span className="eyebrow">بوابة العملاء</span>
             <h1>بوابة العميل</h1>
           </div>
         </div>
@@ -109,7 +109,7 @@ export default function CustomerPortal({ onLogout }: Props) {
 
       <section className="customer-store-entry">
         <div>
-          <span className="eyebrow">CUSTOMER STORE</span>
+          <span className="eyebrow">متجر العملاء</span>
           <h2>المتجر الإلكتروني</h2>
           <p>{products.length ? `متاح الآن ${products.length} منتج من كتالوج المركز.` : 'لا توجد منتجات منشورة حاليًا في المتجر.'}</p>
         </div>

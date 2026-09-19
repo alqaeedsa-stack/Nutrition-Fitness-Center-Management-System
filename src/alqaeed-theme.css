@@ -1016,3 +1016,126 @@ button:disabled,
     grid-template-columns: 1fr;
   }
 }
+
+/* ERP reporting: grouped pivot, graph and drill-down */
+.erp-report-toolbar {
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.erp-report-toolbar select {
+  min-width: 170px;
+  min-height: 34px;
+  padding: 6px 9px;
+  border-radius: 7px;
+}
+.erp-pivot-wrap,
+.erp-graph-wrap,
+.erp-report-drilldown {
+  margin-top: 10px;
+}
+.erp-pivot {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 7px;
+}
+.erp-pivot > div {
+  padding: 9px 11px;
+  border: 1px solid var(--ux-border, #e5e7eb);
+  border-radius: 7px;
+  background: var(--ux-surface, #fff);
+}
+.erp-pivot > div strong,
+.erp-pivot > div b {
+  display: block;
+}
+.erp-pivot > div strong {
+  font-size: 11px;
+  font-weight: 600;
+}
+.erp-pivot > div b {
+  margin-top: 3px;
+  font-size: 16px;
+}
+.erp-report-selected td {
+  background: var(--ux-primary-soft, #ecfdf5);
+}
+.table-link-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.erp-graph-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  font-size: 12px;
+}
+.erp-graph {
+  min-height: 210px;
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  overflow-x: auto;
+  padding: 12px 8px 8px;
+  border: 1px solid var(--ux-border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--ux-surface, #fff);
+}
+.erp-bar {
+  flex: 0 0 28px;
+  min-height: 8px;
+  border: 0;
+  border-radius: 4px 4px 0 0;
+  background: var(--ux-primary, #059669);
+  color: #fff;
+  padding: 2px 2px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+  font: inherit;
+}
+.erp-bar span {
+  font-size: 9px;
+  line-height: 1.1;
+}
+.erp-bar small {
+  position: absolute;
+  transform: translateY(192px);
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ux-text, #374151);
+  font-size: 9px;
+}
+.erp-report-drilldown {
+  padding: 11px;
+  border: 1px solid var(--ux-border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--ux-surface, #fff);
+}
+@media (max-width: 720px) {
+  .erp-report-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .erp-report-toolbar > * {
+    width: 100%;
+  }
+  .erp-graph {
+    min-height: 190px;
+  }
+  .erp-bar small {
+    transform: translateY(172px);
+  }
+}

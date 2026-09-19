@@ -15,6 +15,8 @@ async function auth(c: any, permission: 'fitness.read' | 'fitness.write') {
   return result;
 }
 
+const FITNESS_SPECIALIST_TYPES = ['doctor', 'trainer', 'specialist'] as const;
+
 const planSchema = z.object({
   customerId: z.string().uuid(),
   specialistId: z.string().uuid(),
@@ -63,7 +65,7 @@ fitnessRoutes.get('/options', async c => {
       .from(customers).where(and(eq(customers.centerId, a.user.centerId!), eq(customers.status, 'active'))).orderBy(asc(customers.firstName))),
     withDatabase(c.env, db => db.select({ id: users.id, name: staffProfiles.displayName, staffType: staffProfiles.staffType })
       .from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id))
-      .where(and(eq(users.centerId, a.user.centerId!), eq(staffProfiles.active, true))).orderBy(asc(staffProfiles.displayName))),
+      .where(and(eq(users.centerId, a.user.centerId!), eq(staffProfiles.active, true), inArray(staffProfiles.staffType, [...FITNESS_SPECIALIST_TYPES]))).orderBy(asc(staffProfiles.displayName))),
   ]);
   return c.json({ customers: customersRows, specialists: staffRows });
 });
@@ -79,7 +81,7 @@ fitnessRoutes.post('/', async c => {
     const [customer] = await tx.select({ id: customers.id }).from(customers)
       .where(and(eq(customers.id, d.customerId), eq(customers.centerId, a.user.centerId!), eq(customers.status, 'active'))).limit(1);
     const [specialist] = await tx.select({ id: users.id }).from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id))
-      .where(and(eq(users.id, d.specialistId), eq(users.centerId, a.user.centerId!), eq(staffProfiles.active, true))).limit(1);
+      .where(and(eq(users.id, d.specialistId), eq(users.centerId, a.user.centerId!), eq(staffProfiles.active, true), inArray(staffProfiles.staffType, [...FITNESS_SPECIALIST_TYPES]))).limit(1);
     if (!customer) return { error: 'CUSTOMER_NOT_FOUND' as const };
     if (!specialist) return { error: 'SPECIALIST_NOT_FOUND' as const };
     const [plan] = await tx.insert(fitnessPlans).values({

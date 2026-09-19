@@ -78,7 +78,7 @@ export default function Customer360() {
     try {
       if (next === 'sale') {
         const result = await apiFetch<{ products: StoreProduct[] }>('/store/admin/products');
-        setStoreProducts(result.products.filter(product => product.active && product.productType !== 'subscription'));
+        setStoreProducts(result.products.filter(product => product.active && !['subscription','service'].includes(product.productType ?? 'product')));
         setSaleCart([]);
         return;
       }
@@ -173,7 +173,7 @@ export default function Customer360() {
       setActionMessage(`تم إنشاء البيع ${result.sale.saleNumber} بقيمة ${result.sale.total} ريال وتحديث مخزون المنتجات وملف العميل.`);
       await load(true);
       const refreshed = await apiFetch<{ products: StoreProduct[] }>('/store/admin/products');
-      setStoreProducts(refreshed.products.filter(product => product.active && product.productType !== 'subscription'));
+      setStoreProducts(refreshed.products.filter(product => product.active && !['subscription','service'].includes(product.productType ?? 'product')));
     } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر إنشاء البيع.'); }
     finally { setSaving(false); }
   }

@@ -74,6 +74,8 @@ storeRoutes.get('/admin/products', async c => {
     taxCode: products.taxCode,
     reorderPoint: products.reorderPoint,
     active: products.active,
+    subscriptionDeferredRevenueEnabled: products.subscriptionDeferredRevenueEnabled,
+    subscriptionDurationMonths: products.subscriptionDurationMonths,
     categoryId: products.categoryId,
     barcode: sql<string | null>`(select pb.barcode from product_barcodes pb where pb.product_id = ${products.id} and pb.active = true order by pb.id limit 1)`,
   }).from(products).where(eq(products.centerId, auth.user.centerId!)).orderBy(asc(products.name)));

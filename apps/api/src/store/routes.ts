@@ -227,8 +227,14 @@ storeRoutes.post('/admin/sales', async c => {
       if (product.minimumSalesPrice != null && Number(product.sellingPrice) < Number(product.minimumSalesPrice)) {
         return { error: 'BELOW_MINIMUM_PRICE' as const, productId: item.productId };
       }
-      if (product.productType === 'product' && Number(product.sellingPrice) < Number(product.purchaseCost)) {
-        return { error: 'BELOW_COST' as const, productId: item.productId, sellingPrice: Number(product.sellingPrice), purchaseCost: Number(product.purchaseCost) };
+      if (product.productType === 'product') {
+        const currentCost = await getProductCost(tx, {
+          centerId: auth.user.centerId!, productId: product.id, quantity: item.quantity,
+          costMethod: product.costMethod, standardCost: Number(product.purchaseCost),
+        });
+        if (Number(product.sellingPrice) < currentCost) {
+          return { error: 'BELOW_COST' as const, productId: item.productId, sellingPrice: Number(product.sellingPrice), purchaseCost: currentCost };
+        }
       }
       if (product.productType === 'subscription' && product.subscriptionDeferredRevenueEnabled) {
         if (!customer[0]) return { error: 'SUBSCRIPTION_CUSTOMER_REQUIRED' as const };

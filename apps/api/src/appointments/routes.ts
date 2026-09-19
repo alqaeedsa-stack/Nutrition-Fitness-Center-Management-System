@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, lt, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { getAuthenticatedUser } from '../auth/session';
@@ -12,6 +12,8 @@ export type AppointmentBindings = {
 };
 
 export const appointmentRoutes = new Hono<{ Bindings: AppointmentBindings }>();
+
+const SPECIALIST_TYPES = ['doctor', 'nutritionist', 'trainer', 'specialist'] as const;
 
 const appointmentSchema = z.object({
   customerId: z.string().uuid(),
@@ -85,7 +87,7 @@ appointmentRoutes.get('/options', async c => {
       name: staffProfiles.displayName,
       staffType: staffProfiles.staffType,
     }).from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id))
-      .where(and(eq(users.centerId, auth.user.centerId!), eq(staffProfiles.active, true)))
+      .where(and(eq(users.centerId, auth.user.centerId!), eq(staffProfiles.active, true), inArray(staffProfiles.staffType, [...SPECIALIST_TYPES])))
       .orderBy(asc(staffProfiles.displayName))),
   ]);
 
@@ -113,7 +115,7 @@ appointmentRoutes.post('/', async c => {
       .where(and(eq(customers.id, data.customerId), eq(customers.centerId, auth.user.centerId!), eq(customers.status, 'active'))).limit(1);
     const [staff] = await tx.select({ id: users.id }).from(users)
       .innerJoin(staffProfiles, eq(staffProfiles.userId, users.id))
-      .where(and(eq(users.id, data.staffId), eq(users.centerId, auth.user.centerId!), eq(staffProfiles.active, true))).limit(1);
+      .where(and(eq(users.id, data.staffId), eq(users.centerId, auth.user.centerId!), eq(staffProfiles.active, true), inArray(staffProfiles.staffType, [...SPECIALIST_TYPES]))).limit(1);
     if (!customer) return { error: 'CUSTOMER_NOT_FOUND' as const };
     if (!staff) return { error: 'STAFF_NOT_FOUND' as const };
 

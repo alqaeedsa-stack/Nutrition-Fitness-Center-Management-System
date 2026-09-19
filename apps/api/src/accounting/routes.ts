@@ -113,7 +113,7 @@ accountingRoutes.delete('/accounts/:id',async c=>{
 });
 
 accountingRoutes.post('/accounts',async c=>{
-  const auth=await access(c,'accounting.write'); if('error' in auth)return auth.error;
+  const auth=await access(c,'accounting.accounts.create'); if('error' in auth)return auth.error;
   const parsed=accountSchema.safeParse(await c.req.json().catch(()=>null)); if(!parsed.success)return c.json({error:{code:'VALIDATION_ERROR',message:'بيانات الحساب غير صحيحة',details:parsed.error.flatten()}},400);
   const x=parsed.data;
   try{

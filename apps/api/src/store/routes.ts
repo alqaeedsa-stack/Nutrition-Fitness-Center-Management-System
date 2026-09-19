@@ -153,7 +153,7 @@ const staffSaleSchema = z.object({
     productId: z.string().uuid(),
     quantity: z.number().positive().max(9999),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    endDate: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional(),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   })).min(1),
 });
 

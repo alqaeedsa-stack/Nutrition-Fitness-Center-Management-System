@@ -290,7 +290,9 @@ async function validateProductAccounts(tx:any, centerId:string, data:Partial<z.i
     purchaseAccountId:['asset','expense'], salesReturnAccountId:['revenue'], purchaseReturnAccountId:['asset','expense'],
     deferredRevenueAccountId:['liability'], subscriptionRevenueAccountId:['revenue'],
   };
-  for (const [key,id] of selected) if (id && !expected[key].includes(types.get(id))) return 'ACCOUNT_TYPE_INVALID' as const;
+  for (const [key,id] of selected) {
+    if (id && !expected[key].includes(String(types.get(id) ?? ''))) return 'ACCOUNT_TYPE_INVALID' as const;
+  }
   return null;
 }
 

@@ -88,6 +88,38 @@ export async function postSale(tx:any,args:{centerId:string;saleId:string;saleNu
 }
 
 
+export async function postSaleWithProductAccounts(tx:any,args:{
+  centerId:string;saleId:string;saleNumber:string;saleDate:string;total:number;tax:number;paymentMethod:string;createdBy:string|null;
+  lines:Array<{productId:string;productType:string;subtotal:number;tax:number;cogs:number;revenueAccountId?:string|null;subscriptionRevenueAccountId?:string|null;deferredRevenueAccountId?:string|null;deferredEnabled?:boolean;costOfSalesAccountId?:string|null;inventoryAccountId?:string|null}>
+}) {
+  const s=await settings(tx,args.centerId);
+  const debitAccount=args.paymentMethod==='unpaid'?s.accounts_receivable_account_id:s.cash_bank_account_id;
+  if(!debitAccount) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب النقدية/البنك أو العملاء غير مُهيأ');
+  if(args.tax>0) requireAccounts(s,['output_vat_account_id']);
+  const grouped=new Map<string,{accountId:string;description:string;debit:number;credit:number}>();
+  const add=(accountId:string|null|undefined,description:string,debit:number,credit:number)=>{
+    if(!accountId || Math.abs(debit)+Math.abs(credit)<0.005) return;
+    const key=accountId+':'+(debit>0?'d':'c');
+    const existing=grouped.get(key);
+    if(existing){existing.debit+=debit;existing.credit+=credit;} else grouped.set(key,{accountId,description,debit,credit});
+  };
+  for(const line of args.lines){
+    const revenueAccount=line.deferredEnabled ? (line.deferredRevenueAccountId ?? s.deferred_revenue_account_id) : (line.subscriptionRevenueAccountId ?? line.revenueAccountId ?? s.subscription_revenue_account_id ?? s.revenue_account_id);
+    if(!revenueAccount) throw new Error(line.deferredEnabled?'ACCOUNTING_SETUP_REQUIRED: حساب الإيراد المؤجل غير مُهيأ':'ACCOUNTING_SETUP_REQUIRED: حساب إيراد المنتج غير مُهيأ');
+    add(revenueAccount,line.deferredEnabled?`إيراد مؤجل - ${args.saleNumber}`:`إيراد - ${args.saleNumber}`,0,line.subtotal);
+    if(line.cogs>0){
+      const cogsAccount=line.costOfSalesAccountId ?? s.cost_of_sales_account_id;
+      const inventoryAccount=line.inventoryAccountId ?? s.inventory_account_id;
+      if(!cogsAccount || !inventoryAccount) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب تكلفة المبيعات/المخزون غير مُهيأ');
+      add(cogsAccount,`تكلفة مبيعات - ${args.saleNumber}`,line.cogs,0);
+      add(inventoryAccount,`تخفيض مخزون - ${args.saleNumber}`,0,line.cogs);
+    }
+  }
+  add(s.output_vat_account_id, `ضريبة مخرجات - ${args.saleNumber}`,0,args.tax);
+  const lines=[{accountId:debitAccount,description:`تحصيل/ذمم - ${args.saleNumber}`,debit:args.total,credit:0},...Array.from(grouped.values())];
+  return createEntry(tx,{centerId:args.centerId,date:args.saleDate,sourceType:'sale',sourceId:args.saleId,description:`ترحيل عملية البيع ${args.saleNumber}`,createdBy:args.createdBy,lines});
+}
+
 export async function reverseSale(tx:any,args:{centerId:string;saleId:string;saleNumber:string;date:string;createdBy:string}) {
   const original = await tx.execute(sql`select id from journal_entries where center_id=${args.centerId} and source_type='sale' and source_id=${args.saleId} limit 1`);
   if (!original.rows[0]) throw new Error('SALE_JOURNAL_NOT_FOUND');

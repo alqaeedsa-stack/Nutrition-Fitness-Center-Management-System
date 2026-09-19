@@ -667,7 +667,15 @@ function StaffPOS({ user }: { user: AuthUser }) {
   const [loading,setLoading]=useState(false); const [message,setMessage]=useState(''); const [error,setError]=useState('');
   const [salesHistory,setSalesHistory]=useState<Sale[]>([]); const [selectedSale,setSelectedSale]=useState<SaleDetail|null>(null); const [historyLoading,setHistoryLoading]=useState(false);
 
-  async function searchProducts(value:string) { setQuery(value); setError(''); if(!value.trim()){setProducts([]);return;} try { const r=await apiFetch<{products:Product[]}>('/store/admin/products'); setProducts(r.products); } catch(e){setError(e instanceof Error?e.message:'تعذر البحث عن المنتج');} }
+  async function searchProducts(value:string) {
+    setQuery(value); setError('');
+    const term=value.trim().toLowerCase();
+    if(!term){setProducts([]);return;}
+    try {
+      const r=await apiFetch<{products:Product[]}>('/store/admin/products');
+      setProducts(r.products.filter(p => p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term) || (p.barcode ?? '').toLowerCase().includes(term)).slice(0,20));
+    } catch(e){setError(e instanceof Error?e.message:'تعذر البحث عن المنتج');}
+  }
   function addProduct(p:Product) { if(Number(p.quantity)<=0){setError('المنتج غير متوفر في المخزون');return;} setCart(v=>{const x=v.find(i=>i.id===p.id); return x?v.map(i=>i.id===p.id?{...i,cartQuantity:Math.min(Number(p.quantity),i.cartQuantity+1)}:i):[...v,{...p,cartQuantity:1,price:Number(p.sellingPrice),discount:0}];}); setQuery('');setProducts([]);setError(''); }
   async function searchCustomers(value:string) { setCustomerQuery(value); if(!value.trim()){setCustomers([]);return;} try { const r=await apiFetch<{customers:Customer[]}>(`/customers?limit=20&search=${encodeURIComponent(value.trim())}`);setCustomers(r.customers); } catch(e){setError(e instanceof Error?e.message:'تعذر البحث عن العميل');} }
   async function loadSalesHistory(){ setHistoryLoading(true); try { const r=await apiFetch<{sales:Sale[]}>('/store/admin/sales'); setSalesHistory(r.sales); } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل المبيعات');} finally{setHistoryLoading(false);} }

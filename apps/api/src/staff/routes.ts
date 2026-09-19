@@ -7,7 +7,8 @@ import { storeOrderItems, storeOrders } from '../db/store';
 import { requirePermission, PERMISSIONS, getUserPermissionCodes, type PermissionCode } from '../auth/permissions';
 import { hashPassword } from '../auth/password';
 import { calculateTax } from '../tax/engine';
-import { postSale, reverseSale } from '../accounting/service';
+import { postSaleWithProductAccounts, reverseSale } from '../accounting/service';
+import { getOriginalSaleUnitCost, getProductCost } from '../inventory/costing';
 
 export type StaffBindings = {
   HYPERDRIVE?: { connectionString: string };
@@ -694,7 +695,7 @@ staffRoutes.post('/pos/sales', async c => {
     const ids = [...new Set(data.items.map(item => item.productId))].sort();
     const locked = await tx.select({
       id: products.id, sku: products.sku, name: products.name, productType: products.productType,
-      purchaseCost: products.purchaseCost, sellingPrice: products.sellingPrice, taxCode: products.taxCode, active: products.active, posAvailable: products.posAvailable, minimumSalesPrice: products.minimumSalesPrice, inventoryTracking: products.inventoryTracking,
+      purchaseCost: products.purchaseCost, costMethod: products.costMethod, allowNegativeStock: products.allowNegativeStock, sellingPrice: products.sellingPrice, taxCode: products.taxCode, active: products.active, posAvailable: products.posAvailable, minimumSalesPrice: products.minimumSalesPrice, inventoryTracking: products.inventoryTracking, revenueAccountId: products.revenueAccountId, salesReturnAccountId: products.salesReturnAccountId, costOfSalesAccountId: products.costOfSalesAccountId, inventoryAccountId: products.inventoryAccountId,
     }).from(products).where(and(
       eq(products.centerId, auth.user.centerId!), inArray(products.id, ids), eq(products.active, true),
     ));
@@ -720,9 +721,12 @@ staffRoutes.post('/pos/sales', async c => {
       const product = productMap.get(item.productId)!;
       if (!product.posAvailable) return { error: 'POS_PRODUCT_DISABLED' as const, productId: item.productId };
       if (product.minimumSalesPrice != null && item.unitPrice < Number(product.minimumSalesPrice)) return { error: 'BELOW_MINIMUM_PRICE' as const, productId: item.productId };
-      if (product.productType === 'product' && item.unitPrice < Number(product.purchaseCost)) return { error: 'BELOW_COST' as const, productId: item.productId };
+      if (product.productType === 'product') {
+        const currentCost = await getProductCost(tx, { centerId: auth.user.centerId!, productId: product.id, quantity: item.quantity, costMethod: product.costMethod, standardCost: Number(product.purchaseCost) });
+        if (item.unitPrice < currentCost) return { error: 'BELOW_COST' as const, productId: item.productId };
+      }
       if (product.inventoryTracking === 'serial' && !Number.isInteger(item.quantity)) return { error: 'SERIAL_QUANTITY_MUST_BE_INTEGER' as const, productId: item.productId };
-      if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) && item.quantity > (available.get(item.productId) ?? 0)) return { error: 'INSUFFICIENT_STOCK' as const, productId: item.productId };
+      if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) && !product.allowNegativeStock && item.quantity > (available.get(item.productId) ?? 0)) return { error: 'INSUFFICIENT_STOCK' as const, productId: item.productId };
       if (product.inventoryTracking === 'serial') {
         const serials = await tx.execute(sql`select id from product_serials where center_id=${auth.user.centerId!} and product_id=${item.productId} and status='available' order by created_at,id limit ${Math.trunc(item.quantity)} for update`);
         if (serials.rows.length < item.quantity) return { error: 'INSUFFICIENT_SERIALS' as const, productId: item.productId };
@@ -751,6 +755,18 @@ staffRoutes.post('/pos/sales', async c => {
     }
     const tax = taxLines.reduce((sum, line) => sum + line.taxAmount, 0);
     const total = Math.max(0, subtotal - discount + tax);
+    const costByProduct = new Map<string, number>();
+    for (const item of data.items) {
+      const product = productMap.get(item.productId)!;
+      if (NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number])) {
+        costByProduct.set(product.id, 0);
+      } else {
+        costByProduct.set(product.id, await getProductCost(tx, {
+          centerId: auth.user.centerId!, productId: product.id, quantity: item.quantity,
+          costMethod: product.costMethod, standardCost: Number(product.purchaseCost),
+        }));
+      }
+    }
     const saleNumber = `POS-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 
     const saleRows = await tx.insert(sales).values({
@@ -781,13 +797,28 @@ staffRoutes.post('/pos/sales', async c => {
     if (stockLines.length) {
       await tx.insert(stockMovements).values(stockLines.map(item => ({
         centerId: auth.user.centerId!, productId: item.productId, movementType: 'sale',
-        quantity: (-item.quantity).toFixed(3), unitCost: Number(productMap.get(item.productId)!.purchaseCost).toFixed(2),
+        quantity: (-item.quantity).toFixed(3), unitCost: (costByProduct.get(item.productId) ?? 0).toFixed(2),
         referenceType: 'pos_sale', referenceId: sale.id, occurredAt: new Date(), createdBy: auth.user.userId,
         notes: `صرف من نقطة البيع ${saleNumber}`,
       })));
     }
-    const cogs = data.items.reduce((sum, item) => sum + (NON_STOCK_PRODUCT_TYPES.includes(productMap.get(item.productId)!.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) ? 0 : item.quantity * Number(productMap.get(item.productId)!.purchaseCost)), 0);
-    await postSale(tx, { centerId: auth.user.centerId!, saleId: sale.id, saleNumber, saleDate: new Date().toISOString().slice(0,10), subtotal, tax, total, cogs, paymentMethod: data.paymentMethod, createdBy: auth.user.userId });
+    const accountingLines = data.items.map(item => {
+      const product = productMap.get(item.productId)!;
+      const netSubtotal = Math.max(0, item.quantity * item.unitPrice - item.discount);
+      return {
+        productId: product.id, productType: product.productType, subtotal: netSubtotal,
+        tax: taxLines[data.items.indexOf(item)].taxAmount,
+        cogs: NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) ? 0 : item.quantity * (costByProduct.get(product.id) ?? 0),
+        revenueAccountId: product.revenueAccountId,
+        salesReturnAccountId: product.salesReturnAccountId,
+        costOfSalesAccountId: product.costOfSalesAccountId,
+        inventoryAccountId: product.inventoryAccountId,
+      };
+    });
+    await postSaleWithProductAccounts(tx, {
+      centerId: auth.user.centerId!, saleId: sale.id, saleNumber, saleDate: new Date().toISOString().slice(0,10),
+      tax, total, paymentMethod: data.paymentMethod, createdBy: auth.user.userId, lines: accountingLines,
+    });
     return { sale };
   }));
 

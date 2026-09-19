@@ -33,6 +33,11 @@ export type PermissionCode =
   | 'zatca.manage'
   | 'accounting.read'
   | 'accounting.write'
+  | 'accounting.accounts.create'
+  | 'accounting.accounts.update'
+  | 'accounting.accounts.duplicate'
+  | 'accounting.accounts.archive'
+  | 'accounting.accounts.delete'
   | 'purchases.read'
   | 'purchases.write'
   | 'purchases.post'
@@ -68,6 +73,11 @@ export const PERMISSIONS: Array<{ code: PermissionCode; resource: string; action
   { code: 'zatca.manage', resource: 'zatca', action: 'manage', name: 'إدارة ZATCA والفوترة الإلكترونية' },
   { code: 'accounting.read', resource: 'accounting', action: 'read', name: 'عرض المحاسبة' },
   { code: 'accounting.write', resource: 'accounting', action: 'write', name: 'إدارة المحاسبة والترحيل' },
+  { code: 'accounting.accounts.create', resource: 'accounting_accounts', action: 'create', name: 'إنشاء حسابات دليل الحسابات' },
+  { code: 'accounting.accounts.update', resource: 'accounting_accounts', action: 'update', name: 'تعديل حسابات دليل الحسابات' },
+  { code: 'accounting.accounts.duplicate', resource: 'accounting_accounts', action: 'duplicate', name: 'تكرار حسابات دليل الحسابات' },
+  { code: 'accounting.accounts.archive', resource: 'accounting_accounts', action: 'archive', name: 'أرشفة واستعادة حسابات دليل الحسابات' },
+  { code: 'accounting.accounts.delete', resource: 'accounting_accounts', action: 'delete', name: 'حذف حسابات دليل الحسابات' },
   { code: 'purchases.read', resource: 'purchases', action: 'read', name: 'عرض المشتريات والموردين' },
   { code: 'purchases.write', resource: 'purchases', action: 'write', name: 'إنشاء وتعديل مستندات المشتريات' },
   { code: 'purchases.post', resource: 'purchases', action: 'post', name: 'ترحيل فواتير الموردين' },

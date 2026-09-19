@@ -6,7 +6,7 @@ function journalNumber(prefix: string) {
 }
 
 async function settings(tx: any, centerId: string) {
-  const result = await tx.execute(sql`select inventory_account_id, input_vat_account_id, accounts_payable_account_id, cash_bank_account_id, revenue_account_id, output_vat_account_id, cost_of_sales_account_id from accounting_settings where center_id=${centerId} limit 1`);
+  const result = await tx.execute(sql`select inventory_account_id, input_vat_account_id, accounts_payable_account_id, cash_bank_account_id, accounts_receivable_account_id, revenue_account_id, output_vat_account_id, cost_of_sales_account_id from accounting_settings where center_id=${centerId} limit 1`);
   return result.rows[0] as any;
 }
 
@@ -18,6 +18,10 @@ function requireAccounts(s: any, need: string[]) {
       input_vat_account_id: 'حساب ضريبة القيمة المضافة - مدخلات',
       accounts_payable_account_id: 'حساب الدائنين/الموردين',
       cash_bank_account_id: 'حساب النقدية/البنك',
+      accounts_receivable_account_id: 'حساب العملاء/الذمم المدينة',
+      revenue_account_id: 'حساب الإيرادات',
+      output_vat_account_id: 'حساب ضريبة القيمة المضافة - مخرجات',
+      cost_of_sales_account_id: 'حساب تكلفة المبيعات',
     };
     throw new Error(`ACCOUNTING_SETUP_REQUIRED: ${missing.map(k => labels[k] ?? k).join('، ')}`);
   }
@@ -70,10 +74,12 @@ export async function postPurchasePayment(tx: any, args: {
 
 export async function postSale(tx:any,args:{centerId:string;saleId:string;saleNumber:string;saleDate:string;subtotal:number;tax:number;total:number;cogs:number;paymentMethod:string;createdBy:string}){
  const s=await settings(tx,args.centerId);
- requireAccounts(s,['revenue_account_id','cash_bank_account_id','cost_of_sales_account_id','inventory_account_id']);
+ requireAccounts(s,['revenue_account_id','cost_of_sales_account_id','inventory_account_id']);
+ if(args.paymentMethod==='unpaid') requireAccounts(s,['accounts_receivable_account_id']);
+ if(args.paymentMethod==='partial') throw new Error('PARTIAL_SALE_ACCOUNTING_UNSUPPORTED');
  if(args.tax>0)requireAccounts(s,['output_vat_account_id']);
  const lines=[
-  {accountId:s.cash_bank_account_id,description:`بيع ${args.saleNumber} - تحصيل`,debit:args.total,credit:0},
+  {accountId:args.paymentMethod==='unpaid'?s.accounts_receivable_account_id:s.cash_bank_account_id,description:`بيع ${args.saleNumber} - ${args.paymentMethod==='unpaid'?'ذمم مدينة':'تحصيل'}`,debit:args.total,credit:0},
   {accountId:s.revenue_account_id,description:`بيع ${args.saleNumber} - إيراد`,debit:0,credit:args.subtotal},
   ...(args.tax>0?[{accountId:s.output_vat_account_id,description:`بيع ${args.saleNumber} - ضريبة مخرجات`,debit:0,credit:args.tax}]:[]),
   ...(args.cogs>0?[{accountId:s.cost_of_sales_account_id,description:`بيع ${args.saleNumber} - تكلفة المبيعات`,debit:args.cogs,credit:0},{accountId:s.inventory_account_id,description:`بيع ${args.saleNumber} - تخفيض المخزون`,debit:0,credit:args.cogs}]:[])

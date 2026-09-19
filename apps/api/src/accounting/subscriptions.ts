@@ -38,24 +38,33 @@ export function buildMonthlySchedule(startDate:string,endDate:string,totalAmount
   return rows;
 }
 
+export async function createCustomerSubscription(tx:any,args:{
+  centerId:string; customerId:string; productId:string; saleId:string; startDate:string; endDate:string;
+  unitPrice:number; deferredRevenueAccountId?:string|null; revenueAccountId?:string|null; recognitionMethod:string;
+  createdBy:string;
+}) {
+  const sub=(await tx.insert(customerSubscriptions).values({
+    centerId:args.centerId,customerId:args.customerId,productId:args.productId,saleId:args.saleId,
+    startDate:args.startDate,endDate:args.endDate,status:'active',unitPrice:args.unitPrice.toFixed(2),
+    deferredRevenueAccountId:args.deferredRevenueAccountId ?? null,revenueAccountId:args.revenueAccountId ?? null,
+    recognitionMethod:args.recognitionMethod,recognizedAmount:'0',createdBy:args.createdBy,updatedBy:args.createdBy,
+  }).returning({id:customerSubscriptions.id}))[0];
+  if(!sub) throw new Error('SUBSCRIPTION_CREATE_FAILED');
+  return {subscriptionId:sub.id,scheduleCount:0};
+}
+
 export async function createSubscriptionSchedule(tx:any,args:{
   centerId:string; customerId:string; productId:string; saleId:string; startDate:string; endDate:string;
   unitPrice:number; deferredRevenueAccountId:string; revenueAccountId:string; recognitionMethod:string;
   dailyProration:boolean; createdBy:string;
 }) {
   const rows=buildMonthlySchedule(args.startDate,args.endDate,args.unitPrice,args.dailyProration);
-  const sub=(await tx.insert(customerSubscriptions).values({
-    centerId:args.centerId,customerId:args.customerId,productId:args.productId,saleId:args.saleId,
-    startDate:args.startDate,endDate:args.endDate,status:'active',unitPrice:args.unitPrice.toFixed(2),
-    deferredRevenueAccountId:args.deferredRevenueAccountId,revenueAccountId:args.revenueAccountId,
-    recognitionMethod:args.recognitionMethod,recognizedAmount:'0',createdBy:args.createdBy,updatedBy:args.createdBy,
-  }).returning({id:customerSubscriptions.id}))[0];
-  if(!sub) throw new Error('SUBSCRIPTION_CREATE_FAILED');
+  const sub=await createCustomerSubscription(tx,args);
   await tx.insert(subscriptionRevenueSchedules).values(rows.map(row=>({
-    centerId:args.centerId,subscriptionId:sub.id,periodStart:row.periodStart,periodEnd:row.periodEnd,
+    centerId:args.centerId,subscriptionId:sub.subscriptionId,periodStart:row.periodStart,periodEnd:row.periodEnd,
     recognitionDate:row.recognitionDate,amount:row.amount.toFixed(2),status:'pending',
   })));
-  return {subscriptionId:sub.id,scheduleCount:rows.length};
+  return {subscriptionId:sub.subscriptionId,scheduleCount:rows.length};
 }
 
 export async function activateSubscription(tx:any,args:{centerId:string;subscriptionId:string;createdBy:string}) {

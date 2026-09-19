@@ -35,6 +35,7 @@ export default function FollowUpsManagement() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [tableSearch, setTableSearch] = useState('');
 
   async function load(customerFilter = customerId) {
     try {
@@ -56,6 +57,10 @@ export default function FollowUpsManagement() {
   }
 
   useEffect(() => { void load(); }, []);
+  const visibleRows=rows.filter(r=>{const q=tableSearch.trim().toLowerCase();return !q||(r.customerName+' '+r.customerLastName+' '+r.customerNumber+' '+r.staffName).toLowerCase().includes(q);});
+  const followUpKpis=[['إجمالي المتابعات',rows.length],['بها موعد قادم',rows.filter(r=>!!r.nextFollowUpAt).length],['بها قياس وزن',rows.filter(r=>r.weight!=null&&r.weight!=='').length],['متوسط الالتزام',rows.length?Math.round(rows.reduce((s,r)=>s+Number(r.adherenceScore??0),0)/rows.length):0]] as const;
+
+
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -118,7 +123,7 @@ export default function FollowUpsManagement() {
       {error && <div className="info-strip warning">{error}</div>}
       {message && <div className="info-strip">{message}</div>}
 
-      <section className="panel">
+      <section className="panel"><div className="erp-kpi-strip">{followUpKpis.map(([label,value])=><div className="erp-kpi" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div><div className="module-toolbar"><div className="toolbar-filters"><input value={tableSearch} onChange={e=>setTableSearch(e.target.value)} placeholder={t('بحث بالعميل أو الموظف أو الرقم','Search customer, staff or number')} /></div></div>
         <div className="panel-heading-row"><div><p className="eyebrow">{t('المتابعة','Follow-up')}</p><h2>{editingId ? 'تعديل المتابعة' : 'تسجيل متابعة'}</h2></div>{editingId && <button type="button" className="secondary-button" onClick={()=>setEditingId(null)}>{t('إلغاء التعديل','Cancel edit')}</button>}</div>
         <form className="form-stack" onSubmit={save}>
           <div className="form-row">

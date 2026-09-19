@@ -213,6 +213,8 @@ appointmentRoutes.patch('/:id', async c => {
       CUSTOMER_NOT_FOUND: ['العميل غير موجود داخل هذا المركز', 404],
       STAFF_NOT_FOUND: ['الموظف المختص غير موجود أو غير نشط', 404],
       STAFF_TIME_CONFLICT: ['يوجد موعد آخر لهذا الموظف في نفس الفترة', 409],
+      INVALID_STATUS_TRANSITION: ['لا يمكن الانتقال إلى حالة الموعد المطلوبة من الحالة الحالية', 409],
+      APPOINTMENT_LOCKED: ['الموعد مغلق بعد الإكمال أو الإلغاء أو عدم الحضور', 409],
     };
     const entry = messages[String(result.error)];
     if (!entry) return c.json({ error: { code: String(result.error), message: 'تعذر معالجة الطلب' } }, 500);

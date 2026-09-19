@@ -686,11 +686,18 @@ function StaffPOS({ user }: { user: AuthUser }) {
   async function openSale(id:string){ try { const r=await apiFetch<{sale:SaleDetail}>('/store/admin/sales/'+id); setSelectedSale(r.sale); } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل تفاصيل البيع');} }
   async function voidSale(id:string){ if(!window.confirm('سيتم إلغاء عملية البيع وعكس كميات المخزون. هل تريد المتابعة؟')) return; try { await apiFetch('/store/admin/sales/'+id+'/void',{method:'POST',body:JSON.stringify({})}); setMessage('تم إلغاء عملية البيع وعكس المخزون.'); await loadSalesHistory(); await openSale(id); } catch(e){setError(e instanceof Error?e.message:'تعذر إلغاء عملية البيع');} }
   async function prepareZatcaInvoice(id:string){ setError(''); setMessage(''); try { const r=await apiFetch<{invoice:{invoiceNumber:string;status:string}}>('/zatca/sales/'+id+'/prepare',{method:'POST',body:JSON.stringify({invoiceType:'simplified'})}); setMessage('تم تجهيز الفاتورة الإلكترونية '+r.invoice.invoiceNumber+' بصيغة ZATCA. التوقيع والإرسال إلى FATOORA ما زالا يحتاجان CSID.'); } catch(e){setError(e instanceof Error?e.message:'تعذر تجهيز الفاتورة الإلكترونية');} }
+  const posKpis=[
+    ['أصناف السلة',cart.reduce((s,x)=>s+x.cartQuantity,0)],
+    ['قيمة السلة',total.toFixed(2)+' ر.س'],
+    ['المبيعات اليوم',salesHistory.filter(s=>new Date(s.createdAt).toDateString()===new Date().toDateString()).length],
+    ['آخر بيع',salesHistory[0]?.total ? salesHistory[0].total+' ر.س' : '—'],
+  ] as const;
   const subtotal=cart.reduce((s,x)=>s+x.cartQuantity*x.price,0); const discount=cart.reduce((s,x)=>s+x.discount,0); const total=Math.max(0,subtotal-discount);
   async function completeSale(){ if(!cart.length){setError('السلة فارغة');return;} if(!customer){setError('اختر العميل قبل إتمام البيع.');return;} setLoading(true);setError('');setMessage(''); try { const r=await apiFetch<{sale:{id:string;saleNumber:string;total:string}}>('/staff/pos/sales',{method:'POST',body:JSON.stringify({customerId:customer.id,paymentMethod,paymentStatus:'paid',items:cart.map(x=>({productId:x.id,quantity:x.cartQuantity}))})}); setMessage('تم تسجيل البيع '+r.sale.saleNumber+' بإجمالي '+r.sale.total+' ر.س');setCart([]);setCustomer(null);setCustomerQuery(''); await loadSalesHistory(); await openSale(r.sale.id); } catch(e){setError(e instanceof Error?e.message:'تعذر إتمام البيع');} finally{setLoading(false);} }
 
   return <main className="app-shell"><header className="app-header"><div><span className="eyebrow">نقطة البيع</span><h1>نقطة البيع</h1></div><div className="portal-choice-actions"><button className="secondary-button" type="button" onClick={()=>void loadSalesHistory()}>المبيعات السابقة</button><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></div></header>
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
+    <div className="erp-kpi-strip">{posKpis.map(([label,value])=><div className="erp-kpi" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
     <section className="staff-management-grid"><section className="panel"><p className="eyebrow">بحث المنتجات</p><h2>إضافة المنتجات</h2>
       <input autoFocus dir="ltr" value={query} onChange={e=>void searchProducts(e.target.value)} placeholder="SKU أو باركود أو اسم المنتج" />
       {!!products.length&&<div className="cart-list">{products.map(p=><button type="button" className="cart-row" key={p.id} onClick={()=>addProduct(p)}><span><strong>{p.name}</strong><small>{p.sku}{p.barcode?' · '+p.barcode:''} · المتاح {p.quantity}</small></span><strong>{p.sellingPrice} ر.س</strong></button>)}</div>}
@@ -758,6 +765,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
   const [movements, setMovements] = useState<Movement[]>([]);
   const [movementLoading, setMovementLoading] = useState(false);
   const [error,setError]=useState(''); const [message,setMessage]=useState(''); const [saving,setSaving]=useState(false);
+  const [inventorySearch,setInventorySearch]=useState(''); const [productSearch,setProductSearch]=useState(''); const [orderSearch,setOrderSearch]=useState('');
 
   async function load() {
     try {
@@ -839,6 +847,13 @@ function StaffOperations({ user }: { user: AuthUser }) {
     catch(e){setError(e instanceof Error?e.message:'تعذر تحديث الطلب');}
   }
 
+  const visibleProducts=products.filter(p=>{const q=productSearch.trim().toLowerCase();return !q||(p.sku+' '+p.name+' '+(p.categoryName??'')+' '+(p.brandName??'')).toLowerCase().includes(q);});
+  const visibleInventory=inventory.filter(p=>{const q=inventorySearch.trim().toLowerCase();return !q||(p.sku+' '+p.name).toLowerCase().includes(q);});
+  const visibleOrders=orders.filter(o=>{const q=orderSearch.trim().toLowerCase();return !q||(o.orderNumber+' '+o.customerId).toLowerCase().includes(q);});
+  const inventoryKpis=[
+    ['المنتجات',products.length],['إجمالي الكمية',inventory.reduce((s,p)=>s+Number(p.quantity),0).toFixed(2)],
+    ['منخفض المخزون',inventory.filter(p=>p.lowStock).length],['قيمة المخزون',inventory.reduce((s,p)=>s+Number(p.quantity)*Number(p.purchaseCost),0).toFixed(2)+' ر.س']
+  ] as const;
   const movementLabels: Record<string,string> = {
     opening:'رصيد افتتاحي', purchase:'شراء', adjustment_in:'تسوية إضافة', adjustment_out:'تسوية صرف',
     return_in:'مرتجع وارد', return_out:'مرتجع صادر', sale:'بيع'
@@ -865,7 +880,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
         <label>حد إعادة الطلب<input type="number" min="0" step="0.001" value={form.reorderPoint} onChange={e=>setForm({...form,reorderPoint:e.target.value})}/></label>
         {canWriteCatalog && <button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'حفظ المنتج'}</button>}
       </form></section>
-      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">دليل المنتجات</p><h2>المنتجات</h2></div></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>التصنيف</th><th>التكلفة</th><th>البيع</th><th>الحالة</th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.categoryName??'—'}</td><td>{p.purchaseCost}</td><td>{p.sellingPrice}</td><td>{p.active?'نشط':'موقوف'}</td></tr>)}</tbody></table></div></section>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">دليل المنتجات</p><h2>المنتجات</h2></div></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>التصنيف</th><th>التكلفة</th><th>البيع</th><th>الحالة</th></tr></thead><tbody>{visibleProducts.map(p=><tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.categoryName??'—'}</td><td>{p.purchaseCost}</td><td>{p.sellingPrice}</td><td>{p.active?'نشط':'موقوف'}</td></tr>)}</tbody></table></div></section>
     </section>}
 
     {canManageInventory && tab==='inventory'&&<section className="staff-management-grid">
@@ -908,7 +923,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
       </tbody></table></div>}
     </section>}
 
-    {canManageOrders && tab==='orders'&&<section className="panel"><p className="eyebrow">طلبات العملاء</p><h2>طلبات العملاء</h2><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الطلب</th><th>الحالة</th><th>الإجمالي</th><th>الدفع</th><th>التاريخ</th><th>إجراء</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.orderNumber}</td><td>{orderStatusLabels[o.status] ?? o.status}</td><td>{o.total} ر.س</td><td>{paymentStatusLabels[o.paymentStatus] ?? o.paymentStatus}</td><td>{new Date(o.createdAt).toLocaleString('ar-SA')}</td><td>{canUpdateOrders && o.status==='pending'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'confirmed')}>تأكيد</button>}{canUpdateOrders && o.status==='confirmed'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'completed')}>إكمال</button>}{canUpdateOrders && o.status!=='completed'&&o.status!=='cancelled'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'cancelled')}>إلغاء</button>}</td></tr>)}</tbody></table></div></section>}
+    {canManageOrders && tab==='orders'&&<section className="panel"><p className="eyebrow">طلبات العملاء</p><h2>طلبات العملاء</h2><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الطلب</th><th>الحالة</th><th>الإجمالي</th><th>الدفع</th><th>التاريخ</th><th>إجراء</th></tr></thead><tbody>{visibleOrders.map(o=><tr key={o.id}><td>{o.orderNumber}</td><td>{orderStatusLabels[o.status] ?? o.status}</td><td>{o.total} ر.س</td><td>{paymentStatusLabels[o.paymentStatus] ?? o.paymentStatus}</td><td>{new Date(o.createdAt).toLocaleString('ar-SA')}</td><td>{canUpdateOrders && o.status==='pending'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'confirmed')}>تأكيد</button>}{canUpdateOrders && o.status==='confirmed'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'completed')}>إكمال</button>}{canUpdateOrders && o.status!=='completed'&&o.status!=='cancelled'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'cancelled')}>إلغاء</button>}</td></tr>)}</tbody></table></div></section>}
   </main>;
 }
 

@@ -301,14 +301,15 @@ customerRoutes.post('/:id/subscriptions', async c => {
   }));
 
   if ('error' in result && result.error) {
-    const messages: Record<string, [string, number]> = {
+    const messages: Record<string, [string, 404 | 409]> = {
       CUSTOMER_NOT_FOUND: ['العميل غير موجود أو غير نشط', 404],
       SUBSCRIPTION_PRODUCT_REQUIRED: ['يجب اختيار منتج من نوع اشتراك', 409],
       SALE_NOT_FOUND: ['عملية البيع غير موجودة أو لا تخص هذا العميل', 409],
       SUBSCRIPTION_OVERLAP: ['يوجد اشتراك نشط لنفس المنتج داخل نفس الفترة', 409],
     };
     const entry = messages[result.error];
-    return c.json({ error: { code: result.error, message: entry?.[0] ?? 'تعذر إنشاء الاشتراك' } }, entry?.[1] ?? 409);
+    const status: 404 | 409 = entry?.[1] ?? 409;
+    return c.json({ error: { code: result.error, message: entry?.[0] ?? 'تعذر إنشاء الاشتراك' } }, status);
   }
   return c.json({ subscription: result.subscription }, 201);
 });

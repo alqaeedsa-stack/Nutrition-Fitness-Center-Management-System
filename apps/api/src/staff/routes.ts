@@ -503,6 +503,8 @@ staffRoutes.patch('/products/:id', async c => {
     if (row.error === 'CATEGORY_NOT_FOUND') return c.json({ error: { code: 'CATEGORY_NOT_FOUND', message: 'التصنيف غير موجود أو لا يتبع للمركز' } }, 409);
     if (row.error === 'BRAND_NOT_FOUND') return c.json({ error: { code: 'BRAND_NOT_FOUND', message: 'العلامة التجارية غير موجودة أو لا تتبع للمركز' } }, 409);
     if (row.error === 'SKU_EXISTS') return c.json({ error: { code: 'SKU_EXISTS', message: 'SKU مستخدم بالفعل في هذا المركز' } }, 409);
+    if (row.error === 'ACCOUNT_SCOPE_INVALID') return c.json({ error: { code: 'ACCOUNT_SCOPE_INVALID', message: 'أحد الحسابات المختارة لا يتبع للمركز' } }, 409);
+    if (row.error === 'ACCOUNT_TYPE_INVALID') return c.json({ error: { code: 'ACCOUNT_TYPE_INVALID', message: 'نوع أحد الحسابات لا يناسب وظيفة الحساب على المنتج' } }, 409);
   }
   return c.json({ product: row.product });
 });

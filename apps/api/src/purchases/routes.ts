@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
-import { products, purchaseOrderItems, purchaseOrders, stockMovements, vendors } from '../db/schema';
+import { products, purchaseOrderItems, purchaseOrders, purchaseReturnItems, purchaseReturns, stockMovements, vendors } from '../db/schema';
 import { requirePermission } from '../auth/permissions';
 
 export type PurchaseBindings = {
@@ -240,4 +240,92 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
     return c.json({ error: { code: errorCode, message, ...(details ? { details } : {}) } }, errorCode === 'PO_NOT_FOUND' ? 404 : 409);
   }
   return c.json({ ok: true, status: result.status });
+});
+
+
+const returnSchema = z.object({
+  returnDate: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+  notes: z.string().trim().max(500).optional().nullable(),
+  items: z.array(z.object({
+    purchaseOrderItemId: z.string().uuid(),
+    quantity: z.number().positive().max(999999),
+  })).min(1).max(100),
+});
+
+function returnNumber() {
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+  return 'PR-' + stamp + '-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+}
+
+purchaseRoutes.post('/returns', async c => {
+  const auth = await access(c, 'inventory.adjust');
+  if ('error' in auth) return auth.error;
+  const parsed = returnSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message ?? 'بيانات مرتجع الشراء غير صحيحة' } }, 400);
+
+  const result = await withDatabase(c.env, db => db.transaction(async tx => {
+    const requestedIds = [...new Set(parsed.data.items.map(x => x.purchaseOrderItemId))];
+    const lines = await tx.select({
+      id: purchaseOrderItems.id, purchaseOrderId: purchaseOrderItems.purchaseOrderId,
+      productId: purchaseOrderItems.productId, quantity: purchaseOrderItems.quantity,
+      receivedQuantity: purchaseOrderItems.receivedQuantity, returnedQuantity: purchaseOrderItems.returnedQuantity,
+      unitCost: purchaseOrderItems.unitCost, vendorId: purchaseOrders.vendorId,
+      orderStatus: purchaseOrders.status,
+    }).from(purchaseOrderItems)
+      .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderItems.purchaseOrderId))
+      .where(and(eq(purchaseOrders.centerId, auth.user.centerId!), inArray(purchaseOrderItems.id, requestedIds)));
+    if (lines.length !== requestedIds.length) return { error: 'PO_ITEM_NOT_FOUND' as const };
+
+    const vendorId = lines[0]?.vendorId;
+    if (!vendorId || lines.some(x => x.vendorId !== vendorId)) return { error: 'MULTI_VENDOR_NOT_ALLOWED' as const };
+
+    const calculations: { line: typeof lines[number]; quantity: number; unitCost: number; lineTotal: number }[] = [];
+    for (const req of parsed.data.items) {
+      const line = lines.find(x => x.id === req.purchaseOrderItemId)!;
+      const available = Number(line.receivedQuantity) - Number(line.returnedQuantity);
+      if (req.quantity > available + 0.000001) {
+        return { error: 'RETURN_QTY_EXCEEDED' as const, itemId: req.purchaseOrderItemId, remaining: available, requested: req.quantity };
+      }
+      calculations.push({ line, quantity: req.quantity, unitCost: Number(line.unitCost), lineTotal: req.quantity * Number(line.unitCost) });
+    }
+
+    const total = calculations.reduce((sum, x) => sum + x.lineTotal, 0);
+    const created = await tx.insert(purchaseReturns).values({
+      centerId: auth.user.centerId!, vendorId, purchaseOrderId: lines[0]!.purchaseOrderId,
+      returnNumber: returnNumber(), status: 'posted', returnDate: parsed.data.returnDate,
+      total: total.toFixed(2), notes: parsed.data.notes || null, createdBy: auth.user.userId,
+    }).returning();
+    if (!created[0]) throw new Error('Purchase return insert failed');
+
+    for (const item of calculations) {
+      await tx.update(purchaseOrderItems).set({
+        returnedQuantity: (Number(item.line.returnedQuantity) + item.quantity).toString(),
+        updatedAt: new Date(),
+      }).where(eq(purchaseOrderItems.id, item.line.id));
+      await tx.insert(purchaseReturnItems).values({
+        purchaseReturnId: created[0].id, purchaseOrderItemId: item.line.id, productId: item.line.productId,
+        quantity: item.quantity.toString(), unitCost: item.unitCost.toFixed(2), lineTotal: item.lineTotal.toFixed(2),
+      });
+      await tx.insert(stockMovements).values({
+        centerId: auth.user.centerId!, productId: item.line.productId, movementType: 'return_out',
+        quantity: (-item.quantity).toString(), unitCost: item.unitCost.toFixed(2),
+        referenceType: 'purchase_return', referenceId: created[0].id, occurredAt: new Date(),
+        createdBy: auth.user.userId, notes: parsed.data.notes || ('مرتجع شراء ' + created[0].returnNumber),
+      });
+    }
+    return { returnNumber: created[0].returnNumber, total: created[0].total };
+  }));
+
+  if ('error' in result) {
+    const messages: Record<string,string> = {
+      PO_ITEM_NOT_FOUND: 'أحد بنود أمر الشراء غير موجود',
+      MULTI_VENDOR_NOT_ALLOWED: 'يجب أن يكون المرتجع لمورد واحد',
+      RETURN_QTY_EXCEEDED: 'كمية المرتجع أكبر من الكمية المستلمة والمتبقية للمرتجع',
+    };
+    const errorCode = String(result.error ?? 'UNKNOWN');
+    const message = messages[errorCode] ?? 'تعذر تسجيل مرتجع الشراء';
+    const details = 'itemId' in result ? { itemId: result.itemId, remaining: result.remaining, requested: result.requested } : undefined;
+    return c.json({ error: { code: errorCode, message, ...(details ? { details } : {}) } }, 409);
+  }
+  return c.json({ ok: true, ...result }, 201);
 });

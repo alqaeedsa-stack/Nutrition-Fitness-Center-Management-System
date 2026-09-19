@@ -7,6 +7,7 @@ import { storeOrderItems, storeOrders } from '../db/store';
 import { requirePermission, PERMISSIONS, getUserPermissionCodes, type PermissionCode } from '../auth/permissions';
 import { hashPassword } from '../auth/password';
 import { calculateTax } from '../tax/engine';
+import { postSale, reverseSale } from '../accounting/service';
 
 export type StaffBindings = {
   HYPERDRIVE?: { connectionString: string };

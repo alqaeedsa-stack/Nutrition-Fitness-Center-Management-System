@@ -159,7 +159,7 @@ export async function createSubscriptionSale(tx:any,args:{centerId:string;saleId
   return createEntry(tx,{centerId:args.centerId,date:args.saleDate,sourceType:'subscription_sale',sourceId:args.saleId,description:args.deferredEnabled?`ترحيل اشتراك ${args.saleNumber} إلى الإيراد المؤجل`:`ترحيل اشتراك ${args.saleNumber} مباشرة إلى الإيراد`,createdBy:args.createdBy,lines});
 }
 
-export async function recognizeSubscriptionRevenue(tx:any,args:{centerId:string;scheduleId:string;subscriptionId:string;date:string;amount:number;deferredAccountId:string;revenueAccountId:string;createdBy:string;description:string}){
+export async function recognizeSubscriptionRevenue(tx:any,args:{centerId:string;scheduleId:string;subscriptionId:string;date:string;amount:number;deferredAccountId:string;revenueAccountId:string;createdBy:string|null;description:string}){
   const lines=[
     {accountId:args.deferredAccountId,description:args.description,debit:args.amount,credit:0},
     {accountId:args.revenueAccountId,description:args.description,debit:0,credit:args.amount},

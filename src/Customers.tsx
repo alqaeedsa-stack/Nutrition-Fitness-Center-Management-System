@@ -62,13 +62,13 @@ export default function Customers({ user }: { user: { staffType?: string | null;
   }
 
   async function removeCustomer(customer: Customer) {
-    if (!window.confirm(`هل تريد حذف العميل ${customer.firstName} ${customer.lastName}؟`)) return;
+    if (!window.confirm(`هل تريد تعطيل العميل ${customer.firstName} ${customer.lastName}؟`)) return;
     setError('');
     try {
       await apiFetch(`/customers/${customer.id}`, { method: 'DELETE' });
       await loadCustomers(search, statusFilter);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'تعذر حذف العميل. قد توجد بيانات مرتبطة به.');
+      setError(err instanceof Error ? err.message : 'تعذر تعطيل العميل.');
     }
   }
 
@@ -101,7 +101,7 @@ export default function Customers({ user }: { user: { staffType?: string | null;
       <header className="app-header">
         <div><p className="eyebrow">Customer 360</p><h1>العملاء</h1></div>
         <div className="header-actions">
-          <Link className="secondary-button" to="/dashboard">لوحة التحكم</Link>
+          <Link className="secondary-button" to="/admin/dashboard">لوحة التحكم</Link>
           {canCreate && <button className="primary-action button" onClick={() => { setEditing(null); setShowForm((value) => !value); }}>{showForm ? 'إغلاق' : 'عميل جديد'}</button>}
         </div>
       </header>
@@ -156,7 +156,7 @@ export default function Customers({ user }: { user: { staffType?: string | null;
                   <td dir="ltr">{customer.phone}</td>
                   <td>{customer.email ?? '—'}</td>
                   <td><span className={`status-badge ${customer.status === 'active' ? 'active' : 'inactive'}`}>{customer.status === 'active' ? 'نشط' : 'غير نشط'}</span></td>
-                  <td><div className="header-actions"><Link className="secondary-button" to={`/admin/customers/${customer.id}`}>الملف الكامل</Link>{canUpdate && <button className="secondary-button" type="button" onClick={() => startEdit(customer)}>تعديل</button>}{canDelete && <button className="secondary-button" type="button" onClick={() => void removeCustomer(customer)}>حذف</button>}</div></td>
+                  <td><div className="header-actions"><Link className="secondary-button" to={`/admin/customers/${customer.id}`}>الملف الكامل</Link>{canUpdate && <button className="secondary-button" type="button" onClick={() => startEdit(customer)}>تعديل</button>}{canDelete && <button className="secondary-button" type="button" onClick={() => void removeCustomer(customer)}>تعطيل</button>}</div></td>
                 </tr>
               ))}</tbody>
             </table>

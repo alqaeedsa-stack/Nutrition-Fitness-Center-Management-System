@@ -148,7 +148,6 @@ const staffSaleSchema = z.object({
   customerId: z.string().uuid().nullable().optional(),
   paymentMethod: z.enum(['cash', 'mada', 'card', 'bank_transfer']),
   paymentStatus: z.enum(['paid', 'unpaid']).default('paid'),
-  activateSubscriptions: z.boolean().default(true),
   items: z.array(z.object({
     productId: z.string().uuid(),
     quantity: z.number().positive().max(9999),
@@ -287,8 +286,7 @@ storeRoutes.post('/admin/sales', async c => {
     });
 
     const subscriptions=[];
-    if (parsed.data.activateSubscriptions) {
-      for (const line of lineCalculations) {
+    for (const line of lineCalculations) {
         const product=line.product;
         if (product.productType !== 'subscription' || !product.subscriptionDeferredRevenueEnabled) continue;
         if (!customer[0]) return { error: 'SUBSCRIPTION_CUSTOMER_REQUIRED' as const };
@@ -306,7 +304,6 @@ storeRoutes.post('/admin/sales', async c => {
           revenueAccountId:product.subscriptionRevenueAccountId ?? product.revenueAccountId!,recognitionMethod:product.subscriptionRecognitionMethod,
           dailyProration:product.subscriptionDailyProration,createdBy:auth.user.userId,
         }));
-      }
     }
     return { sale, journalEntry:entry, subscriptions };
   }));

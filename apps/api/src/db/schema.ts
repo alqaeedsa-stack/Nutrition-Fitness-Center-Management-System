@@ -270,6 +270,10 @@ export const products = pgTable('products', {
   purchaseReturnAccountId: uuid('purchase_return_account_id'),
   deferredRevenueAccountId: uuid('deferred_revenue_account_id'),
   subscriptionRevenueAccountId: uuid('subscription_revenue_account_id'),
+  subscriptionDeferredRevenueEnabled: boolean('subscription_deferred_revenue_enabled').notNull().default(false),
+  subscriptionRecognitionMethod: varchar('subscription_recognition_method', { length: 30 }).notNull().default('monthly'),
+  subscriptionDurationMonths: integer('subscription_duration_months'),
+  subscriptionDailyProration: boolean('subscription_daily_proration').notNull().default(true),
   ...auditTimestamps,
 }, (table) => [uniqueIndex('products_center_sku_uq').on(table.centerId, table.sku)]);
 

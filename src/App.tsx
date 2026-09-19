@@ -985,10 +985,15 @@ function StaffOperations({ user }: { user: AuthUser }) {
       {selectedProduct.productType === 'subscription' && (
         <>
           <div className="panel">
-            <h3>إدارة الاعتراف بالإيراد</h3>
+            <h3>المعالجة المحاسبية للمنتج</h3>
             <div className="form-stack">
-              <label><input type="checkbox" checked={Boolean(settingsForm.subscriptionDeferredRevenueEnabled)} onChange={e=>updateSetting('subscriptionDeferredRevenueEnabled',e.target.checked)}/> تفعيل الإيراد المؤجل والاعتراف التلقائي للاشتراك</label>
-              <small>عند التفعيل: البيع يُرحّل إلى إيراد مؤجل، ويُنشأ جدول من تاريخ إلى تاريخ وتُرحّل القيود تلقائيًا. عند عدم التفعيل: يُرحّل مباشرة إلى إيراد الاشتراكات.</small>
+              <label>طريقة ترحيل إيراد المنتج
+                <select value={settingsForm.subscriptionDeferredRevenueEnabled ? 'deferred' : 'direct'} onChange={e=>updateSetting('subscriptionDeferredRevenueEnabled',e.target.value==='deferred')}>
+                  <option value="direct">إيراد مباشر</option>
+                  <option value="deferred">إيراد مؤجل — التزام</option>
+                </select>
+              </label>
+              <small>هذا الإعداد محفوظ على المنتج نفسه. نقطة البيع لا تختار المعالجة المحاسبية؛ هي تطبق إعداد المنتج تلقائيًا.</small>
               <div className="form-row">
                 <label>مدة الاشتراك بالأشهر<input type="number" min="1" max="120" value={settingsForm.subscriptionDurationMonths} onChange={e=>updateSetting('subscriptionDurationMonths',e.target.value)}/></label>
                 <label>طريقة الاعتراف<select value={settingsForm.subscriptionRecognitionMethod} onChange={e=>updateSetting('subscriptionRecognitionMethod',e.target.value)}><option value="monthly">شهري</option><option value="daily">يومي</option></select></label>

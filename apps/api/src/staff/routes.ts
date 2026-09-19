@@ -228,12 +228,35 @@ const productSchema = z.object({
   name: z.string().trim().min(2).max(200),
   categoryId: z.string().uuid(),
   brandId: z.string().uuid().nullable().optional(),
-  productType: z.string().trim().min(1).max(50).default('product'),
-  purchaseCost: z.coerce.number().min(0),
-  sellingPrice: z.coerce.number().min(0),
+  productType: z.enum(['product','service','subscription']).default('product'),
+  purchaseCost: z.coerce.number().min(0).default(0),
+  sellingPrice: z.coerce.number().min(0).default(0),
   taxCode: z.string().trim().max(50).nullable().optional(),
   reorderPoint: z.coerce.number().min(0).default(0),
   active: z.boolean().default(true),
+  inventoryValuationMethod: z.enum(['inherit','perpetual','periodic']).default('inherit'),
+  costMethod: z.enum(['inherit','standard','average','fifo']).default('inherit'),
+  inventoryTracking: z.enum(['none','lot','serial']).default('none'),
+  serialAutoGenerate: z.boolean().default(true),
+  serialPrefix: z.string().trim().max(30).nullable().optional(),
+  allowNegativeStock: z.boolean().default(false),
+  expiryTracking: z.boolean().default(false),
+  posAvailable: z.boolean().default(true),
+  ecommerceAvailable: z.boolean().default(false),
+  requiresCustomer: z.boolean().default(false),
+  requiresSpecialist: z.boolean().default(false),
+  purchaseAllowed: z.boolean().default(true),
+  salesUom: z.string().trim().min(1).max(30).default('unit'),
+  purchaseUom: z.string().trim().min(1).max(30).default('unit'),
+  minimumSalesPrice: z.coerce.number().min(0).nullable().optional(),
+  inventoryAccountId: z.string().uuid().nullable().optional(),
+  costOfSalesAccountId: z.string().uuid().nullable().optional(),
+  revenueAccountId: z.string().uuid().nullable().optional(),
+  purchaseAccountId: z.string().uuid().nullable().optional(),
+  salesReturnAccountId: z.string().uuid().nullable().optional(),
+  purchaseReturnAccountId: z.string().uuid().nullable().optional(),
+  deferredRevenueAccountId: z.string().uuid().nullable().optional(),
+  subscriptionRevenueAccountId: z.string().uuid().nullable().optional(),
 });
 
 const stockAdjustmentSchema = z.object({
@@ -244,6 +267,35 @@ const stockAdjustmentSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 });
 
+function normalizeProductSettings(data: z.infer<typeof productSchema>) {
+  const tracking = data.inventoryTracking;
+  return {
+    inventoryValuationMethod: data.inventoryValuationMethod === 'inherit' ? null : data.inventoryValuationMethod,
+    costMethod: data.costMethod === 'inherit' ? null : data.costMethod,
+    inventoryTracking: tracking,
+    serialTracking: tracking === 'serial',
+    serialAutoGenerate: data.serialAutoGenerate,
+    serialPrefix: data.serialPrefix ?? null,
+    allowNegativeStock: data.allowNegativeStock,
+    expiryTracking: data.expiryTracking,
+    posAvailable: data.posAvailable,
+    ecommerceAvailable: data.ecommerceAvailable,
+    requiresCustomer: data.requiresCustomer,
+    requiresSpecialist: data.requiresSpecialist,
+    purchaseAllowed: data.purchaseAllowed,
+    salesUom: data.salesUom,
+    purchaseUom: data.purchaseUom,
+    minimumSalesPrice: data.minimumSalesPrice == null ? null : data.minimumSalesPrice.toFixed(2),
+    inventoryAccountId: data.inventoryAccountId ?? null,
+    costOfSalesAccountId: data.costOfSalesAccountId ?? null,
+    revenueAccountId: data.revenueAccountId ?? null,
+    purchaseAccountId: data.purchaseAccountId ?? null,
+    salesReturnAccountId: data.salesReturnAccountId ?? null,
+    purchaseReturnAccountId: data.purchaseReturnAccountId ?? null,
+    deferredRevenueAccountId: data.deferredRevenueAccountId ?? null,
+    subscriptionRevenueAccountId: data.subscriptionRevenueAccountId ?? null,
+  };
+}
 
 staffRoutes.get('/catalog-options', async c => {
   const auth = await requirePermission(c, 'catalog.read'); if ('error' in auth) return auth.error;
@@ -263,6 +315,17 @@ staffRoutes.get('/products', async c => {
     brandId: products.brandId, productType: products.productType, purchaseCost: products.purchaseCost,
     sellingPrice: products.sellingPrice, taxCode: products.taxCode, reorderPoint: products.reorderPoint,
     active: products.active, categoryName: categories.name, brandName: brands.name,
+    inventoryValuationMethod: products.inventoryValuationMethod, costMethod: products.costMethod,
+    inventoryTracking: products.inventoryTracking, serialAutoGenerate: products.serialAutoGenerate,
+    serialPrefix: products.serialPrefix, allowNegativeStock: products.allowNegativeStock,
+    expiryTracking: products.expiryTracking, posAvailable: products.posAvailable,
+    ecommerceAvailable: products.ecommerceAvailable, requiresCustomer: products.requiresCustomer,
+    requiresSpecialist: products.requiresSpecialist, purchaseAllowed: products.purchaseAllowed,
+    salesUom: products.salesUom, purchaseUom: products.purchaseUom, minimumSalesPrice: products.minimumSalesPrice,
+    inventoryAccountId: products.inventoryAccountId, costOfSalesAccountId: products.costOfSalesAccountId,
+    revenueAccountId: products.revenueAccountId, purchaseAccountId: products.purchaseAccountId,
+    salesReturnAccountId: products.salesReturnAccountId, purchaseReturnAccountId: products.purchaseReturnAccountId,
+    deferredRevenueAccountId: products.deferredRevenueAccountId, subscriptionRevenueAccountId: products.subscriptionRevenueAccountId,
   }).from(products)
     .leftJoin(categories, eq(categories.id, products.categoryId))
     .leftJoin(brands, eq(brands.id, products.brandId))
@@ -270,11 +333,34 @@ staffRoutes.get('/products', async c => {
   return c.json({ products: rows });
 });
 
+staffRoutes.get('/products/:id', async c => {
+  const auth = await requirePermission(c, 'catalog.read'); if ('error' in auth) return auth.error;
+  const rows = await withDatabase(c.env, db => db.select({
+    id: products.id, sku: products.sku, name: products.name, categoryId: products.categoryId, brandId: products.brandId,
+    productType: products.productType, purchaseCost: products.purchaseCost, sellingPrice: products.sellingPrice,
+    taxCode: products.taxCode, reorderPoint: products.reorderPoint, active: products.active,
+    inventoryValuationMethod: products.inventoryValuationMethod, costMethod: products.costMethod,
+    inventoryTracking: products.inventoryTracking, serialAutoGenerate: products.serialAutoGenerate,
+    serialPrefix: products.serialPrefix, allowNegativeStock: products.allowNegativeStock, expiryTracking: products.expiryTracking,
+    posAvailable: products.posAvailable, ecommerceAvailable: products.ecommerceAvailable, requiresCustomer: products.requiresCustomer,
+    requiresSpecialist: products.requiresSpecialist, purchaseAllowed: products.purchaseAllowed, salesUom: products.salesUom,
+    purchaseUom: products.purchaseUom, minimumSalesPrice: products.minimumSalesPrice,
+    inventoryAccountId: products.inventoryAccountId, costOfSalesAccountId: products.costOfSalesAccountId,
+    revenueAccountId: products.revenueAccountId, purchaseAccountId: products.purchaseAccountId,
+    salesReturnAccountId: products.salesReturnAccountId, purchaseReturnAccountId: products.purchaseReturnAccountId,
+    deferredRevenueAccountId: products.deferredRevenueAccountId, subscriptionRevenueAccountId: products.subscriptionRevenueAccountId,
+  }).from(products).where(and(eq(products.id, c.req.param('id')), eq(products.centerId, auth.user.centerId!))).limit(1));
+  if (!rows[0]) return c.json({ error: { code: 'PRODUCT_NOT_FOUND', message: 'المنتج غير موجود' } }, 404);
+  const center = await withDatabase(c.env, db => db.select({ inventoryValuationMethod: sql<string>`inventory_valuation_method` }).from(sql`centers`).where(sql`id = ${auth.user.centerId!}`).limit(1));
+  return c.json({ product: rows[0], centerDefaultInventoryValuationMethod: center[0]?.inventoryValuationMethod ?? 'perpetual' });
+});
+
 staffRoutes.post('/products', async c => {
   const auth = await requirePermission(c, 'catalog.write'); if ('error' in auth) return auth.error;
   const body = productSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: body.error.issues[0]?.message ?? 'بيانات المنتج غير صحيحة' } }, 400);
   const data = body.data;
+  const settings = normalizeProductSettings(data);
   const created = await withDatabase(c.env, db => db.transaction(async tx => {
     const category = await tx.select({ id: categories.id }).from(categories)
       .where(and(eq(categories.id, data.categoryId), eq(categories.centerId, auth.user.centerId!), eq(categories.active, true))).limit(1);
@@ -290,9 +376,10 @@ staffRoutes.post('/products', async c => {
     const row = await tx.insert(products).values({
       centerId: auth.user.centerId!, sku: data.sku, name: data.name, categoryId: data.categoryId,
       brandId: data.brandId ?? null, productType: data.productType,
-      purchaseCost: NON_STOCK_PRODUCT_TYPES.includes(data.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) ? '0.00' : data.purchaseCost.toFixed(2),
+      purchaseCost: NON_STOCK_PRODUCT_TYPES.includes(data.productType) ? '0.00' : data.purchaseCost.toFixed(2),
       sellingPrice: data.sellingPrice.toFixed(2), taxCode: data.taxCode ?? null,
-      reorderPoint: NON_STOCK_PRODUCT_TYPES.includes(data.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) ? '0.000' : data.reorderPoint.toFixed(3), active: data.active,
+      reorderPoint: NON_STOCK_PRODUCT_TYPES.includes(data.productType) ? '0.000' : data.reorderPoint.toFixed(3),
+      active: data.active, ...settings,
     }).returning();
     return { product: row[0] };
   }));
@@ -306,47 +393,24 @@ staffRoutes.patch('/products/:id', async c => {
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'بيانات المنتج غير صحيحة' } }, 400);
   const data = body.data;
   const row = await withDatabase(c.env, db => db.transaction(async tx => {
-    const existing = await tx.select({
-      id: products.id,
-      categoryId: products.categoryId,
-      brandId: products.brandId,
-      productType: products.productType,
-    }).from(products).where(and(
-      eq(products.id, c.req.param('id')),
-      eq(products.centerId, auth.user.centerId!),
-    )).limit(1);
+    const existing = await tx.select({ id: products.id, categoryId: products.categoryId, brandId: products.brandId, productType: products.productType }).from(products)
+      .where(and(eq(products.id, c.req.param('id')), eq(products.centerId, auth.user.centerId!))).limit(1);
     if (!existing[0]) return { error: 'PRODUCT_NOT_FOUND' as const };
-
     if (data.categoryId !== undefined) {
-      const category = await tx.select({ id: categories.id }).from(categories).where(and(
-        eq(categories.id, data.categoryId),
-        eq(categories.centerId, auth.user.centerId!),
-        eq(categories.active, true),
-      )).limit(1);
+      const category = await tx.select({ id: categories.id }).from(categories).where(and(eq(categories.id, data.categoryId), eq(categories.centerId, auth.user.centerId!), eq(categories.active, true))).limit(1);
       if (!category[0]) return { error: 'CATEGORY_NOT_FOUND' as const };
     }
-
     if (data.brandId !== undefined && data.brandId !== null) {
-      const brand = await tx.select({ id: brands.id }).from(brands).where(and(
-        eq(brands.id, data.brandId),
-        eq(brands.centerId, auth.user.centerId!),
-        eq(brands.active, true),
-      )).limit(1);
+      const brand = await tx.select({ id: brands.id }).from(brands).where(and(eq(brands.id, data.brandId), eq(brands.centerId, auth.user.centerId!), eq(brands.active, true))).limit(1);
       if (!brand[0]) return { error: 'BRAND_NOT_FOUND' as const };
     }
-
     if (data.sku !== undefined) {
-      const duplicate = await tx.select({ id: products.id }).from(products).where(and(
-        eq(products.centerId, auth.user.centerId!),
-        eq(products.sku, data.sku),
-        sql`${products.id} <> ${c.req.param('id')}`,
-      )).limit(1);
+      const duplicate = await tx.select({ id: products.id }).from(products).where(and(eq(products.centerId, auth.user.centerId!), eq(products.sku, data.sku), sql`${products.id} <> ${c.req.param('id')}`)).limit(1);
       if (duplicate[0]) return { error: 'SKU_EXISTS' as const };
     }
-
     const nextProductType = data.productType ?? existing[0].productType;
     const nextIsNonStock = NON_STOCK_PRODUCT_TYPES.includes(nextProductType as (typeof NON_STOCK_PRODUCT_TYPES)[number]);
-    const updated = await tx.update(products).set({
+    const updateData: any = {
       ...(data.sku !== undefined ? { sku: data.sku } : {}),
       ...(data.name !== undefined ? { name: data.name } : {}),
       ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
@@ -359,22 +423,21 @@ staffRoutes.patch('/products/:id', async c => {
       ...(data.sellingPrice !== undefined ? { sellingPrice: data.sellingPrice.toFixed(2) } : {}),
       ...(data.taxCode !== undefined ? { taxCode: data.taxCode } : {}),
       ...(data.active !== undefined ? { active: data.active } : {}),
+      ...(Object.keys(data).some(k => ['inventoryValuationMethod','costMethod','inventoryTracking','serialAutoGenerate','serialPrefix','allowNegativeStock','expiryTracking','posAvailable','ecommerceAvailable','requiresCustomer','requiresSpecialist','purchaseAllowed','salesUom','purchaseUom','minimumSalesPrice','inventoryAccountId','costOfSalesAccountId','revenueAccountId','purchaseAccountId','salesReturnAccountId','purchaseReturnAccountId','deferredRevenueAccountId','subscriptionRevenueAccountId'].includes(k)) ? normalizeProductSettings({ ...({
+        sku: existing[0].id, name: 'x', categoryId: existing[0].categoryId, productType: existing[0].productType,
+        purchaseCost: 0, sellingPrice: 0, taxCode: null, reorderPoint: 0, active: true,
+      } as any), ...data }) : {}),
       updatedAt: new Date(),
-    }).where(and(
-      eq(products.id, c.req.param('id')),
-      eq(products.centerId, auth.user.centerId!),
-    )).returning();
-
+    };
+    const updated = await tx.update(products).set(updateData).where(and(eq(products.id, c.req.param('id')), eq(products.centerId, auth.user.centerId!))).returning();
     return { product: updated[0] };
   }));
-
   if ('error' in row) {
     if (row.error === 'PRODUCT_NOT_FOUND') return c.json({ error: { code: 'PRODUCT_NOT_FOUND', message: 'المنتج غير موجود' } }, 404);
     if (row.error === 'CATEGORY_NOT_FOUND') return c.json({ error: { code: 'CATEGORY_NOT_FOUND', message: 'التصنيف غير موجود أو لا يتبع للمركز' } }, 409);
     if (row.error === 'BRAND_NOT_FOUND') return c.json({ error: { code: 'BRAND_NOT_FOUND', message: 'العلامة التجارية غير موجودة أو لا تتبع للمركز' } }, 409);
     if (row.error === 'SKU_EXISTS') return c.json({ error: { code: 'SKU_EXISTS', message: 'SKU مستخدم بالفعل في هذا المركز' } }, 409);
   }
-
   return c.json({ product: row.product });
 });
 

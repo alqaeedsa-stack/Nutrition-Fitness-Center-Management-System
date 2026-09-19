@@ -347,7 +347,8 @@ customerPortalRoutes.get('/subscriptions', async c => {
     .where(and(eq(customerSubscriptions.customerId, auth.customerId), eq(customerSubscriptions.centerId, auth.user.centerId!)))
     .orderBy(desc(customerSubscriptions.startDate)));
 
-  return c.json({ subscriptions: rows });
+  const today = new Date().toISOString().slice(0, 10);
+  return c.json({ subscriptions: rows.map(row => ({ ...row, status: row.status === 'cancelled' ? 'cancelled' : row.endDate < today ? 'expired' : row.startDate > today ? 'scheduled' : 'active' })) });
 });
 
 customerPortalRoutes.get('/store/products', async c => {

@@ -12,7 +12,7 @@ export type PurchaseBindings = {
 
 export const purchaseRoutes = new Hono<{ Bindings: PurchaseBindings }>();
 
-async function access(c: any, permission: 'inventory.read' | 'inventory.adjust') {
+async function access(c: any, permission: 'purchases.read' | 'purchases.write') {
   return requirePermission(c, permission);
 }
 
@@ -59,7 +59,7 @@ function poNumber() {
 }
 
 purchaseRoutes.get('/vendors', async c => {
-  const auth = await access(c, 'inventory.read');
+  const auth = await access(c, 'purchases.read');
   if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select().from(vendors)
     .where(eq(vendors.centerId, auth.user.centerId!))
@@ -68,7 +68,7 @@ purchaseRoutes.get('/vendors', async c => {
 });
 
 purchaseRoutes.post('/vendors', async c => {
-  const auth = await access(c, 'inventory.adjust');
+  const auth = await access(c, 'purchases.write');
   if ('error' in auth) return auth.error;
   const parsed = vendorSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message ?? 'بيانات المورد غير صحيحة' } }, 400);
@@ -85,7 +85,7 @@ purchaseRoutes.post('/vendors', async c => {
 });
 
 purchaseRoutes.patch('/vendors/:id', async c => {
-  const auth = await access(c, 'inventory.adjust');
+  const auth = await access(c, 'purchases.write');
   if ('error' in auth) return auth.error;
   const parsed = vendorSchema.partial().safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'بيانات المورد غير صحيحة' } }, 400);
@@ -98,7 +98,7 @@ purchaseRoutes.patch('/vendors/:id', async c => {
 });
 
 purchaseRoutes.get('/orders', async c => {
-  const auth = await access(c, 'inventory.read');
+  const auth = await access(c, 'purchases.read');
   if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select({
     id: purchaseOrders.id, poNumber: purchaseOrders.poNumber, status: purchaseOrders.status,
@@ -112,7 +112,7 @@ purchaseRoutes.get('/orders', async c => {
 });
 
 purchaseRoutes.get('/orders/:id', async c => {
-  const auth = await access(c, 'inventory.read');
+  const auth = await access(c, 'purchases.read');
   if ('error' in auth) return auth.error;
   const order = await withDatabase(c.env, db => db.select({
     id: purchaseOrders.id, poNumber: purchaseOrders.poNumber, status: purchaseOrders.status,
@@ -132,7 +132,7 @@ purchaseRoutes.get('/orders/:id', async c => {
 });
 
 purchaseRoutes.post('/orders', async c => {
-  const auth = await access(c, 'inventory.adjust');
+  const auth = await access(c, 'purchases.write');
   if ('error' in auth) return auth.error;
   const parsed = purchaseOrderSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message ?? 'بيانات أمر الشراء غير صحيحة' } }, 400);
@@ -172,7 +172,7 @@ purchaseRoutes.post('/orders', async c => {
 });
 
 purchaseRoutes.patch('/orders/:id/status', async c => {
-  const auth = await access(c, 'inventory.adjust');
+  const auth = await access(c, 'purchases.write');
   if ('error' in auth) return auth.error;
   const parsed = z.object({ status: z.enum(['sent', 'confirmed', 'cancelled']) }).safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'INVALID_STATUS', message: 'حالة أمر الشراء غير صحيحة' } }, 400);
@@ -188,7 +188,7 @@ purchaseRoutes.patch('/orders/:id/status', async c => {
 });
 
 purchaseRoutes.post('/orders/:id/receive', async c => {
-  const auth = await access(c, 'inventory.adjust');
+  const auth = await access(c, 'purchases.write');
   if ('error' in auth) return auth.error;
   const parsed = receiveSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'بيانات الاستلام غير صحيحة' } }, 400);
@@ -284,7 +284,7 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
 
 
 purchaseRoutes.get('/receipts', async c => {
-  const auth = await access(c, 'inventory.read');
+  const auth = await access(c, 'purchases.read');
   if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select({
     id: purchaseReceipts.id,
@@ -305,7 +305,7 @@ purchaseRoutes.get('/receipts', async c => {
 });
 
 purchaseRoutes.get('/receipts/:id', async c => {
-  const auth = await access(c, 'inventory.read');
+  const auth = await access(c, 'purchases.read');
   if ('error' in auth) return auth.error;
   const receipt = await withDatabase(c.env, db => db.select({
     id: purchaseReceipts.id,
@@ -355,7 +355,7 @@ function returnNumber() {
 }
 
 purchaseRoutes.get('/dashboard', async c => {
-  const auth = await access(c, 'inventory.read');
+  const auth = await access(c, 'purchases.read');
   if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, async db => {
     const [orders, returns, vendorsCount, openOrders] = await Promise.all([
@@ -391,7 +391,7 @@ purchaseRoutes.get('/dashboard', async c => {
 });
 
 purchaseRoutes.get('/returns', async c => {
-  const auth = await access(c, 'inventory.read');
+  const auth = await access(c, 'purchases.read');
   if ('error' in auth) return auth.error;
   const rows = await withDatabase(c.env, db => db.select({
     id: purchaseReturns.id, returnNumber: purchaseReturns.returnNumber, status: purchaseReturns.status,
@@ -406,7 +406,7 @@ purchaseRoutes.get('/returns', async c => {
 });
 
 purchaseRoutes.get('/vendors/:id', async c => {
-  const auth = await access(c, 'inventory.read');
+  const auth = await access(c, 'purchases.read');
   if ('error' in auth) return auth.error;
   const vendor = await withDatabase(c.env, db => db.select().from(vendors)
     .where(and(eq(vendors.id, c.req.param('id')), eq(vendors.centerId, auth.user.centerId!))).limit(1));
@@ -437,7 +437,7 @@ purchaseRoutes.get('/vendors/:id', async c => {
 });
 
 purchaseRoutes.post('/returns', async c => {
-  const auth = await access(c, 'inventory.adjust');
+  const auth = await access(c, 'purchases.write');
   if ('error' in auth) return auth.error;
   const parsed = returnSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message ?? 'بيانات مرتجع الشراء غير صحيحة' } }, 400);

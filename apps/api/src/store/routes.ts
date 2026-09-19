@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { getAuthenticatedUser } from '../auth/session';
 import { withDatabase } from '../db/client';
 import { customerAccounts } from '../db/customer-accounts';
-import { customers, products, sales, saleItems, stockMovements, taxRates } from '../db/schema';
+import { customers, products, sales, saleItems, stockMovements } from '../db/schema';
+import { calculateTax } from '../tax/engine';
 import { requirePermission } from '../auth/permissions';
 import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
 import { postSale, reverseSale } from '../accounting/service';
@@ -142,9 +143,9 @@ storeRoutes.get('/admin/sales/:saleId', async c => {
 });
 
 const staffSaleSchema = z.object({
-  customerId: z.string().uuid(),
-  paymentMethod: z.enum(['cash', 'mada', 'card', 'bank_transfer', 'apple_pay']),
-  paymentStatus: z.enum(['paid', 'unpaid', 'partial']).default('paid'),
+  customerId: z.string().uuid().nullable().optional(),
+  paymentMethod: z.enum(['cash', 'mada', 'card', 'bank_transfer']),
+  paymentStatus: z.enum(['paid', 'unpaid']).default('paid'),
   items: z.array(z.object({
     productId: z.string().uuid(),
     quantity: z.number().positive().max(9999),
@@ -159,9 +160,12 @@ storeRoutes.post('/admin/sales', async c => {
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'بيانات البيع غير صحيحة' } }, 400);
 
   const result = await withDatabase(c.env, db => db.transaction(async tx => {
-    const customer = await tx.select({ id: customers.id }).from(customers)
-      .where(and(eq(customers.id, parsed.data.customerId), eq(customers.centerId, auth.user.centerId!), eq(customers.status, 'active'))).limit(1);
-    if (!customer[0]) return { error: 'CUSTOMER_NOT_FOUND' as const };
+    let customer: Array<{ id: string }> = [];
+    if (parsed.data.customerId) {
+      customer = await tx.select({ id: customers.id }).from(customers)
+        .where(and(eq(customers.id, parsed.data.customerId), eq(customers.centerId, auth.user.centerId!), eq(customers.status, 'active'))).limit(1);
+      if (!customer[0]) return { error: 'CUSTOMER_NOT_FOUND' as const };
+    }
 
     const productIds = [...new Set(parsed.data.items.map(item => item.productId))];
     const productRows = await tx.select({
@@ -169,16 +173,7 @@ storeRoutes.post('/admin/sales', async c => {
     }).from(products).where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds), eq(products.active, true)));
     if (productRows.length !== productIds.length) return { error: 'PRODUCT_NOT_FOUND' as const };
 
-    const taxCodes = [...new Set(productRows.map(product => product.taxCode).filter((code): code is string => Boolean(code)))];
-    const taxRows = taxCodes.length
-      ? await tx.select({ code: taxRates.code, rate: taxRates.rate, categoryCode: taxRates.categoryCode, exemptionReasonCode: taxRates.exemptionReasonCode })
-        .from(taxRates)
-        .where(and(eq(taxRates.centerId, auth.user.centerId!), inArray(taxRates.code, taxCodes), eq(taxRates.active, true)))
-      : [];
-    const taxMap = new Map(taxRows.map(row => [row.code, row]));
-    for (const product of productRows) {
-      if (product.taxCode && !taxMap.has(product.taxCode)) return { error: 'TAX_CONFIGURATION_REQUIRED' as const, taxCode: product.taxCode };
-    }
+    for (const id of productIds) await tx.execute(sql`select id from products where id = ${id} for update`);
 
     const movements = await tx.select({ productId: stockMovements.productId, quantity: stockMovements.quantity })
       .from(stockMovements).where(and(eq(stockMovements.centerId, auth.user.centerId!), inArray(stockMovements.productId, productIds)));
@@ -200,12 +195,29 @@ storeRoutes.post('/admin/sales', async c => {
       }
     }
 
-    const lineCalculations = parsed.data.items.map(item => {
+    const taxLines: Awaited<ReturnType<typeof calculateTax>>[] = [];
+    for (const item of parsed.data.items) {
+      const product = productRows.find(row => row.id === item.productId)!;
+      try {
+        taxLines.push(await calculateTax(tx, auth.user.centerId!, {
+          taxCode: product.taxCode,
+          quantity: item.quantity,
+          unitPrice: Number(product.sellingPrice),
+          discount: 0,
+        }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (message.startsWith('TAX_RATE_NOT_CONFIGURED:')) {
+          return { error: 'TAX_CONFIGURATION_REQUIRED' as const, taxCode: product.taxCode };
+        }
+        throw error;
+      }
+    }
+    const lineCalculations = parsed.data.items.map((item, index) => {
       const product = productRows.find(row => row.id === item.productId)!;
       const taxableBase = item.quantity * Number(product.sellingPrice);
-      const taxConfig = product.taxCode ? taxMap.get(product.taxCode) : null;
-      const taxAmount = taxConfig && taxConfig.categoryCode === 'S' ? taxableBase * Number(taxConfig.rate) / 100 : 0;
-      const lineTotal = taxableBase + taxAmount;
+      const taxAmount = taxLines[index].taxAmount;
+      const lineTotal = Math.max(0, taxableBase + taxAmount);
       return { item, product, taxableBase, taxAmount, lineTotal };
     });
     const subtotal = lineCalculations.reduce((sum, line) => sum + line.taxableBase, 0);
@@ -215,7 +227,7 @@ storeRoutes.post('/admin/sales', async c => {
 
     const sale = await tx.insert(sales).values({
       centerId: auth.user.centerId!,
-      customerId: customer[0].id,
+      customerId: customer[0]?.id ?? null,
       cashierId: auth.user.userId,
       saleNumber,
       status: 'completed',

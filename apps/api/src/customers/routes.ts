@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, lte, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, lte, ne, or } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { appointments, customerFollowUps, customers, fitnessPlans, measurementRecords, measurementTypes, nutritionPlans, sales, staffProfiles, customerSubscriptions, products } from '../db/schema';

@@ -100,6 +100,10 @@ appointmentRoutes.post('/', async c => {
   if (!body.success) return c.json({ error: { code: 'INVALID_INPUT', message: body.error.issues[0]?.message ?? 'بيانات الموعد غير صحيحة' } }, 400);
 
   const data = body.data;
+  // New appointments always enter the workflow as scheduled; completion/cancellation/no-show are lifecycle actions.
+  if (data.status !== 'scheduled') {
+    return c.json({ error: { code: 'INVALID_INITIAL_STATUS', message: 'يجب إنشاء الموعد بالحالة المجدولة أولًا' } }, 400);
+  }
   const startsAt = new Date(data.startsAt);
   const endsAt = new Date(data.endsAt);
   if (endsAt <= startsAt) return c.json({ error: { code: 'INVALID_TIME_RANGE', message: 'وقت نهاية الموعد يجب أن يكون بعد وقت البداية' } }, 400);

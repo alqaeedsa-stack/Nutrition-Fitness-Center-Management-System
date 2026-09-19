@@ -27,6 +27,8 @@ export default function Appointments({ user }: { user: User }) {
   const [form, setForm] = useState({ customerId:'', staffId:'', startsAt:'', endsAt:'', appointmentType:'استشارة', status:'scheduled', notes:'' });
   const [editingId, setEditingId] = useState('');
   const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [staffFilter, setStaffFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -73,7 +75,19 @@ export default function Appointments({ user }: { user: User }) {
     catch(e){setError(e instanceof Error ? e.message : 'تعذر تحديث الحالة');}
   }
 
-  const visible=appointments.filter(x=>filter==='all'||x.status===filter);
+  const normalizedSearch = search.trim().toLowerCase();
+  const visible=appointments.filter(x=>{
+    const matchesStatus=filter==='all'||x.status===filter;
+    const matchesStaff=staffFilter==='all'||x.staffId===staffFilter;
+    const haystack=(x.customerName+' '+x.customerLastName+' '+x.staffName+' '+x.appointmentType).toLowerCase();
+    return matchesStatus&&matchesStaff&&(!normalizedSearch||haystack.includes(normalizedSearch));
+  });
+  const appointmentKpis=[
+    [t('إجمالي المواعيد','Total appointments'),appointments.length],
+    [t('مجدولة','Scheduled'),appointments.filter(x=>x.status==='scheduled').length],
+    [t('مؤكدة','Confirmed'),appointments.filter(x=>x.status==='confirmed').length],
+    [t('مكتملة','Completed'),appointments.filter(x=>x.status==='completed').length],
+  ] as const;
   return <main className="app-shell">
     <header className="app-header"><div><span className="eyebrow">{t('المواعيد','Appointments')}</span><h1>{t('المواعيد','Appointments')}</h1></div><Link className="secondary-button" to="/admin/dashboard">{t('لوحة الإدارة','Admin Dashboard')}</Link></header>
     {canManage && <section className="staff-management-grid">
@@ -94,7 +108,12 @@ export default function Appointments({ user }: { user: User }) {
       </section>
       <section className="panel">
         <p className="eyebrow">اليوم والمواعيد القادمة</p><h2>مواعيد المركز</h2>
-        <div className="portal-choice-actions">{[['all','الكل'],...statuses].map(([v,l])=><button key={v} className={`secondary-button ${filter===v?'active':''}`} onClick={()=>setFilter(v)}>{l}</button>)}</div>
+        <div className="erp-kpi-strip">{appointmentKpis.map(([label,value])=><div className="erp-kpi" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+        <div className="module-toolbar"><div className="toolbar-filters">
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t('بحث بالعميل أو المختص أو نوع الموعد','Search customer, specialist or appointment type')} />
+          <select value={staffFilter} onChange={e=>setStaffFilter(e.target.value)}><option value="all">{t('كل المختصين','All specialists')}</option>{staff.map(x=><option key={x.id} value={x.id}>{x.name} {x.lastName??''}</option>)}</select>
+        </div></div>
+        <div className="portal-choice-actions">{[['all',t('الكل','All')],...statuses.map(([v,l])=>[v,t(l,l)])].map(([v,l])=><button type="button" key={v} className={`secondary-button ${filter===v?'active':''}`} onClick={()=>setFilter(v)}>{l}</button>)}</div>
       </section>
     </section>}
     {!canManage && <div className="info-strip warning">لديك صلاحية عرض المواعيد فقط. تعديل المواعيد متاح للمستخدمين الذين لديهم صلاحية إدارة المواعيد.</div>}

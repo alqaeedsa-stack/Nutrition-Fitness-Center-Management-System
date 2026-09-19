@@ -19,6 +19,8 @@ async function auth(c: any, permission: 'nutrition.read' | 'nutrition.write') {
   return result;
 }
 
+const NUTRITION_SPECIALIST_TYPES = ['doctor', 'nutritionist', 'specialist'] as const;
+
 const planSchema = z.object({
   customerId: z.string().uuid(),
   specialistId: z.string().uuid(),
@@ -78,7 +80,7 @@ nutritionRoutes.get('/options', async c => {
       .orderBy(asc(customers.firstName))),
     withDatabase(c.env, db => db.select({ id: users.id, name: staffProfiles.displayName, staffType: staffProfiles.staffType })
       .from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id))
-      .where(and(eq(users.centerId, a.user.centerId!), eq(staffProfiles.active, true)))
+      .where(and(eq(users.centerId, a.user.centerId!), eq(staffProfiles.active, true), inArray(staffProfiles.staffType, [...NUTRITION_SPECIALIST_TYPES])))
       .orderBy(asc(staffProfiles.displayName))),
   ]);
   return c.json({ customers: customerRows, specialists: specialistRows });
@@ -97,7 +99,7 @@ nutritionRoutes.post('/', async c => {
     const [customer] = await tx.select({ id: customers.id }).from(customers)
       .where(and(eq(customers.id, d.customerId), eq(customers.centerId, a.user.centerId!), eq(customers.status, 'active'))).limit(1);
     const [specialist] = await tx.select({ id: users.id }).from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id))
-      .where(and(eq(users.id, d.specialistId), eq(users.centerId, a.user.centerId!), eq(staffProfiles.active, true))).limit(1);
+      .where(and(eq(users.id, d.specialistId), eq(users.centerId, a.user.centerId!), eq(staffProfiles.active, true), inArray(staffProfiles.staffType, [...NUTRITION_SPECIALIST_TYPES]))).limit(1);
     if (!customer) return { error: 'CUSTOMER_NOT_FOUND' as const };
     if (!specialist) return { error: 'SPECIALIST_NOT_FOUND' as const };
     const [row] = await tx.insert(nutritionPlans).values({

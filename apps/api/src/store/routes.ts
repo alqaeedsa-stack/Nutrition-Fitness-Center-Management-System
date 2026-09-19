@@ -236,13 +236,12 @@ storeRoutes.post('/admin/sales', async c => {
           return { error: 'BELOW_COST' as const, productId: item.productId, sellingPrice: Number(product.sellingPrice), purchaseCost: currentCost };
         }
       }
-      if (product.productType === 'subscription' && product.subscriptionDeferredRevenueEnabled) {
+      if (product.productType === 'subscription') {
         if (!customer[0]) return { error: 'SUBSCRIPTION_CUSTOMER_REQUIRED' as const };
         if (!item.startDate) return { error: 'SUBSCRIPTION_START_REQUIRED' as const, productId: item.productId };
-        if (!item.endDate && !product.subscriptionDurationMonths) return { error: 'SUBSCRIPTION_END_REQUIRED' as const, productId: item.productId };
-        if (item.endDate && item.endDate < item.startDate) return { error: 'INVALID_SUBSCRIPTION_DATE_RANGE' as const, productId: item.productId };
-      }
-    }
+        if (!item.endDate) return { error: 'SUBSCRIPTION_END_REQUIRED' as const, productId: item.productId };
+        if (item.endDate < item.startDate) return { error: 'INVALID_SUBSCRIPTION_DATE_RANGE' as const, productId: item.productId };
+      }    }
 
     const taxLines: Awaited<ReturnType<typeof calculateTax>>[] = [];
     for (const item of parsed.data.items) {

@@ -26,6 +26,10 @@ accountingRoutes.post('/accounts',async c=>{
   const parsed=accountSchema.safeParse(await c.req.json().catch(()=>null)); if(!parsed.success)return c.json({error:{code:'VALIDATION_ERROR',message:'بيانات الحساب غير صحيحة',details:parsed.error.flatten()}},400);
   const x=parsed.data;
   try{
+    if (x.parentId) {
+      const parent = await withDatabase(c.env,db=>db.execute(sql`select id from accounting_accounts where id=${x.parentId} and center_id=${auth.user.centerId!} limit 1`));
+      if (!parent.rows[0]) return c.json({error:{code:'ACCOUNT_PARENT_INVALID',message:'الحساب الأب غير تابع للمركز'}},400);
+    }
     const r=await withDatabase(c.env,db=>db.execute(sql`insert into accounting_accounts(center_id,parent_id,code,name,account_type,created_by) values(${auth.user.centerId!},${x.parentId??null},${x.code},${x.name},${x.accountType},${auth.user.userId}) returning id,code,name,account_type as "accountType",parent_id as "parentId"`));
     return c.json({account:r.rows[0]},201);
   }catch(e){return c.json({error:{code:'ACCOUNT_CREATE_FAILED',message:'تعذر إنشاء الحساب',detail:e instanceof Error?e.message:'unknown'}},400);}
@@ -41,6 +45,37 @@ accountingRoutes.post('/settings',async c=>{
   const parsed=settingsSchema.safeParse(await c.req.json().catch(()=>null)); if(!parsed.success)return c.json({error:{code:'VALIDATION_ERROR',message:'إعدادات المحاسبة غير صحيحة',details:parsed.error.flatten()}},400);
   const x=parsed.data;
   try{
+    const selected = [
+      ['inventoryAccountId', x.inventoryAccountId],
+      ['inputVatAccountId', x.inputVatAccountId],
+      ['accountsPayableAccountId', x.accountsPayableAccountId],
+      ['cashBankAccountId', x.cashBankAccountId],
+      ['accountsReceivableAccountId', x.accountsReceivableAccountId],
+      ['revenueAccountId', x.revenueAccountId],
+      ['outputVatAccountId', x.outputVatAccountId],
+      ['costOfSalesAccountId', x.costOfSalesAccountId],
+    ] as const;
+    const ids = selected.map(([, id]) => id).filter((id): id is string => Boolean(id));
+    if (ids.length) {
+      const rows = await withDatabase(c.env,db=>db.execute(sql`select id,account_type as "accountType" from accounting_accounts where center_id=${auth.user.centerId!} and id in (${sql.join(ids.map(id=>sql`${id}`),sql`,`)})`));
+      if (rows.rows.length !== ids.length) return c.json({error:{code:'ACCOUNT_SCOPE_INVALID',message:'أحد الحسابات المختارة لا يتبع للمركز'}},400);
+      const byId = new Map(rows.rows.map((row:any)=>[row.id,row.accountType]));
+      const expected: Record<string,string[]> = {
+        inventoryAccountId:['asset','expense'],
+        inputVatAccountId:['asset'],
+        accountsPayableAccountId:['liability'],
+        cashBankAccountId:['asset'],
+        accountsReceivableAccountId:['asset'],
+        revenueAccountId:['revenue'],
+        outputVatAccountId:['liability'],
+        costOfSalesAccountId:['expense'],
+      };
+      for (const [key,id] of selected) {
+        if (!id) continue;
+        const type = byId.get(id);
+        if (!type || !expected[key].includes(type)) return c.json({error:{code:'ACCOUNT_TYPE_INVALID',message:`نوع الحساب غير مناسب للإعداد: ${key}`}},400);
+      }
+    }
     const r=await withDatabase(c.env,db=>db.execute(sql`insert into accounting_settings(center_id,inventory_account_id,input_vat_account_id,accounts_payable_account_id,cash_bank_account_id,accounts_receivable_account_id,revenue_account_id,output_vat_account_id,cost_of_sales_account_id,updated_by) values(${auth.user.centerId!},${x.inventoryAccountId??null},${x.inputVatAccountId??null},${x.accountsPayableAccountId??null},${x.cashBankAccountId??null},${x.accountsReceivableAccountId??null},${x.revenueAccountId??null},${x.outputVatAccountId??null},${x.costOfSalesAccountId??null},${auth.user.userId}) on conflict(center_id) do update set inventory_account_id=excluded.inventory_account_id,input_vat_account_id=excluded.input_vat_account_id,accounts_payable_account_id=excluded.accounts_payable_account_id,cash_bank_account_id=excluded.cash_bank_account_id,accounts_receivable_account_id=excluded.accounts_receivable_account_id,revenue_account_id=excluded.revenue_account_id,output_vat_account_id=excluded.output_vat_account_id,cost_of_sales_account_id=excluded.cost_of_sales_account_id,updated_by=excluded.updated_by,updated_at=now() returning *`));
     return c.json({settings:r.rows[0]});
   }catch(e){return c.json({error:{code:'SETTINGS_FAILED',message:'تعذر حفظ إعدادات المحاسبة',detail:e instanceof Error?e.message:'unknown'}},400);}

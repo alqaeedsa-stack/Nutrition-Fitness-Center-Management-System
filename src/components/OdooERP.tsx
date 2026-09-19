@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 export type ERPView = 'list' | 'kanban' | 'form' | 'pivot' | 'graph';

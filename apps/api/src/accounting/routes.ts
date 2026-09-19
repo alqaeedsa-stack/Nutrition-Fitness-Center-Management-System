@@ -7,7 +7,7 @@ import { requirePermission } from '../auth/permissions';
 export type AccountingBindings = { HYPERDRIVE?: { connectionString: string }; DATABASE_URL?: string };
 export const accountingRoutes = new Hono<{ Bindings: AccountingBindings }>();
 
-async function access(c:any, permission:'accounting.read'|'accounting.write') { return requirePermission(c, permission); }
+async function access(c:any, permission:any) { return requirePermission(c, permission); }
 
 function reportDates(c:any) {
   const from=c.req.query('from') ?? new Date(new Date().getFullYear(),0,1).toISOString().slice(0,10);
@@ -21,15 +21,17 @@ const accountSchema=z.object({
   name:z.string().trim().min(1).max(200),
   accountType:z.enum(['asset','liability','equity','revenue','expense']),
   parentId:z.string().uuid().optional().nullable(),
+  statementSection:z.enum(['balance_sheet','profit_loss','other_comprehensive_income','equity']).default('balance_sheet'),
+  allowReconciliation:z.boolean().default(false),
 });
 
 accountingRoutes.get('/accounts',async c=>{
   const auth=await access(c,'accounting.read'); if('error' in auth)return auth.error;
-  const rows=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",a.parent_id as "parentId",p.code as "parentCode",p.name as "parentName",a.is_active as "isActive",a.is_system as "isSystem" from accounting_accounts a left join accounting_accounts p on p.id=a.parent_id where a.center_id=${auth.user.centerId!} order by a.code`));
+  const rows=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",a.parent_id as "parentId",p.code as "parentCode",p.name as "parentName",a.is_active as "isActive",a.is_system as "isSystem",a.statement_section as "statementSection",a.allow_reconciliation as "allowReconciliation" from accounting_accounts a left join accounting_accounts p on p.id=a.parent_id where a.center_id=${auth.user.centerId!} order by a.code`));
   return c.json({accounts:rows.rows});
 });
 accountingRoutes.put('/accounts/:id',async c=>{
-  const auth=await access(c,'accounting.write'); if('error' in auth)return auth.error;
+  const auth=await access(c,'accounting.accounts.update'); if('error' in auth)return auth.error;
   const accountId=c.req.param('id');
   if(!z.string().uuid().safeParse(accountId).success)return c.json({error:{code:'INVALID_ACCOUNT_ID',message:'معرف الحساب غير صحيح'}},400);
   const parsed=accountSchema.safeParse(await c.req.json().catch(()=>null)); if(!parsed.success)return c.json({error:{code:'VALIDATION_ERROR',message:'بيانات الحساب غير صحيحة',details:parsed.error.flatten()}},400);
@@ -50,26 +52,26 @@ accountingRoutes.put('/accounts/:id',async c=>{
       ) select id from descendants where id=${x.parentId} limit 1`));
       if(cycle.rows[0])return c.json({error:{code:'ACCOUNT_CYCLE',message:'لا يمكن نقل الحساب أسفل أحد الحسابات التابعة له'}},400);
     }
-    const r=await withDatabase(c.env,db=>db.execute(sql`update accounting_accounts set parent_id=${x.parentId??null},code=${x.code},name=${x.name},account_type=${x.accountType},updated_at=now() where id=${accountId} and center_id=${auth.user.centerId!} returning id,code,name,account_type as "accountType",parent_id as "parentId",is_active as "isActive",is_system as "isSystem"`));
+    const r=await withDatabase(c.env,db=>db.execute(sql`update accounting_accounts set parent_id=${x.parentId??null},code=${x.code},name=${x.name},account_type=${x.accountType},statement_section=${x.statementSection},allow_reconciliation=${x.allowReconciliation},updated_at=now() where id=${accountId} and center_id=${auth.user.centerId!} returning id,code,name,account_type as "accountType",parent_id as "parentId",is_active as "isActive",is_system as "isSystem",statement_section as "statementSection",allow_reconciliation as "allowReconciliation"`));
     return c.json({account:r.rows[0]});
   }catch(e){return c.json({error:{code:'ACCOUNT_UPDATE_FAILED',message:'تعذر تعديل الحساب',detail:e instanceof Error?e.message:'unknown'}},400);}
 });
 
 accountingRoutes.post('/accounts/:id/duplicate',async c=>{
-  const auth=await access(c,'accounting.write'); if('error' in auth)return auth.error;
+  const auth=await access(c,'accounting.accounts.duplicate'); if('error' in auth)return auth.error;
   const accountId=c.req.param('id');
   const parsed=z.object({code:z.string().trim().min(1).max(30),name:z.string().trim().min(1).max(200)}).safeParse(await c.req.json().catch(()=>null));
   if(!parsed.success)return c.json({error:{code:'VALIDATION_ERROR',message:'رقم واسم الحساب الجديد مطلوبان'}},400);
   try{
-    const source=await withDatabase(c.env,db=>db.execute(sql`select parent_id as "parentId",account_type as "accountType" from accounting_accounts where id=${accountId} and center_id=${auth.user.centerId!} limit 1`));
+    const source=await withDatabase(c.env,db=>db.execute(sql`select parent_id as "parentId",account_type as "accountType",statement_section as "statementSection",allow_reconciliation as "allowReconciliation" from accounting_accounts where id=${accountId} and center_id=${auth.user.centerId!} limit 1`));
     if(!source.rows[0])return c.json({error:{code:'ACCOUNT_NOT_FOUND',message:'الحساب غير موجود'}},404);
-    const r=await withDatabase(c.env,db=>db.execute(sql`insert into accounting_accounts(center_id,parent_id,code,name,account_type,created_by,is_active,is_system) values(${auth.user.centerId!},${source.rows[0].parentId},${parsed.data.code},${parsed.data.name},${source.rows[0].accountType},${auth.user.userId},true,false) returning id,code,name,account_type as "accountType",parent_id as "parentId",is_active as "isActive",is_system as "isSystem"`));
+    const r=await withDatabase(c.env,db=>db.execute(sql`insert into accounting_accounts(center_id,parent_id,code,name,account_type,statement_section,allow_reconciliation,created_by,is_active,is_system) values(${auth.user.centerId!},${source.rows[0].parentId},${parsed.data.code},${parsed.data.name},${source.rows[0].accountType},${source.rows[0].statementSection},${source.rows[0].allowReconciliation},${auth.user.userId},true,false) returning id,code,name,account_type as "accountType",parent_id as "parentId",is_active as "isActive",is_system as "isSystem"`));
     return c.json({account:r.rows[0]},201);
   }catch(e){return c.json({error:{code:'ACCOUNT_DUPLICATE_FAILED',message:'تعذر تكرار الحساب — تأكد أن رقم الحساب غير مستخدم',detail:e instanceof Error?e.message:'unknown'}},400);}
 });
 
 accountingRoutes.patch('/accounts/:id/archive',async c=>{
-  const auth=await access(c,'accounting.write'); if('error' in auth)return auth.error;
+  const auth=await access(c,'accounting.accounts.archive'); if('error' in auth)return auth.error;
   const accountId=c.req.param('id');
   try{
     const r=await withDatabase(c.env,db=>db.execute(sql`update accounting_accounts set is_active=false,updated_at=now() where id=${accountId} and center_id=${auth.user.centerId!} and is_system=false returning id,code,name,is_active as "isActive"`));
@@ -79,7 +81,7 @@ accountingRoutes.patch('/accounts/:id/archive',async c=>{
 });
 
 accountingRoutes.patch('/accounts/:id/restore',async c=>{
-  const auth=await access(c,'accounting.write'); if('error' in auth)return auth.error;
+  const auth=await access(c,'accounting.accounts.archive'); if('error' in auth)return auth.error;
   const accountId=c.req.param('id');
   try{
     const r=await withDatabase(c.env,db=>db.execute(sql`update accounting_accounts set is_active=true,updated_at=now() where id=${accountId} and center_id=${auth.user.centerId!} and is_system=false returning id,code,name,is_active as "isActive"`));
@@ -89,7 +91,7 @@ accountingRoutes.patch('/accounts/:id/restore',async c=>{
 });
 
 accountingRoutes.delete('/accounts/:id',async c=>{
-  const auth=await access(c,'accounting.write'); if('error' in auth)return auth.error;
+  const auth=await access(c,'accounting.accounts.delete'); if('error' in auth)return auth.error;
   const accountId=c.req.param('id');
   try{
     const current=await withDatabase(c.env,db=>db.execute(sql`select id,is_system as "isSystem" from accounting_accounts where id=${accountId} and center_id=${auth.user.centerId!} limit 1`));

@@ -40,7 +40,7 @@ accountingRoutes.get('/accounts/:id',async c=>{
   const accountId=c.req.param('id');
   if(!z.string().uuid().safeParse(accountId).success)return c.json({error:{code:'INVALID_ACCOUNT_ID',message:'معرف الحساب غير صحيح'}},400);
   try{
-    const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",a.parent_id as "parentId",p.code as "parentCode",p.name as "parentName",a.is_active as "isActive",a.is_system as "isSystem",a.statement_section as "statementSection",a.allow_reconciliation as "allowReconciliation",a.created_at as "createdAt",a.updated_at as "updatedAt" from accounting_accounts a left join accounting_accounts p on p.id=a.parent_id and p.center_id=a.center_id where a.id=${accountId} and a.center_id=${auth.user.centerId!} limit 1`);
+    const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",a.parent_id as "parentId",p.code as "parentCode",p.name as "parentName",a.is_active as "isActive",a.is_system as "isSystem",a.statement_section as "statementSection",a.allow_reconciliation as "allowReconciliation",a.created_at as "createdAt",a.updated_at as "updatedAt" from accounting_accounts a left join accounting_accounts p on p.id=a.parent_id and p.center_id=a.center_id where a.id=${accountId} and a.center_id=${auth.user.centerId!} limit 1`));
     if(!r.rows[0])return c.json({error:{code:'ACCOUNT_NOT_FOUND',message:'الحساب غير موجود'}},404);
     const refs=await withDatabase(c.env,db=>db.execute(sql`
       select

@@ -20,6 +20,9 @@ export type PermissionCode =
   | 'pos.void'
   | 'orders.read'
   | 'orders.update'
+  | 'measurements.read'
+  | 'measurements.write'
+  | 'followups.write'
   | 'nutrition.read'
   | 'nutrition.write'
   | 'fitness.read'
@@ -51,6 +54,9 @@ export const PERMISSIONS: Array<{ code: PermissionCode; resource: string; action
   { code: 'pos.void', resource: 'pos', action: 'void', name: 'إلغاء مبيعات' },
   { code: 'orders.read', resource: 'orders', action: 'read', name: 'عرض الطلبات' },
   { code: 'orders.update', resource: 'orders', action: 'update', name: 'تعديل حالات الطلبات' },
+  { code: 'measurements.read', resource: 'measurements', action: 'read', name: 'عرض القياسات' },
+  { code: 'measurements.write', resource: 'measurements', action: 'write', name: 'إدارة القياسات' },
+  { code: 'followups.write', resource: 'followups', action: 'write', name: 'إدارة المتابعات' },
   { code: 'nutrition.read', resource: 'nutrition', action: 'read', name: 'عرض الخطط الغذائية' },
   { code: 'nutrition.write', resource: 'nutrition', action: 'write', name: 'إدارة الخطط الغذائية' },
   { code: 'fitness.read', resource: 'fitness', action: 'read', name: 'عرض الخطط الرياضية' },

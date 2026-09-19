@@ -17,7 +17,7 @@ import Vendors from './Vendors';
 import VendorBilling from './VendorBilling';
 import Accounting from './Accounting';
 import { LanguageProvider, LanguageSwitcher, useLanguage } from './i18n';
-import { OdooBreadcrumbs, OdooActionMenu, OdooSearchToolbar, OdooViewSwitcher, ERPView } from './components/OdooERP';
+import { OdooBreadcrumbs, OdooActionMenu, OdooSearchToolbar, OdooViewSwitcher, ERPView, ERPModuleNav } from './components/OdooERP';
 
 type AuthUser = {
   id: string;
@@ -940,6 +940,7 @@ function ERPRouteChrome({ title, children }: { title: string; children: ReactNod
   ];
   return <div className="erp-route-chrome">
     <OdooBreadcrumbs items={[{ label: 'الإدارة', to: '/admin/dashboard' }, { label: title }]} />
+    <ERPModuleNav title={title} />
     <div className="erp-page-tools">
       <OdooSearchToolbar value={search} onChange={setSearch} placeholder={'بحث داخل ' + title + '...'} filters={filter ? [filter] : []} onFilter={setFilter} />
       <div className="erp-page-actions">

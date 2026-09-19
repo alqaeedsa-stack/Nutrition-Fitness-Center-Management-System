@@ -131,7 +131,7 @@ export default function MeasurementsManagement() {
       {error && <div className="info-strip warning">{error}</div>}
       {message && <div className="info-strip">{message}</div>}
 
-      <section className="panel">
+      <section className="panel"><div className="erp-kpi-strip">{measurementKpis.map(([label,value])=><div className="erp-kpi" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div><div className="module-toolbar"><div className="toolbar-filters"><input value={tableSearch} onChange={e=>setTableSearch(e.target.value)} placeholder={t('بحث بالعميل أو نوع القياس','Search customer or measurement type')} /></div></div>
         <div className="panel-heading-row">
           <div>
             <p className="eyebrow">تسجيل القياس</p>

@@ -686,3 +686,160 @@ textarea:focus-visible {
 .erp-route-chrome{width:100%;margin-bottom:10px}
 .erp-page-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 @media(max-width:560px){.erp-page-actions{width:100%}.erp-page-actions>*{flex:1}.erp-action-menu{min-width:0}.erp-action-menu>.secondary-button{width:100%}}
+
+
+/* Final ERP button treatment — colored, clear, and consistent */
+:root {
+  --ux-primary: #059669;
+  --ux-primary-dark: #047857;
+  --ux-primary-soft: #ECFDF5;
+  --ux-gold: #C9A961;
+  --ux-gold-soft: #FBF7ED;
+  --ux-blue: #2563EB;
+  --ux-blue-soft: #EFF6FF;
+}
+
+.primary-action {
+  background: var(--ux-primary);
+  border: 1px solid var(--ux-primary);
+  color: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(5,150,105,.16);
+}
+.primary-action:hover {
+  background: var(--ux-primary-dark);
+  border-color: var(--ux-primary-dark);
+  box-shadow: 0 5px 14px rgba(5,150,105,.20);
+  transform: translateY(-1px);
+}
+.primary-action:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 5px rgba(5,150,105,.16);
+}
+
+.secondary-button {
+  border: 1px solid #B7D9CC;
+  background: var(--ux-primary-soft);
+  color: #065F46;
+  border-radius: 8px;
+  box-shadow: none;
+}
+.secondary-button:hover {
+  background: #DFF7ED;
+  border-color: #86C8B0;
+  color: #064E3B;
+  box-shadow: 0 3px 9px rgba(5,150,105,.10);
+  transform: translateY(-1px);
+}
+.secondary-button:active {
+  transform: translateY(0);
+}
+.secondary-button.active {
+  background: var(--ux-primary);
+  border-color: var(--ux-primary);
+  color: #FFFFFF;
+  box-shadow: 0 2px 7px rgba(5,150,105,.16);
+}
+
+.nav-login {
+  border: 1px solid #D8C89D;
+  background: var(--ux-gold-soft);
+  color: #705A22;
+}
+.nav-login:hover {
+  background: #F6EED9;
+  border-color: #C9A961;
+  color: #5E4A1B;
+}
+
+.erp-view-switcher {
+  border-color: #B7D9CC;
+  background: #F8FFFC;
+}
+.erp-view-switcher button {
+  border-inline-start-color: #D7E9E2;
+  background: #F8FFFC;
+  color: #356B5B;
+}
+.erp-view-switcher button:hover {
+  background: #ECFDF5;
+  color: #065F46;
+}
+.erp-view-switcher button.active {
+  background: var(--ux-primary);
+  color: #FFFFFF;
+  box-shadow: inset 0 -2px 0 rgba(255,255,255,.28);
+}
+
+.erp-action-menu > .secondary-button {
+  background: var(--ux-gold-soft);
+  border-color: #D8C89D;
+  color: #705A22;
+}
+.erp-action-menu > .secondary-button:hover {
+  background: #F6EED9;
+  border-color: var(--ux-gold);
+  color: #5E4A1B;
+}
+.erp-action-menu-popover {
+  border-color: #D8C89D;
+}
+.erp-action-menu-popover button {
+  color: #4B5563;
+}
+.erp-action-menu-popover button:hover {
+  background: var(--ux-gold-soft);
+  color: #5E4A1B;
+}
+
+.erp-smart-buttons button {
+  border-color: #B7D9CC;
+  background: #F8FFFC;
+  color: #065F46;
+}
+.erp-smart-buttons button:hover {
+  background: var(--ux-primary-soft);
+  border-color: #86C8B0;
+  color: #064E3B;
+  box-shadow: 0 3px 9px rgba(5,150,105,.10);
+  transform: translateY(-1px);
+}
+.erp-smart-buttons strong {
+  color: #065F46;
+}
+
+.odoo-dashboard-quick a {
+  border-color: #B7D9CC;
+  background: var(--ux-primary-soft);
+  color: #065F46;
+}
+.odoo-dashboard-quick a:hover {
+  background: #DFF7ED;
+  border-color: #86C8B0;
+  color: #064E3B;
+  box-shadow: 0 3px 9px rgba(5,150,105,.10);
+}
+
+.odoo-statusbar {
+  border-color: #CFE3DA;
+  background: #F8FFFC;
+}
+.odoo-statusbar span.current {
+  background: var(--ux-primary);
+  color: #FFFFFF;
+  box-shadow: 0 2px 6px rgba(5,150,105,.16);
+}
+
+.portal-choice-actions .secondary-button {
+  background: var(--ux-primary-soft);
+  border-color: #B7D9CC;
+  color: #065F46;
+}
+
+button:disabled,
+.primary-action:disabled,
+.secondary-button:disabled {
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}

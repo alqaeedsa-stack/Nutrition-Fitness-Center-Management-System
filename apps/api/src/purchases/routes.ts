@@ -119,7 +119,7 @@ purchaseRoutes.get('/orders/:id', async c => {
   if (!order[0]) return c.json({ error: { code: 'PO_NOT_FOUND', message: 'أمر الشراء غير موجود' } }, 404);
   const items = await withDatabase(c.env, db => db.select({
     id: purchaseOrderItems.id, productId: purchaseOrderItems.productId, productName: products.name,
-    sku: products.sku, quantity: purchaseOrderItems.quantity, receivedQuantity: purchaseOrderItems.receivedQuantity,
+    sku: products.sku, quantity: purchaseOrderItems.quantity, receivedQuantity: purchaseOrderItems.receivedQuantity, returnedQuantity: purchaseOrderItems.returnedQuantity,
     unitCost: purchaseOrderItems.unitCost, tax: purchaseOrderItems.tax, lineTotal: purchaseOrderItems.lineTotal,
   }).from(purchaseOrderItems).innerJoin(products, eq(products.id, purchaseOrderItems.productId))
     .where(eq(purchaseOrderItems.purchaseOrderId, order[0].id)).orderBy(asc(products.name)));

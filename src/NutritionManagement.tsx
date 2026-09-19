@@ -12,6 +12,8 @@ export default function NutritionManagement({ user }: { user: User }) {
   const isAdmin = user.staffType === 'admin';
   const can = (p: string) => isAdmin || (user.permissions ?? []).includes(p);
   const canWrite = can('nutrition.write');
+  const statusLabel: Record<string,string> = { draft:'مسودة', active:'نشطة', completed:'مكتملة', cancelled:'ملغاة' };
+  const staffTypeLabel: Record<string,string> = { admin:'إدارة', doctor:'طبيب', nutritionist:'أخصائي تغذية', trainer:'مدرب', employee:'موظف', cashier:'كاشير', warehouse:'مخازن' };
   const [plans, setPlans] = useState<Plan[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [specialists, setSpecialists] = useState<Specialist[]>([]);
@@ -62,7 +64,7 @@ export default function NutritionManagement({ user }: { user: User }) {
     <section className="staff-management-grid">
       <section className="panel"><p className="eyebrow">خطة جديدة</p><h2>إنشاء خطة</h2><form className="form-stack" onSubmit={createPlan}>
         <label>العميل<select required disabled={!canWrite} value={planForm.customerId} onChange={e=>setPlanForm({...planForm,customerId:e.target.value})}>{customers.map(x=><option key={x.id} value={x.id}>{x.customerNumber} — {x.name} {x.lastName}</option>)}</select></label>
-        <label>الأخصائي<select required disabled={!canWrite} value={planForm.specialistId} onChange={e=>setPlanForm({...planForm,specialistId:e.target.value})}>{specialists.map(x=><option key={x.id} value={x.id}>{x.name} — {x.staffType}</option>)}</select></label>
+        <label>الأخصائي<select required disabled={!canWrite} value={planForm.specialistId} onChange={e=>setPlanForm({...planForm,specialistId:e.target.value})}>{specialists.map(x=><option key={x.id} value={x.id}>{x.name} — {staffTypeLabel[x.staffType] ?? x.staffType}</option>)}</select></label>
         <label>اسم الخطة<input required disabled={!canWrite} value={planForm.title} onChange={e=>setPlanForm({...planForm,title:e.target.value})} placeholder="خطة خفض الوزن — المرحلة الأولى"/></label>
         <label>الهدف<textarea disabled={!canWrite} value={planForm.goals} onChange={e=>setPlanForm({...planForm,goals:e.target.value})} /></label>
         <div className="form-row"><label>تاريخ البداية<input type="date" required disabled={!canWrite} value={planForm.startDate} onChange={e=>setPlanForm({...planForm,startDate:e.target.value})}/></label><label>تاريخ النهاية<input type="date" disabled={!canWrite} value={planForm.endDate} onChange={e=>setPlanForm({...planForm,endDate:e.target.value})}/></label></div>
@@ -70,7 +72,7 @@ export default function NutritionManagement({ user }: { user: User }) {
         {canWrite&&<button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'إنشاء الخطة'}</button>}
       </form></section>
       <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">الخطط</p><h2>الخطط الحالية</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
-        {!plans.length?<p className="empty-state">لا توجد خطط غذائية مسجلة.</p>:<div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الخطة</th><th>العميل</th><th>الأخصائي</th><th>البداية</th><th>الحالة</th><th></th></tr></thead><tbody>{plans.map(p=><tr key={p.id}><td>{p.title}<small> v{p.version}</small></td><td>{p.customerName} {p.customerLastName}</td><td>{p.specialistName}</td><td>{p.startDate}</td><td>{p.status}</td><td><button className="secondary-button" onClick={()=>setSelectedId(p.id)}>فتح</button></td></tr>)}</tbody></table></div>}
+        {!plans.length?<p className="empty-state">لا توجد خطط غذائية مسجلة.</p>:<div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الخطة</th><th>العميل</th><th>الأخصائي</th><th>البداية</th><th>الحالة</th><th></th></tr></thead><tbody>{plans.map(p=><tr key={p.id}><td>{p.title}<small> v{p.version}</small></td><td>{p.customerName} {p.customerLastName}</td><td>{p.specialistName}</td><td>{p.startDate}</td><td>{statusLabel[p.status] ?? p.status}</td><td><button className="secondary-button" onClick={()=>setSelectedId(p.id)}>فتح</button></td></tr>)}</tbody></table></div>}
       </section>
     </section>
     {selected&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">تفاصيل الخطة</p><h2>{selected.title}</h2><p>{selected.customerName} {selected.customerLastName} · {selected.specialistName}</p></div></div>

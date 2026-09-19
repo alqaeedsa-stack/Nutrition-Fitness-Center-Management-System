@@ -678,7 +678,7 @@ textarea:focus-visible {
 .erp-pivot strong{font-size:12px;color:var(--odoo-muted)}
 .erp-pivot b{font-size:22px;color:var(--odoo-text)}
 .erp-graph{display:flex;align-items:flex-end;gap:8px;min-height:220px;padding:15px;border:1px solid var(--odoo-border);border-radius:8px;background:#fff;overflow-x:auto}
-.erp-bar{position:relative;min-width:26px;max-width:44px;flex:1;background:var(--ux-accent);border-radius:4px 4px 0 0}
+.erp-bar{position:relative;min-width:26px;max-width:44px;flex:1;background:var(--ux-primary);border-radius:4px 4px 0 0}
 .erp-bar span{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);font-size:10px;color:#495057;margin-bottom:3px}
 @media(max-width:800px){.erp-kanban-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.erp-page-tools{align-items:stretch}.erp-search-toolbar{min-width:100%;flex-direction:column;align-items:stretch}.erp-search-input,.erp-search-toolbar select{width:100%}.erp-view-switcher{width:100%}.erp-view-switcher button{flex:1}.erp-kanban-grid,.erp-pivot{grid-template-columns:1fr}.erp-smart-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.erp-smart-buttons button{min-width:0}}

@@ -345,7 +345,7 @@ storeRoutes.post('/admin/sales/:saleId/return', async c => {
   }));
 
   if ('error' in result) {
-    const errorCode = result.error;
+    const errorCode = String(result.error ?? 'UNKNOWN');
     const messages: Record<string, string> = {
       SALE_NOT_FOUND: 'عملية البيع غير موجودة',
       SALE_NOT_RETURNABLE: 'لا يمكن إرجاع هذه العملية بحالتها الحالية',

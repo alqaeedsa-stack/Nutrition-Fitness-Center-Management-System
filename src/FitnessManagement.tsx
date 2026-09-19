@@ -8,7 +8,7 @@ type Exercise={id:string;exerciseName:string;sets?:number|null;repetitions?:numb
 type Plan={id:string;customerId:string;specialistId:string;title:string;goals?:string|null;startDate:string;endDate?:string|null;status:string;version:number;customerName:string;customerLastName:string;specialistName:string;exercises:Exercise[]};
 
 export default function FitnessManagement({user}:{user:User}){
- const isAdmin=user.staffType==='admin';const can=(p:string)=>isAdmin||(user.permissions??[]).includes(p);const canWrite=can('fitness.write');const statusLabel:Record<string,string>={draft:'مسودة',active:'نشطة',completed:'مكتملة',cancelled:'ملغاة'};const staffTypeLabel:Record<string,string>={admin:'إدارة',doctor:'طبيب',nutritionist:'أخصائي تغذية',trainer:'مدرب',employee:'موظف',cashier:'كاشير',warehouse:'مخازن'};
+ const isAdmin=user.staffType==='admin';const can=(p:string)=>isAdmin||(user.permissions??[]).includes(p);const canWrite=can('fitness.write');const statusLabel:Record<string,string>={draft:'مسودة',active:'نشطة',completed:'مكتملة',cancelled:'ملغاة'};
  const [plans,setPlans]=useState<Plan[]>([]),[customers,setCustomers]=useState<Customer[]>([]),[specialists,setSpecialists]=useState<Specialist[]>([]),[selectedId,setSelectedId]=useState('');
  const [form,setForm]=useState({customerId:'',specialistId:'',title:'',goals:'',startDate:new Date().toISOString().slice(0,10),endDate:'',status:'draft'});
  const [exercise,setExercise]=useState({exerciseName:'',sets:'',repetitions:'',durationSeconds:'',restSeconds:'',targetNotes:''});

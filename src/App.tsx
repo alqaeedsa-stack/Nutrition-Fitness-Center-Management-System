@@ -248,7 +248,8 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
       items: [
         ...(canCustomers ? [[en ? 'Customers' : 'العملاء', 'CUSTOMERS', en ? 'Customer files and basic information.' : 'ملفات العملاء والبيانات الأساسية.', '/admin/customers']] : []),
         ...(can('appointments.read') ? [[en ? 'Appointments' : 'المواعيد', 'APPOINTMENTS', en ? 'Bookings and appointments for doctors and specialists.' : 'الحجوزات ومواعيد الأطباء والأخصائيين.', '/admin/appointments']] : []),
-        ...(canCustomers ? [[en ? 'Customer Follow-up' : 'متابعة العملاء', 'FOLLOW-UP', en ? 'Visits, periodic follow-ups and recommendations.' : 'الزيارات والمتابعات الدورية والتوصيات.', '/admin/follow-ups']] : []),
+        ...(can('followups.write') || canCustomers ? [[en ? 'Customer Follow-up' : 'متابعة العملاء', 'FOLLOW-UP', en ? 'Visits, periodic follow-ups and recommendations.' : 'الزيارات والمتابعات الدورية والتوصيات.', '/admin/follow-ups']] : []),
+        ...(can('measurements.read') ? [[en ? 'Measurements' : 'القياسات', 'MEASUREMENTS', en ? 'Customer measurements and progress history.' : 'قياسات العملاء وسجل التقدم.', '/admin/measurements']] : []),
         ...(can('nutrition.read') ? [[en ? 'Nutrition Plans' : 'الخطط الغذائية', 'NUTRITION', en ? 'Create and manage nutrition plans.' : 'إعداد ومتابعة الخطط الغذائية.', '/admin/nutrition']] : []),
         ...(can('fitness.read') ? [[en ? 'Fitness Plans' : 'الخطط الرياضية', 'FITNESS', en ? 'Create and manage fitness plans.' : 'إعداد ومتابعة خطط اللياقة.', '/admin/fitness']] : []),
       ] as string[][],

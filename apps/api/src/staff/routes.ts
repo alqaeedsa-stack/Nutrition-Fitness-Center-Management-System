@@ -273,6 +273,27 @@ const stockAdjustmentSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 });
 
+async function validateProductAccounts(tx:any, centerId:string, data:Partial<z.infer<typeof productSchema>>) {
+  const selected = [
+    ['inventoryAccountId', data.inventoryAccountId], ['costOfSalesAccountId', data.costOfSalesAccountId],
+    ['revenueAccountId', data.revenueAccountId], ['purchaseAccountId', data.purchaseAccountId],
+    ['salesReturnAccountId', data.salesReturnAccountId], ['purchaseReturnAccountId', data.purchaseReturnAccountId],
+    ['deferredRevenueAccountId', data.deferredRevenueAccountId], ['subscriptionRevenueAccountId', data.subscriptionRevenueAccountId],
+  ] as const;
+  const ids = selected.map(([,id])=>id).filter((id): id is string => Boolean(id));
+  if (!ids.length) return null;
+  const rows = await tx.execute(sql`select id, account_type as "accountType" from accounting_accounts where center_id=${centerId} and id in (${sql.join(ids.map(id=>sql`${id}`),sql`,`)})`);
+  if (rows.rows.length !== ids.length) return 'ACCOUNT_SCOPE_INVALID' as const;
+  const types = new Map(rows.rows.map((x:any)=>[x.id,x.accountType]));
+  const expected:Record<string,string[]> = {
+    inventoryAccountId:['asset'], costOfSalesAccountId:['expense'], revenueAccountId:['revenue'],
+    purchaseAccountId:['asset','expense'], salesReturnAccountId:['revenue'], purchaseReturnAccountId:['asset','expense'],
+    deferredRevenueAccountId:['liability'], subscriptionRevenueAccountId:['revenue'],
+  };
+  for (const [key,id] of selected) if (id && !expected[key].includes(types.get(id))) return 'ACCOUNT_TYPE_INVALID' as const;
+  return null;
+}
+
 function normalizeProductSettings(data: z.infer<typeof productSchema>) {
   const tracking = data.inventoryTracking;
   return {
@@ -376,6 +397,8 @@ staffRoutes.post('/products', async c => {
   const data = body.data;
   const settings = normalizeProductSettings(data);
   const created = await withDatabase(c.env, db => db.transaction(async tx => {
+    const accountError = await validateProductAccounts(tx, auth.user.centerId!, data);
+    if (accountError) return { error: accountError as any };
     const category = await tx.select({ id: categories.id }).from(categories)
       .where(and(eq(categories.id, data.categoryId), eq(categories.centerId, auth.user.centerId!), eq(categories.active, true))).limit(1);
     if (!category[0]) return { error: 'CATEGORY_NOT_FOUND' as const };
@@ -397,7 +420,11 @@ staffRoutes.post('/products', async c => {
     }).returning();
     return { product: row[0] };
   }));
-  if ('error' in created) return c.json({ error: { code: created.error, message: created.error === 'SKU_EXISTS' ? 'SKU مستخدم بالفعل' : 'البيانات المرتبطة بالمنتج غير صحيحة' } }, 409);
+  if ('error' in created) {
+    if (created.error === 'ACCOUNT_SCOPE_INVALID') return c.json({ error: { code: 'ACCOUNT_SCOPE_INVALID', message: 'أحد الحسابات المختارة لا يتبع للمركز' } }, 409);
+    if (created.error === 'ACCOUNT_TYPE_INVALID') return c.json({ error: { code: 'ACCOUNT_TYPE_INVALID', message: 'نوع أحد الحسابات لا يناسب وظيفة الحساب على المنتج' } }, 409);
+    return c.json({ error: { code: created.error, message: created.error === 'SKU_EXISTS' ? 'SKU مستخدم بالفعل' : 'البيانات المرتبطة بالمنتج غير صحيحة' } }, 409);
+  }
   return c.json({ product: created.product }, 201);
 });
 
@@ -422,6 +449,8 @@ staffRoutes.patch('/products/:id', async c => {
       const duplicate = await tx.select({ id: products.id }).from(products).where(and(eq(products.centerId, auth.user.centerId!), eq(products.sku, data.sku), sql`${products.id} <> ${c.req.param('id')}`)).limit(1);
       if (duplicate[0]) return { error: 'SKU_EXISTS' as const };
     }
+    const accountError = await validateProductAccounts(tx, auth.user.centerId!, data);
+    if (accountError) return { error: accountError as any };
     const nextProductType = data.productType ?? existing[0].productType;
     const nextIsNonStock = NON_STOCK_PRODUCT_TYPES.includes(nextProductType as (typeof NON_STOCK_PRODUCT_TYPES)[number]);
     const updateData: any = {

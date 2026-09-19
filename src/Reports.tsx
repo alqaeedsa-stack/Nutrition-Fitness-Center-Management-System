@@ -144,7 +144,7 @@ export default function Reports({ user }: { user: { staffType?: string | null; p
       <section className="panel">
         <div className="panel-heading-row"><div><p className="eyebrow">مبيعات اليوم</p><h2>المبيعات اليومية</h2></div><span>{data.from} — {data.to}</span></div>
         {!data.dailySales.length ? <p className="empty-state">لا توجد مبيعات مكتملة في الفترة المحددة.</p> :
-          <OdooReportViews rows={data.dailySales.map(row => ({ التاريخ: row.date, العمليات: row.count, الإجمالي: formatMoney(row.total), totalValue: Number(row.total) }))} valueKeys={['العمليات','totalValue']} />}
+          <OdooReportViews rows={data.dailySales.map(row => ({ التاريخ: row.date, العمليات: row.count, الإجمالي: formatMoney(row.total), totalValue: Number(row.total) }))} valueKeys={['totalValue','العمليات']} />}
       </section>
 
       <section className="staff-management-grid">

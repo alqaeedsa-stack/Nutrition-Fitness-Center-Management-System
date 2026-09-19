@@ -23,6 +23,18 @@ const appointmentSchema = z.object({
   notes: z.string().trim().max(2000).optional().nullable(),
 });
 
+function validStatusTransition(current: string, next: string) {
+  if (current === next) return true;
+  const allowed: Record<string, string[]> = {
+    scheduled: ['confirmed', 'cancelled', 'no_show'],
+    confirmed: ['completed', 'cancelled', 'no_show'],
+    completed: [],
+    cancelled: [],
+    no_show: [],
+  };
+  return (allowed[current] ?? []).includes(next);
+}
+
 async function ensureStaff(c: any, permission: 'appointments.read' | 'appointments.manage') {
   const auth = await requirePermission(c, permission);
   if ('error' in auth) return auth;
@@ -129,6 +141,8 @@ appointmentRoutes.post('/', async c => {
       CUSTOMER_NOT_FOUND: ['العميل غير موجود داخل هذا المركز', 404],
       STAFF_NOT_FOUND: ['الموظف المختص غير موجود أو غير نشط', 404],
       STAFF_TIME_CONFLICT: ['يوجد موعد آخر لهذا الموظف في نفس الفترة', 409],
+      INVALID_STATUS_TRANSITION: ['لا يمكن الانتقال إلى حالة الموعد المطلوبة من الحالة الحالية', 409],
+      APPOINTMENT_LOCKED: ['الموعد مغلق بعد الإكمال أو الإلغاء أو عدم الحضور', 409],
     };
     const entry = messages[String(created.error)];
     if (!entry) return c.json({ error: { code: String(created.error), message: 'تعذر معالجة الطلب' } }, 500);
@@ -155,6 +169,13 @@ appointmentRoutes.patch('/:id', async c => {
     const startsAt = data.startsAt ? new Date(data.startsAt) : existing.startsAt;
     const endsAt = data.endsAt ? new Date(data.endsAt) : existing.endsAt;
     if (endsAt <= startsAt) return { error: 'INVALID_TIME_RANGE' as const };
+
+    const nextStatus = data.status ?? existing.status;
+    if (!validStatusTransition(existing.status, nextStatus)) return { error: 'INVALID_STATUS_TRANSITION' as const };
+    const hasSchedulingChange = data.customerId !== undefined || data.staffId !== undefined || data.startsAt !== undefined || data.endsAt !== undefined || data.appointmentType !== undefined;
+    if (['completed', 'cancelled', 'no_show'].includes(existing.status) && hasSchedulingChange) {
+      return { error: 'APPOINTMENT_LOCKED' as const };
+    }
 
     if (data.customerId) {
       const [customer] = await tx.select({ id: customers.id }).from(customers).where(and(eq(customers.id, data.customerId), eq(customers.centerId, auth.user.centerId!))).limit(1);

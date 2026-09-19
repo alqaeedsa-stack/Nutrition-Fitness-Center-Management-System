@@ -304,7 +304,6 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
             <strong>{user.email ?? user.phone ?? (en ? 'Staff account' : 'حساب موظف')}</strong>
             <span>{isAdmin ? (en ? 'System Administrator' : 'مدير النظام') : (en ? 'Staff' : 'موظف')}</span>
           </div>
-          <LanguageSwitcher />
           <button className="secondary-button" onClick={logout}>{en ? 'Log out' : 'تسجيل الخروج'}</button>
         </div>
       </header>
@@ -927,7 +926,9 @@ function AppContent() {
   const permissionGuard = (code: string) => staffGuard && (user?.staffType === 'admin' || (user?.permissions ?? []).includes(code));
 
   return (
-    <Routes>
+    <>
+      <div className="global-language-switcher"><LanguageSwitcher /></div>
+      <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/health" element={<Health />} />
 
@@ -966,7 +967,8 @@ function AppContent() {
 
       <Route path="/customers" element={permissionGuard('customers.read') ? <Customers user={user!} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="*" element={<NotFound />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }
 

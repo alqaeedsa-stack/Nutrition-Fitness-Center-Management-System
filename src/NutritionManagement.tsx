@@ -31,7 +31,7 @@ export default function NutritionManagement({ user }: { user: User }) {
       ]);
       setPlans(p.plans); setCustomers(o.customers); setSpecialists(o.specialists);
       if (!planForm.customerId && o.customers[0]) setPlanForm(v=>({...v,customerId:o.customers[0].id}));
-      if (!planForm.specialistId && o.specialists[0]) setPlanForm(v=>({...v,specialistId:o.specialists[0].id}));
+      const currentSpecialist = o.specialists.find(x => x.id === user.id); if (currentSpecialist) setPlanForm(v=>({...v,specialistId:currentSpecialist.id}));
     } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل الخطط الغذائية');}
   }
   useEffect(()=>{void load()},[]);
@@ -62,12 +62,12 @@ export default function NutritionManagement({ user }: { user: User }) {
   const planKpis=[['إجمالي الخطط',plans.length],['مسودة',plans.filter(p=>p.status==='draft').length],['نشطة',plans.filter(p=>p.status==='active').length],['مكتملة',plans.filter(p=>p.status==='completed').length]] as const;
   const selected=plans.find(p=>p.id===selectedId);
   return <main className="app-shell">
-    <header className="app-header"><div><span className="eyebrow">التغذية</span><h1>الخطط الغذائية</h1></div><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></header>
+    <header className="app-header"><div><span className="eyebrow">التغذية</span><h1>الخطط الغذائية</h1></div></header>
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
     <section className="staff-management-grid">
       <section className="panel"><p className="eyebrow">خطة جديدة</p><h2>إنشاء خطة</h2><form className="form-stack" onSubmit={createPlan}>
         <label>العميل<select required disabled={!canWrite} value={planForm.customerId} onChange={e=>setPlanForm({...planForm,customerId:e.target.value})}>{customers.map(x=><option key={x.id} value={x.id}>{x.customerNumber} — {x.name} {x.lastName}</option>)}</select></label>
-        <label>الأخصائي<select required disabled={!canWrite} value={planForm.specialistId} onChange={e=>setPlanForm({...planForm,specialistId:e.target.value})}>{specialists.map(x=><option key={x.id} value={x.id}>{x.name} — {staffTypeLabel[x.staffType] ?? x.staffType}</option>)}</select></label>
+        <label>الأخصائي<input required readOnly value={specialists.find(x=>x.id===planForm.specialistId)?.name ?? ''} placeholder="سيتم تعيين الأخصائي من الحساب الحالي" /></label>
         <label>اسم الخطة<input required disabled={!canWrite} value={planForm.title} onChange={e=>setPlanForm({...planForm,title:e.target.value})} placeholder="خطة خفض الوزن — المرحلة الأولى"/></label>
         <label>الهدف<textarea disabled={!canWrite} value={planForm.goals} onChange={e=>setPlanForm({...planForm,goals:e.target.value})} /></label>
         <div className="form-row"><label>تاريخ البداية<input type="date" required disabled={!canWrite} value={planForm.startDate} onChange={e=>setPlanForm({...planForm,startDate:e.target.value})}/></label><label>تاريخ النهاية<input type="date" disabled={!canWrite} value={planForm.endDate} onChange={e=>setPlanForm({...planForm,endDate:e.target.value})}/></label></div>

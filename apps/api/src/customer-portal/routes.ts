@@ -12,6 +12,7 @@ import {
   nutritionPlanItems,
   nutritionPlans,
   products,
+  customerSubscriptions,
   customers,
   staffProfiles,
   users,
@@ -327,6 +328,28 @@ customerPortalRoutes.get('/orders', async c => {
   })) });
 });
 
+customerPortalRoutes.get('/subscriptions', async c => {
+  const auth = await getCustomerContext(c);
+  if ('error' in auth) return auth.error;
+
+  const rows = await withDatabase(c.env, db => db.select({
+    id: customerSubscriptions.id,
+    productId: customerSubscriptions.productId,
+    productName: products.name,
+    sku: products.sku,
+    startDate: customerSubscriptions.startDate,
+    endDate: customerSubscriptions.endDate,
+    status: customerSubscriptions.status,
+    unitPrice: customerSubscriptions.unitPrice,
+    notes: customerSubscriptions.notes,
+  }).from(customerSubscriptions)
+    .innerJoin(products, eq(products.id, customerSubscriptions.productId))
+    .where(and(eq(customerSubscriptions.customerId, auth.customerId), eq(customerSubscriptions.centerId, auth.user.centerId!)))
+    .orderBy(desc(customerSubscriptions.startDate)));
+
+  return c.json({ subscriptions: rows });
+});
+
 customerPortalRoutes.get('/store/products', async c => {
   const auth = await getCustomerContext(c);
   if ('error' in auth) return auth.error;
@@ -342,7 +365,7 @@ customerPortalRoutes.get('/store/products', async c => {
     taxCode: products.taxCode,
   })
     .from(products)
-    .where(and(eq(products.centerId, auth.user.centerId!), eq(products.active, true)))
+    .where(and(eq(products.centerId, auth.user.centerId!), eq(products.active, true), ne(products.productType, 'subscription')))
     .orderBy(asc(products.name)));
 
   return c.json({ products: rows });

@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
-import { products, purchaseOrderItems, purchaseOrders, purchaseReturnItems, purchaseReturns, stockMovements, vendors } from '../db/schema';
+import { products, purchaseOrderItems, purchaseOrders, purchaseReturnItems, purchaseReturns, purchaseReceipts, purchaseReceiptItems, stockMovements, vendors } from '../db/schema';
 import { requirePermission } from '../auth/permissions';
 
 export type PurchaseBindings = {
@@ -47,6 +47,11 @@ const receiveSchema = z.object({
   })).min(1).max(100),
   notes: z.string().trim().max(500).optional().nullable(),
 });
+
+function receiptNumber() {
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+  return 'GRN-' + stamp + '-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+}
 
 function poNumber() {
   const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
@@ -200,6 +205,17 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
     }).from(purchaseOrderItems).where(and(eq(purchaseOrderItems.purchaseOrderId, order[0].id), inArray(purchaseOrderItems.id, itemIds)));
     if (lines.length !== itemIds.length) return { error: 'PO_ITEM_NOT_FOUND' as const };
 
+    const receipt = await tx.insert(purchaseReceipts).values({
+      centerId: auth.user.centerId!,
+      purchaseOrderId: order[0].id,
+      receiptNumber: receiptNumber(),
+      receiptDate: new Date().toISOString().slice(0, 10),
+      status: 'posted',
+      notes: parsed.data.notes || null,
+      createdBy: auth.user.userId,
+    }).returning();
+    if (!receipt[0]) throw new Error('Purchase receipt insert failed');
+
     let receivedAny = false;
     for (const requested of parsed.data.items) {
       const line = lines.find(item => item.id === requested.itemId)!;
@@ -222,6 +238,13 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
       const newStock = currentStock + requested.quantity;
       const weightedCost = newStock > 0 ? ((currentStock * currentCost) + (requested.quantity * unitCost)) / newStock : unitCost;
 
+      await tx.insert(purchaseReceiptItems).values({
+        purchaseReceiptId: receipt[0].id,
+        purchaseOrderItemId: line.id,
+        productId: line.productId,
+        quantity: requested.quantity.toString(),
+        unitCost: unitCost.toFixed(2),
+      });
       await tx.insert(stockMovements).values({
         centerId: auth.user.centerId!, productId: line.productId, movementType: 'purchase',
         quantity: requested.quantity.toString(), unitCost: unitCost.toFixed(2),
@@ -241,7 +264,7 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
       updatedAt: new Date(),
     }).where(eq(purchaseOrders.id, order[0].id));
 
-    return { receivedAny, status: fullyReceived ? 'received' : 'partially_received' };
+    return { receivedAny, status: fullyReceived ? 'received' : 'partially_received', receiptNumber: receipt[0].receiptNumber, receiptId: receipt[0].id };
   }));
   if ('error' in result) {
     const messages: Record<string,string> = {
@@ -253,7 +276,65 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
     const details = 'itemId' in result ? { itemId: result.itemId, remaining: result.remaining, requested: result.requested } : undefined;
     return c.json({ error: { code: errorCode, message, ...(details ? { details } : {}) } }, errorCode === 'PO_NOT_FOUND' ? 404 : 409);
   }
-  return c.json({ ok: true, status: result.status });
+  return c.json({ ok: true, status: result.status, receiptNumber: result.receiptNumber, receiptId: result.receiptId });
+});
+
+
+
+purchaseRoutes.get('/receipts', async c => {
+  const auth = await access(c, 'inventory.read');
+  if ('error' in auth) return auth.error;
+  const rows = await withDatabase(c.env, db => db.select({
+    id: purchaseReceipts.id,
+    receiptNumber: purchaseReceipts.receiptNumber,
+    receiptDate: purchaseReceipts.receiptDate,
+    status: purchaseReceipts.status,
+    notes: purchaseReceipts.notes,
+    purchaseOrderId: purchaseOrders.id,
+    poNumber: purchaseOrders.poNumber,
+    vendorId: vendors.id,
+    vendorName: vendors.name,
+  }).from(purchaseReceipts)
+    .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseReceipts.purchaseOrderId))
+    .innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId))
+    .where(eq(purchaseReceipts.centerId, auth.user.centerId!))
+    .orderBy(desc(purchaseReceipts.receiptDate), desc(purchaseReceipts.createdAt)));
+  return c.json({ receipts: rows });
+});
+
+purchaseRoutes.get('/receipts/:id', async c => {
+  const auth = await access(c, 'inventory.read');
+  if ('error' in auth) return auth.error;
+  const receipt = await withDatabase(c.env, db => db.select({
+    id: purchaseReceipts.id,
+    receiptNumber: purchaseReceipts.receiptNumber,
+    receiptDate: purchaseReceipts.receiptDate,
+    status: purchaseReceipts.status,
+    notes: purchaseReceipts.notes,
+    purchaseOrderId: purchaseOrders.id,
+    poNumber: purchaseOrders.poNumber,
+    vendorId: vendors.id,
+    vendorName: vendors.name,
+  }).from(purchaseReceipts)
+    .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseReceipts.purchaseOrderId))
+    .innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId))
+    .where(and(eq(purchaseReceipts.id, c.req.param('id')), eq(purchaseReceipts.centerId, auth.user.centerId!)))
+    .limit(1));
+  if (!receipt[0]) return c.json({ error: { code: 'RECEIPT_NOT_FOUND', message: 'مستند الاستلام غير موجود' } }, 404);
+
+  const items = await withDatabase(c.env, db => db.select({
+    id: purchaseReceiptItems.id,
+    purchaseOrderItemId: purchaseReceiptItems.purchaseOrderItemId,
+    productId: purchaseReceiptItems.productId,
+    productName: products.name,
+    sku: products.sku,
+    quantity: purchaseReceiptItems.quantity,
+    unitCost: purchaseReceiptItems.unitCost,
+  }).from(purchaseReceiptItems)
+    .innerJoin(products, eq(products.id, purchaseReceiptItems.productId))
+    .where(eq(purchaseReceiptItems.purchaseReceiptId, receipt[0].id))
+    .orderBy(asc(products.name)));
+  return c.json({ receipt: receipt[0], items });
 });
 
 

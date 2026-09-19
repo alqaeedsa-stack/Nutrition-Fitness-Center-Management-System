@@ -94,7 +94,7 @@ export default function Accounting(){
     </div>
     <section className="panel" style={{marginTop:16}}>
       <div className="panel-heading-row"><div><p className="eyebrow">الإدارة</p><h3>إجراءات الحساب</h3></div></div>
-      <div className="portal-choice-actions" style={{flexWrap:'wrap'}}>
+      <div className="portal-choice-actions" style={{flexWrap:'wrap'}}><button type="button" className="secondary-button" onClick={()=>{setEditing(null);setForm({code:'',name:'',accountType:selectedAccount.accountType,parentId:selectedAccount.id,statementSection:selectedAccount.statementSection??'balance_sheet',allowReconciliation:Boolean(selectedAccount.allowReconciliation)});setSelectedAccount(null);}}>إضافة حساب فرعي</button>
        {!selectedAccount.isSystem&&accountPermissions.canManageAccounts&&<button type="button" className="secondary-button" onClick={()=>{setEditing(selectedAccount);setForm({code:selectedAccount.code,name:selectedAccount.name,accountType:selectedAccount.accountType,parentId:selectedAccount.parentId??'',statementSection:selectedAccount.statementSection??'balance_sheet',allowReconciliation:Boolean(selectedAccount.allowReconciliation)});setSelectedAccount(null);}}>تعديل الحساب</button>}
        {!selectedAccount.isSystem&&accountPermissions.canDuplicateAccounts&&<button type="button" className="secondary-button" onClick={()=>void duplicateAccount(selectedAccount)}>نسخ الحساب</button>}
        {!selectedAccount.isSystem&&accountPermissions.canArchiveAccounts&&<button type="button" className="secondary-button" onClick={()=>{void toggleArchive(selectedAccount);setSelectedAccount(null);}}>{selectedAccount.isActive?'أرشفة الحساب':'استعادة الحساب'}</button>}

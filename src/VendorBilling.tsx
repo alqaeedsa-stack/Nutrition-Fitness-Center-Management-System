@@ -101,7 +101,7 @@ export default function VendorBilling(){
 
   return <main className="app-shell"><div className="odoo-workspace"><PurchaseWorkspaceNav /><div className="odoo-workspace-main">
     <header className="app-header">
-      <div><span className="eyebrow">VENDOR ACCOUNTING</span><h1>فواتير الموردين والمدفوعات</h1><p>فصل واضح بين الاستلام التشغيلي والفاتورة والالتزام المالي والدفع.</p></div>
+      <div><span className="eyebrow">محاسبة الموردين</span><h1>فواتير الموردين والمدفوعات</h1><p>فصل واضح بين الاستلام التشغيلي والفاتورة والالتزام المالي والدفع.</p></div>
     </header>
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
     {summary&&<section className="stats-grid odoo-kpi-grid">
@@ -119,7 +119,7 @@ export default function VendorBilling(){
 
     {tab==='bills'&&<section className="staff-management-grid">
       <section className="panel">
-        <p className="eyebrow">VENDOR BILL</p><h2>فاتورة مورد جديدة</h2><div className="odoo-statusbar" aria-label="دورة فاتورة المورد"><span className="current">مسودة</span><span>مرحّلة</span><span>مدفوعة جزئيًا</span><span>مدفوعة</span></div>
+        <p className="eyebrow">فاتورة المورد</p><h2>فاتورة مورد جديدة</h2><div className="odoo-statusbar" aria-label="دورة فاتورة المورد"><span className="current">مسودة</span><span>مرحّلة</span><span>مدفوعة جزئيًا</span><span>مدفوعة</span></div>
         <p>لا يمكن فوترة كمية أكبر من الكمية المستلمة غير المفوترة.</p>
         <form className="form-stack" onSubmit={createBill}>
           <div className="form-row"><label>أمر الشراء<select value={selectedOrder} onChange={e=>setSelectedOrder(e.target.value)}><option value="">اختر</option>{orders.map(o=><option key={o.id} value={o.id}>{o.poNumber} — {o.vendorName}</option>)}</select></label><label>رقم فاتورة المورد<input value={vendorInvoiceNumber} onChange={e=>setVendorInvoiceNumber(e.target.value)} placeholder="رقم المورد إن وجد"/></label></div>
@@ -130,28 +130,28 @@ export default function VendorBilling(){
         </form>
       </section>
       <section className="panel">
-        <div className="panel-heading-row"><div><p className="eyebrow">VENDOR BILLS</p><h2>فواتير الموردين</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
+        <div className="panel-heading-row"><div><p className="eyebrow">فاتورة الموردS</p><h2>فواتير الموردين</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
         <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الفاتورة</th><th>المورد</th><th>أمر الشراء</th><th>التاريخ</th><th>الإجمالي</th><th>مدفوع</th><th>متبقي</th><th>الحالة</th><th></th></tr></thead><tbody>{bills.map(b=><tr key={b.id}><td>{b.billNumber}<small>{b.vendorInvoiceNumber||'بدون رقم مورد'}</small></td><td>{b.vendorName}</td><td>{b.poNumber||'—'}</td><td>{b.billDate}</td><td>{Number(b.total).toFixed(2)}</td><td>{Number(b.paidAmount).toFixed(2)}</td><td>{Number(b.balanceDue).toFixed(2)}</td><td><span className="status-badge active">{statusLabel[b.status]||b.status}</span></td><td>{b.status==='draft'&&<button className="secondary-button" disabled={busy} onClick={()=>void postBill(b.id)}>ترحيل</button>}</td></tr>)}{!bills.length&&<tr><td colSpan={9}>لا توجد فواتير موردين.</td></tr>}</tbody></table></div>
       </section>
     </section>}
 
     {tab==='payments'&&<section className="staff-management-grid">
-      <section className="panel"><p className="eyebrow">PAYMENT</p><h2>تسجيل دفعة للمورد</h2><form className="form-stack" onSubmit={pay}>
+      <section className="panel"><p className="eyebrow">الدفع</p><h2>تسجيل دفعة للمورد</h2><form className="form-stack" onSubmit={pay}>
         <label>الفاتورة<select required value={paymentBill} onChange={e=>setPaymentBill(e.target.value)}><option value="">اختر</option>{openBills.map(b=><option key={b.id} value={b.id}>{b.billNumber} — {b.vendorName} — متبقي {Number(b.balanceDue).toFixed(2)} ر.س</option>)}</select></label>
         <div className="form-row"><label>التاريخ<input type="date" required value={paymentDate} onChange={e=>setPaymentDate(e.target.value)}/></label><label>المبلغ<input type="number" min="0.01" step="0.01" required value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)}/></label><label>طريقة الدفع<input required value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}/></label></div>
         <label>مرجع العملية<input value={paymentReference} onChange={e=>setPaymentReference(e.target.value)} placeholder="رقم التحويل / المرجع"/></label>
         <button className="primary-action button" disabled={busy}>{busy?'جارٍ التسجيل...':'تسجيل الدفعة'}</button>
       </form></section>
-      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">PAYMENT HISTORY</p><h2>سجل المدفوعات</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">الدفع HISTORY</p><h2>سجل المدفوعات</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
         <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الدفعة</th><th>التاريخ</th><th>المورد</th><th>الفاتورة</th><th>المبلغ</th><th>الطريقة</th><th>المرجع</th></tr></thead><tbody>{payments.map(p=><tr key={p.id}><td>{p.paymentNumber}</td><td>{p.paymentDate}</td><td>{p.vendorName}</td><td>{p.billNumber||'—'}</td><td>{Number(p.amount).toFixed(2)} ر.س</td><td>{p.paymentMethod}</td><td>{p.reference||'—'}</td></tr>)}{!payments.length&&<tr><td colSpan={7}>لا توجد مدفوعات.</td></tr>}</tbody></table></div>
       </section>
     </section>}
 
     {tab==='statement'&&<section className="staff-management-grid">
-      <section className="panel"><p className="eyebrow">VENDOR STATEMENT</p><h2>كشف حساب المورد</h2><label>المورد<select value={statementVendor} onChange={e=>void loadStatement(e.target.value)}><option value="">اختر</option>{vendors.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
+      <section className="panel"><p className="eyebrow">كشف حساب المورد</p><h2>كشف حساب المورد</h2><label>المورد<select value={statementVendor} onChange={e=>void loadStatement(e.target.value)}><option value="">اختر</option>{vendors.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
         {statement&&<div className="stats-grid"><div className="stat-card"><span>إجمالي الفواتير</span><strong>{Number(statement.summary.totalBills).toFixed(2)} ر.س</strong></div><div className="stat-card"><span>إجمالي المدفوع</span><strong>{Number(statement.summary.totalPaid).toFixed(2)} ر.س</strong></div><div className="stat-card"><span>الرصيد المستحق</span><strong>{Number(statement.summary.balanceDue).toFixed(2)} ر.س</strong></div></div>}
       </section>
-      <section className="panel">{statement&&<><div className="panel-heading-row"><div><p className="eyebrow">LEDGER</p><h2>{statement.vendor.name}</h2></div></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>التاريخ</th><th>المستند</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead><tbody>{statement.ledger.map(x=><tr key={x.type+x.id}><td>{x.date}</td><td>{x.number}</td><td>{x.description}</td><td>{x.debit.toFixed(2)}</td><td>{x.credit.toFixed(2)}</td><td>{x.balance}</td></tr>)}</tbody></table></div></>}{!statement&&<p>اختر موردًا لعرض كشف الحساب.</p>}</section>
+      <section className="panel">{statement&&<><div className="panel-heading-row"><div><p className="eyebrow">الحسابات</p><h2>{statement.vendor.name}</h2></div></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>التاريخ</th><th>المستند</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead><tbody>{statement.ledger.map(x=><tr key={x.type+x.id}><td>{x.date}</td><td>{x.number}</td><td>{x.description}</td><td>{x.debit.toFixed(2)}</td><td>{x.credit.toFixed(2)}</td><td>{x.balance}</td></tr>)}</tbody></table></div></>}{!statement&&<p>اختر موردًا لعرض كشف الحساب.</p>}</section>
     </section>}
   </div></div></main>;
 }

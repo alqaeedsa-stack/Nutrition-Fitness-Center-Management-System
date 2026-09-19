@@ -206,6 +206,19 @@ storeRoutes.post('/admin/sales', async c => {
 
     for (const item of parsed.data.items) {
       const product = productRows.find(row => row.id === item.productId)!;
+      if (product.productType === 'subscription') {
+        const accountingAccount = product.subscriptionDeferredRevenueEnabled
+          ? (product.deferredRevenueAccountId ?? null)
+          : (product.subscriptionRevenueAccountId ?? product.revenueAccountId ?? null);
+        if (!accountingAccount) {
+          return {
+            error: (product.subscriptionDeferredRevenueEnabled
+              ? 'SUBSCRIPTION_DEFERRED_ACCOUNT_REQUIRED'
+              : 'SUBSCRIPTION_REVENUE_ACCOUNT_REQUIRED') as const,
+            productId: product.id,
+          };
+        }
+      }
       if (!product.posAvailable) return { error: 'POS_PRODUCT_DISABLED' as const, productId: item.productId };
       if (product.minimumSalesPrice != null && Number(product.sellingPrice) < Number(product.minimumSalesPrice)) {
         return { error: 'BELOW_MINIMUM_PRICE' as const, productId: item.productId };
@@ -317,6 +330,8 @@ storeRoutes.post('/admin/sales', async c => {
       POS_PRODUCT_DISABLED:'الصنف غير متاح في نقطة البيع حسب إعداداته', BELOW_MINIMUM_PRICE:'سعر المنتج أقل من الحد الأدنى المحدد',
       SUBSCRIPTION_CUSTOMER_REQUIRED:'الاشتراك يتطلب اختيار عميل', SUBSCRIPTION_START_REQUIRED:'حدد تاريخ بداية الاشتراك',
       SUBSCRIPTION_END_REQUIRED:'حدد تاريخ نهاية الاشتراك أو مدة الاشتراك في إعدادات المنتج',
+      SUBSCRIPTION_DEFERRED_ACCOUNT_REQUIRED:'حساب الإيراد المؤجل غير محدد في إعدادات المنتج',
+      SUBSCRIPTION_REVENUE_ACCOUNT_REQUIRED:'حساب إيراد الاشتراك غير محدد في إعدادات المنتج',
       INVALID_SUBSCRIPTION_DATE_RANGE:'تاريخ نهاية الاشتراك يجب أن يكون بعد أو مساويًا لتاريخ البداية',
     };
     const code=String(result.error);

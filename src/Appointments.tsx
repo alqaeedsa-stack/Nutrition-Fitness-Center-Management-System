@@ -72,10 +72,10 @@ export default function Appointments({ user }: { user: User }) {
 
   const visible=appointments.filter(x=>filter==='all'||x.status===filter);
   return <main className="app-shell">
-    <header className="app-header"><div><span className="eyebrow">APPOINTMENTS</span><h1>المواعيد</h1></div><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></header>
+    <header className="app-header"><div><span className="eyebrow">المواعيد</span><h1>المواعيد</h1></div><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></header>
     {canManage && <section className="staff-management-grid">
       <section className="panel">
-        <div className="panel-heading-row"><div><p className="eyebrow">SCHEDULE</p><h2>{editingId?'تعديل موعد':'موعد جديد'}</h2></div>{editingId&&<button className="secondary-button" type="button" onClick={reset}>إلغاء التعديل</button>}</div>
+        <div className="panel-heading-row"><div><p className="eyebrow">الجدول</p><h2>{editingId?'تعديل موعد':'موعد جديد'}</h2></div>{editingId&&<button className="secondary-button" type="button" onClick={reset}>إلغاء التعديل</button>}</div>
         <form className="form-stack" onSubmit={submit}>
           <label>العميل<select required value={form.customerId} onChange={e=>setForm({...form,customerId:e.target.value})}><option value="">اختر العميل</option>{customers.map(x=><option key={x.id} value={x.id}>{x.customerNumber} — {x.name} {x.lastName}</option>)}</select></label>
           <label>المختص<select required value={form.staffId} onChange={e=>setForm({...form,staffId:e.target.value})}><option value="">اختر المختص</option>{staff.map(x=><option key={x.id} value={x.id}>{x.name} — {x.staffType}</option>)}</select></label>
@@ -90,7 +90,7 @@ export default function Appointments({ user }: { user: User }) {
         </form>
       </section>
       <section className="panel">
-        <p className="eyebrow">TODAY / UPCOMING</p><h2>مواعيد المركز</h2>
+        <p className="eyebrow">اليوم والمواعيد القادمة</p><h2>مواعيد المركز</h2>
         <div className="portal-choice-actions">{[['all','الكل'],...statuses].map(([v,l])=><button key={v} className={`secondary-button ${filter===v?'active':''}`} onClick={()=>setFilter(v)}>{l}</button>)}</div>
       </section>
     </section>}

@@ -748,7 +748,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
   const canWriteCatalog = can('catalog.write');
   const canManageOrders = can('orders.read');
   const canUpdateOrders = can('orders.update');
-  type Product = { id: string; sku: string; name: string; purchaseCost: string; sellingPrice: string; reorderPoint: string; active: boolean; categoryName?: string | null; brandName?: string | null };
+  type Product = { id: string; sku: string; name: string; productType?: string; purchaseCost: string; sellingPrice: string; reorderPoint: string; active: boolean; categoryName?: string | null; brandName?: string | null };
   type Inventory = { productId: string; sku: string; name: string; quantity: string; reorderPoint: string; purchaseCost: string; sellingPrice: string; lowStock: boolean };
   type Movement = { id: string; movementType: string; quantity: string; unitCost: string; referenceType?: string | null; referenceId?: string | null; occurredAt: string; notes?: string | null };
   type Order = { id: string; orderNumber: string; customerId: string; status: string; total: string; paymentMethod?: string | null; paymentStatus: string; createdAt: string };
@@ -759,7 +759,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [categories, setCategories] = useState<{id:string;name:string}[]>([]);
   const [brands, setBrands] = useState<{id:string;name:string}[]>([]);
-  const [form, setForm] = useState({sku:'',name:'',categoryId:'',brandId:'',purchaseCost:'0',sellingPrice:'0',taxCode:'',reorderPoint:'0'});
+  const [form, setForm] = useState({sku:'',name:'',categoryId:'',brandId:'',productType:'product',purchaseCost:'0',sellingPrice:'0',taxCode:'',reorderPoint:'0'});
   const [adjust, setAdjust] = useState({productId:'',quantity:'',movementType:'opening',unitCost:'',notes:''});
   const [receipt, setReceipt] = useState({reference:'',notes:''});
   const [receiptItems, setReceiptItems] = useState<{productId:string;quantity:string;unitCost:string}[]>([]);
@@ -792,8 +792,8 @@ function StaffOperations({ user }: { user: AuthUser }) {
   async function createProduct(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError(''); setMessage('');
     try {
-      await apiFetch('/staff/products',{method:'POST',body:JSON.stringify({...form,brandId:form.brandId||null,purchaseCost:Number(form.purchaseCost),sellingPrice:Number(form.sellingPrice),reorderPoint:Number(form.reorderPoint),active:true})});
-      setForm(v=>({...v,sku:'',name:'',purchaseCost:'0',sellingPrice:'0',taxCode:'',reorderPoint:'0'}));
+      await apiFetch('/staff/products',{method:'POST',body:JSON.stringify({...form,brandId:form.brandId||null,productType:form.productType,purchaseCost:Number(form.purchaseCost),sellingPrice:Number(form.sellingPrice),reorderPoint:Number(form.reorderPoint),active:true})});
+      setForm(v=>({...v,sku:'',name:'',productType:'product',purchaseCost:'0',sellingPrice:'0',taxCode:'',reorderPoint:'0'}));
       setMessage('تم إنشاء المنتج'); await load();
     } catch(e){setError(e instanceof Error?e.message:'تعذر إنشاء المنتج');} finally{setSaving(false);}
   }
@@ -874,6 +874,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
       <section className="panel"><p className="eyebrow">المنتجات</p><h2>إضافة منتج</h2><form className="form-stack" onSubmit={createProduct}>
         <label>SKU<input required value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label>
         <label>اسم المنتج<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label>
+        <label>نوع المنتج<select required value={form.productType} onChange={e=>setForm({...form,productType:e.target.value})}><option value="product">منتج مخزني</option><option value="subscription">اشتراك</option><option value="service">خدمة</option></select></label>
         <label>التصنيف<select required value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}>{categories.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
         <label>العلامة التجارية<select value={form.brandId} onChange={e=>setForm({...form,brandId:e.target.value})}><option value="">بدون علامة</option>{brands.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
         <label>تكلفة الشراء<input type="number" min="0" step="0.01" value={form.purchaseCost} onChange={e=>setForm({...form,purchaseCost:e.target.value})}/></label>
@@ -904,7 +905,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
       <section className="panel"><p className="eyebrow">حركة المخزون</p><h2>إدارة حركة المخزون</h2><form className="form-stack" onSubmit={adjustStock}>
         <label>المنتج<select required value={adjust.productId} onChange={e=>setAdjust({...adjust,productId:e.target.value})}><option value="">اختر المنتج</option>{inventory.map(p=><option key={p.productId} value={p.productId}>{p.sku} — {p.name}</option>)}</select></label>
         <label>نوع الحركة<select value={adjust.movementType} onChange={e=>setAdjust({...adjust,movementType:e.target.value})}>
-          <option value="opening">رصيد افتتاحي</option><option value="purchase">شراء</option><option value="adjustment_in">تسوية إضافة</option><option value="adjustment_out">تسوية صرف</option><option value="return_in">مرتجع وارد</option><option value="return_out">مرتجع صادر</option>
+          <option value="opening">رصيد افتتاحي</option><option value="adjustment_in">تسوية إضافة</option><option value="adjustment_out">تسوية صرف</option>
         </select></label>
         <label>الكمية<input type="number" min="0.001" step="0.001" required value={adjust.quantity} onChange={e=>setAdjust({...adjust,quantity:e.target.value})}/></label>
         <label>تكلفة الوحدة <small>اختياري</small><input type="number" min="0" step="0.01" value={adjust.unitCost} onChange={e=>setAdjust({...adjust,unitCost:e.target.value})}/></label>

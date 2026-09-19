@@ -9,6 +9,13 @@ export const accountingRoutes = new Hono<{ Bindings: AccountingBindings }>();
 
 async function access(c:any, permission:'accounting.read'|'accounting.write') { return requirePermission(c, permission); }
 
+function reportDates(c:any) {
+  const from=c.req.query('from') ?? new Date(new Date().getFullYear(),0,1).toISOString().slice(0,10);
+  const to=c.req.query('to') ?? new Date().toISOString().slice(0,10);
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(from) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(to) || from>to) return null;
+  return {from,to};
+}
+
 const accountSchema=z.object({
   code:z.string().trim().min(1).max(30),
   name:z.string().trim().min(1).max(200),
@@ -94,17 +101,20 @@ accountingRoutes.get('/journal-entries/:id',async c=>{
 });
 accountingRoutes.get('/reports/trial-balance',async c=>{
   const auth=await access(c,'accounting.read'); if('error' in auth)return auth.error;
-  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(case when j.id is not null then l.debit else 0 end),0)::numeric(18,2) as debit,coalesce(sum(case when j.id is not null then l.credit else 0 end),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} group by a.id order by a.code`));
+  const dates=reportDates(c); if(!dates)return c.json({error:{code:'INVALID_DATE_RANGE',message:'نطاق التاريخ غير صحيح'}},400);
+  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(case when j.id is not null then l.debit else 0 end),0)::numeric(18,2) as debit,coalesce(sum(case when j.id is not null then l.credit else 0 end),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' and j.entry_date <= ${dates.to} where a.center_id=${auth.user.centerId!} group by a.id order by a.code`));
   return c.json({accounts:r.rows});
 });
 accountingRoutes.get('/reports/income-statement',async c=>{
   const auth=await access(c,'accounting.read'); if('error' in auth)return auth.error;
-  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(case when j.id is not null then l.debit else 0 end),0)::numeric(18,2) as debit,coalesce(sum(case when j.id is not null then l.credit else 0 end),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} and a.account_type in ('revenue','expense') group by a.id order by a.account_type,a.code`));
+  const dates=reportDates(c); if(!dates)return c.json({error:{code:'INVALID_DATE_RANGE',message:'نطاق التاريخ غير صحيح'}},400);
+  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(case when j.id is not null then l.debit else 0 end),0)::numeric(18,2) as debit,coalesce(sum(case when j.id is not null then l.credit else 0 end),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' and j.entry_date >= ${dates.from} and j.entry_date <= ${dates.to} where a.center_id=${auth.user.centerId!} and a.account_type in ('revenue','expense') group by a.id order by a.account_type,a.code`));
   return c.json({accounts:r.rows});
 });
 accountingRoutes.get('/reports/balance-sheet',async c=>{
   const auth=await access(c,'accounting.read'); if('error' in auth)return auth.error;
-  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(case when j.id is not null then l.debit else 0 end),0)::numeric(18,2) as debit,coalesce(sum(case when j.id is not null then l.credit else 0 end),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} and a.account_type in ('asset','liability','equity') group by a.id order by a.account_type,a.code`));
+  const dates=reportDates(c); if(!dates)return c.json({error:{code:'INVALID_DATE_RANGE',message:'نطاق التاريخ غير صحيح'}},400);
+  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(case when j.id is not null then l.debit else 0 end),0)::numeric(18,2) as debit,coalesce(sum(case when j.id is not null then l.credit else 0 end),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' and j.entry_date <= ${dates.to} where a.center_id=${auth.user.centerId!} and a.account_type in ('asset','liability','equity') group by a.id order by a.account_type,a.code`));
   return c.json({accounts:r.rows});
 });
 accountingRoutes.get('/ledger/:accountId',async c=>{

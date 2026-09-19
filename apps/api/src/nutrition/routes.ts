@@ -164,9 +164,10 @@ nutritionRoutes.post('/:id/items', async c => {
   const parsed = itemSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message ?? 'بيانات الوجبة غير صحيحة' } }, 400);
   const d = parsed.data;
-  const [plan] = await withDatabase(c.env, db => db.select({ id: nutritionPlans.id }).from(nutritionPlans)
+  const [plan] = await withDatabase(c.env, db => db.select({ id: nutritionPlans.id, status: nutritionPlans.status }).from(nutritionPlans)
     .where(and(eq(nutritionPlans.id, c.req.param('id')), eq(nutritionPlans.centerId, a.user.centerId!))).limit(1));
   if (!plan) return c.json({ error: { code: 'PLAN_NOT_FOUND', message: 'الخطة الغذائية غير موجودة' } }, 404);
+  if (['completed', 'cancelled'].includes(plan.status)) return c.json({ error: { code: 'PLAN_LOCKED', message: 'لا يمكن تعديل خطة مكتملة أو ملغاة' } }, 409);
   const [item] = await withDatabase(c.env, db => db.insert(nutritionPlanItems).values({
     nutritionPlanId: plan.id, mealType: d.mealType, itemName: d.itemName, quantity: d.quantity == null ? null : String(d.quantity),
     unit: d.unit || null, calories: d.calories == null ? null : String(d.calories), notes: d.notes || null, sortOrder: d.sortOrder,
@@ -179,10 +180,11 @@ nutritionRoutes.patch('/:id/items/:itemId', async c => {
   if ('error' in a) return a.error;
   const parsed = itemSchema.partial().safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message ?? 'بيانات الوجبة غير صحيحة' } }, 400);
-  const [item] = await withDatabase(c.env, db => db.select({ id: nutritionPlanItems.id }).from(nutritionPlanItems)
+  const [item] = await withDatabase(c.env, db => db.select({ id: nutritionPlanItems.id, planStatus: nutritionPlans.status }).from(nutritionPlanItems)
     .innerJoin(nutritionPlans, eq(nutritionPlans.id, nutritionPlanItems.nutritionPlanId))
     .where(and(eq(nutritionPlanItems.id, c.req.param('itemId')), eq(nutritionPlans.id, c.req.param('id')), eq(nutritionPlans.centerId, a.user.centerId!))).limit(1));
   if (!item) return c.json({ error: { code: 'ITEM_NOT_FOUND', message: 'عنصر الخطة غير موجود' } }, 404);
+  if (['completed', 'cancelled'].includes(item.planStatus)) return c.json({ error: { code: 'PLAN_LOCKED', message: 'لا يمكن تعديل خطة مكتملة أو ملغاة' } }, 409);
   const d = parsed.data;
   const [updated] = await withDatabase(c.env, db => db.update(nutritionPlanItems).set({
     ...(d.mealType ? { mealType: d.mealType } : {}), ...(d.itemName ? { itemName: d.itemName } : {}),

@@ -354,9 +354,10 @@ storeRoutes.post('/admin/sales/:saleId/return', async c => {
       RETURN_QTY_EXCEEDED: 'كمية المرتجع أكبر من الكمية المتبقية القابلة للإرجاع',
       PRODUCT_NOT_FOUND: 'أحد المنتجات غير موجود في المركز',
     };
-    if (errorCode === 'RETURN_QTY_EXCEEDED') return c.json({ error: { code: errorCode, message: messages[errorCode], details: { productId: result.productId, remaining: result.remaining, requested: result.requested } } }, 409);
-    if (errorCode === 'PRODUCT_NOT_IN_SALE') return c.json({ error: { code: errorCode, message: messages[errorCode] } }, 409);
-    return c.json({ error: { code: errorCode, message: messages[errorCode] ?? 'تعذر تنفيذ المرتجع' } }, errorCode === 'SALE_NOT_FOUND' ? 404 : 409);
+    const message = messages[errorCode] ?? 'تعذر تنفيذ المرتجع';
+    if (errorCode === 'RETURN_QTY_EXCEEDED') return c.json({ error: { code: errorCode, message, details: { productId: result.productId, remaining: result.remaining, requested: result.requested } } }, 409);
+    if (errorCode === 'PRODUCT_NOT_IN_SALE') return c.json({ error: { code: errorCode, message } }, 409);
+    return c.json({ error: { code: errorCode, message } }, errorCode === 'SALE_NOT_FOUND' ? 404 : 409);
   }
 
   return c.json({ ok: true, saleNumber: result.saleNumber, returnTotal: result.returnTotal.toFixed(2), returnedLines: result.returnedLines, status: result.status });

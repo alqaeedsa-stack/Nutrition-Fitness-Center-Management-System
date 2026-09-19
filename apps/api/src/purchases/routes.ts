@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
@@ -210,12 +210,26 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
         receivedQuantity: (Number(line.receivedQuantity) + requested.quantity).toString(),
         updatedAt: new Date(),
       }).where(eq(purchaseOrderItems.id, line.id));
+      const current = await tx.select({
+        stock: sql<string>`coalesce(sum(${stockMovements.quantity}), 0)`,
+        purchaseCost: products.purchaseCost,
+      }).from(products).leftJoin(stockMovements, and(
+        eq(stockMovements.productId, products.id),
+        eq(stockMovements.centerId, auth.user.centerId!),
+      )).where(eq(products.id, line.productId)).groupBy(products.id);
+      const currentStock = Number(current[0]?.stock ?? 0);
+      const currentCost = Number(current[0]?.purchaseCost ?? 0);
+      const newStock = currentStock + requested.quantity;
+      const weightedCost = newStock > 0 ? ((currentStock * currentCost) + (requested.quantity * unitCost)) / newStock : unitCost;
+
       await tx.insert(stockMovements).values({
         centerId: auth.user.centerId!, productId: line.productId, movementType: 'purchase',
         quantity: requested.quantity.toString(), unitCost: unitCost.toFixed(2),
         referenceType: 'purchase_order', referenceId: order[0].id, occurredAt: new Date(),
         createdBy: auth.user.userId, notes: parsed.data.notes || ('استلام من أمر الشراء ' + order[0].poNumber),
       });
+      await tx.update(products).set({ purchaseCost: weightedCost.toFixed(2), updatedAt: new Date() })
+        .where(and(eq(products.id, line.productId), eq(products.centerId, auth.user.centerId!)));
       receivedAny = true;
     }
 

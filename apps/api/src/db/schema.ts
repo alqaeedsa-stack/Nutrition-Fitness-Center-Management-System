@@ -346,6 +346,40 @@ export const saleItems = pgTable('sale_items', {
   lineTotal: numeric('line_total', { precision: 14, scale: 2 }).notNull(),
 });
 
+export const saleReturns = pgTable('sale_returns', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
+  saleId: uuid('sale_id').notNull().references(() => sales.id),
+  returnNumber: varchar('return_number', { length: 100 }).notNull(),
+  returnDate: date('return_date').notNull(),
+  status: varchar('status', { length: 30 }).notNull().default('posted'),
+  subtotal: numeric('subtotal', { precision: 14, scale: 2 }).notNull().default('0'),
+  tax: numeric('tax_total', { precision: 14, scale: 2 }).notNull().default('0'),
+  total: numeric('grand_total', { precision: 14, scale: 2 }).notNull().default('0'),
+  journalEntryId: uuid('journal_entry_id'),
+  createdBy: uuid('created_by').notNull().references(() => users.id),
+  ...auditTimestamps,
+}, (table) => [
+  uniqueIndex('sale_returns_center_number_uq').on(table.centerId, table.returnNumber),
+  index('sale_returns_sale_idx').on(table.saleId),
+]);
+
+export const saleReturnItems = pgTable('sale_return_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  saleReturnId: uuid('sale_return_id').notNull().references(() => saleReturns.id, { onDelete: 'cascade' }),
+  saleItemId: uuid('sale_item_id').references(() => saleItems.id),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  quantity: numeric('quantity', { precision: 14, scale: 3 }).notNull(),
+  unitPrice: numeric('unit_price', { precision: 14, scale: 2 }).notNull(),
+  tax: numeric('tax', { precision: 14, scale: 2 }).notNull().default('0'),
+  lineTotal: numeric('line_total', { precision: 14, scale: 2 }).notNull(),
+  unitCost: numeric('unit_cost', { precision: 14, scale: 2 }).notNull().default('0'),
+  ...auditTimestamps,
+}, (table) => [
+  index('sale_return_items_return_idx').on(table.saleReturnId),
+  index('sale_return_items_product_idx').on(table.productId),
+]);
+
 export const customerSubscriptions = pgTable('customer_subscriptions', {
   id: uuid('id').defaultRandom().primaryKey(),
   centerId: uuid('center_id').notNull().references(() => centers.id),

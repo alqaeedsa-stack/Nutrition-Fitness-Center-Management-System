@@ -48,12 +48,29 @@ async function createEntry(tx: any, args: {
 
 export async function postPurchaseBill(tx: any, args: {
   centerId: string; billId: string; billNumber: string; billDate: string; subtotal: number; tax: number; createdBy: string;
+  lines?: Array<{amount:number;purchaseAccountId?:string|null;inventoryAccountId?:string|null}>;
 }) {
   const s = await settings(tx, args.centerId);
   requireAccounts(s, ['inventory_account_id', 'accounts_payable_account_id']);
   if (args.tax > 0) requireAccounts(s, ['input_vat_account_id']);
-  const lines = [
-    { accountId: s.inventory_account_id, description: `فاتورة مورد ${args.billNumber} - مخزون/مشتريات`, debit: args.subtotal, credit: 0 },
+  const grouped=new Map<string,{accountId:string;description:string;debit:number;credit:number}>();
+  const add=(accountId:string|null|undefined,description:string,debit:number,credit:number)=>{
+    if(!accountId || Math.abs(debit)+Math.abs(credit)<0.005) return;
+    const key=accountId+':d';
+    const existing=grouped.get(key);
+    if(existing) existing.debit+=debit; else grouped.set(key,{accountId,description,debit,credit});
+  };
+  if(args.lines?.length) {
+    for(const line of args.lines) {
+      const account=line.purchaseAccountId ?? line.inventoryAccountId ?? s.inventory_account_id;
+      if(!account) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب المشتريات/المخزون غير مُهيأ');
+      add(account,`فاتورة مورد ${args.billNumber} - مشتريات/مخزون`,line.amount,0);
+    }
+  } else {
+    add(s.inventory_account_id,`فاتورة مورد ${args.billNumber} - مخزون/مشتريات`,args.subtotal,0);
+  }
+  const lines=[
+    ...Array.from(grouped.values()),
     ...(args.tax > 0 ? [{ accountId: s.input_vat_account_id, description: `فاتورة مورد ${args.billNumber} - ضريبة مدخلات`, debit: args.tax, credit: 0 }] : []),
     { accountId: s.accounts_payable_account_id, description: `فاتورة مورد ${args.billNumber} - دائنون`, debit: 0, credit: Math.round((args.subtotal+args.tax)*100)/100 },
   ];

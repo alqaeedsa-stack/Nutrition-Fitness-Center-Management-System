@@ -652,7 +652,7 @@ staffRoutes.post('/pos/sales', async c => {
       };
     }));
 
-    const stockLines = data.items.filter(item => productMap.get(item.productId)!.productType !== 'subscription');
+    const stockLines = data.items.filter(item => !NON_STOCK_PRODUCT_TYPES.includes(productMap.get(item.productId)!.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]));
     if (stockLines.length) {
       await tx.insert(stockMovements).values(stockLines.map(item => ({
         centerId: auth.user.centerId!, productId: item.productId, movementType: 'sale',

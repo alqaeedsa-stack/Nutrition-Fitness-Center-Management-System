@@ -35,7 +35,7 @@ export default function VendorBilling(){
   const [error,setError]=useState('');
   const [message,setMessage]=useState('');
 
-  const vendors=useMemo(()=>Array.from(new Map(orders.map(o=>[o.vendorId,{id:o.vendorId,name:o.vendorName}])).values()),[orders]);
+  const vendors=useMemo(()=>Array.from(new Map([...orders.map(o=>[o.vendorId,{id:o.vendorId,name:o.vendorName}] as const),...bills.map(b=>[b.vendorId,{id:b.vendorId,name:b.vendorName}] as const)]).values()),[orders,bills]);
 
   async function load(){
     setError('');
@@ -48,7 +48,7 @@ export default function VendorBilling(){
       setOrders(o.orders);setBills(b.bills);setPayments(p.payments);
       if(!selectedOrder&&o.orders[0]) setSelectedOrder(o.orders[0].id);
       if(!paymentBill){const open=b.bills.find(x=>['posted','partially_paid'].includes(x.status));if(open)setPaymentBill(open.id);}
-      if(!statementVendor&&vendors[0]) setStatementVendor(vendors[0].id);
+      if(!statementVendor && o.orders[0]) setStatementVendor(o.orders[0].vendorId);
     }catch(e){setError(e instanceof Error?e.message:'تعذر تحميل المشتريات المالية');}
   }
   useEffect(()=>{void load();},[]);
@@ -109,7 +109,7 @@ export default function VendorBilling(){
 
     {tab==='bills'&&<section className="staff-management-grid">
       <section className="panel">
-        <p className="eyebrow">NEW VENDOR BILL</p><h2>إنشاء فاتورة من الاستلام</h2>
+        <p className="eyebrow">VENDOR BILL</p><h2>فاتورة مورد جديدة</h2><div className="odoo-statusbar" aria-label="دورة فاتورة المورد"><span className="current">مسودة</span><span>مرحّلة</span><span>مدفوعة جزئيًا</span><span>مدفوعة</span></div>
         <p>لا يمكن فوترة كمية أكبر من الكمية المستلمة غير المفوترة.</p>
         <form className="form-stack" onSubmit={createBill}>
           <div className="form-row"><label>أمر الشراء<select value={selectedOrder} onChange={e=>setSelectedOrder(e.target.value)}><option value="">اختر</option>{orders.map(o=><option key={o.id} value={o.id}>{o.poNumber} — {o.vendorName}</option>)}</select></label><label>رقم فاتورة المورد<input value={vendorInvoiceNumber} onChange={e=>setVendorInvoiceNumber(e.target.value)} placeholder="رقم المورد إن وجد"/></label></div>

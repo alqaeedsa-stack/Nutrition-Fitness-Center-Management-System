@@ -83,7 +83,7 @@ function Login({ onLogin, portal }: { onLogin: (user: AuthUser) => void; portal:
         <Link className="portal-back" to={isStaff ? '/admin' : '/customer'}>← العودة إلى {isStaff ? 'بوابة الإدارة' : 'بوابة العملاء'}</Link>
         <div className="brand-mark small">N</div>
         <div className="brand-block">
-          <span className="eyebrow">{isStaff ? 'STAFF & MANAGEMENT PORTAL' : 'CUSTOMER PORTAL'}</span>
+          <span className="eyebrow">{isStaff ? 'بوابة الإدارة والموظفين' : 'بوابة العملاء'}</span>
           <h1>{isStaff ? 'دخول الإدارة والموظفين' : 'دخول العملاء'}</h1>
           <p>{isStaff
             ? 'بوابة العمل الداخلية للإدارة والأطباء والأخصائيين والموظفين.'
@@ -194,7 +194,7 @@ function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
         <Link className="portal-back" to="/customer">← العودة إلى بوابة العملاء والمتجر</Link>
         <div className="brand-mark small">N</div>
         <div className="brand-block">
-          <span className="eyebrow">CUSTOMER PORTAL</span>
+          <span className="eyebrow">بوابة العملاء</span>
           <h1>إنشاء حساب عميل</h1>
           <p>التسجيل العام متاح للعملاء فقط. حسابات الإدارة والموظفين ينشئها النظام من داخل بوابة العمل.</p>
         </div>
@@ -246,7 +246,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
       title: en ? 'Customers & Services' : 'العملاء والخدمات',
       code: 'FRONT OFFICE',
       items: [
-        ...(canCustomers ? [[en ? 'Customers' : 'العملاء', 'CUSTOMERS', en ? 'Customer files and basic information.' : 'ملفات العملاء والبيانات الأساسية.', '/admin/customers']] : []),
+        ...(canCustomers ? [[en ? 'Customers' : 'العملاء', 'العميلS', en ? 'Customer files and basic information.' : 'ملفات العملاء والبيانات الأساسية.', '/admin/customers']] : []),
         ...(can('appointments.read') ? [[en ? 'Appointments' : 'المواعيد', 'APPOINTMENTS', en ? 'Bookings and appointments for doctors and specialists.' : 'الحجوزات ومواعيد الأطباء والأخصائيين.', '/admin/appointments']] : []),
         ...(can('followups.write') || canCustomers ? [[en ? 'Customer Follow-up' : 'متابعة العملاء', 'FOLLOW-UP', en ? 'Visits, periodic follow-ups and recommendations.' : 'الزيارات والمتابعات الدورية والتوصيات.', '/admin/follow-ups']] : []),
         ...(can('measurements.read') ? [[en ? 'Measurements' : 'القياسات', 'MEASUREMENTS', en ? 'Customer measurements and progress history.' : 'قياسات العملاء وسجل التقدم.', '/admin/measurements']] : []),
@@ -296,7 +296,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
         <div className="odoo-dashboard-brand">
           <div className="brand-mark">N</div>
           <div>
-            <span className="eyebrow">NUTRITION & FITNESS CENTER</span>
+            <span className="eyebrow">مركز التغذية واللياقة</span>
             <h1>{en ? 'Administration Workspace' : 'مساحة عمل الإدارة'}</h1>
           </div>
         </div>
@@ -312,7 +312,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
       <div className="odoo-dashboard-layout">
         <aside className="odoo-dashboard-sidebar">
           <div className="odoo-sidebar-title">
-            <span className="eyebrow">WORKSPACE</span>
+            <span className="eyebrow">مساحة العمل</span>
             <strong>{en ? 'Modules' : 'الوحدات'}</strong>
           </div>
           <nav>
@@ -328,7 +328,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
         <section className="odoo-dashboard-main">
           <div className="odoo-dashboard-welcome">
             <div>
-              <span className="eyebrow">{en ? 'INTERNAL ADMINISTRATION & OPERATIONS' : 'الإدارة والتشغيل الداخلي'}</span>
+              <span className="eyebrow">{en ? 'الإدارة والتشغيل الداخلي' : 'الإدارة والتشغيل الداخلي'}</span>
               <h2>{en ? 'Workspace' : 'لوحة العمل'}</h2>
               <p>{en ? 'Choose a module to work in. Only modules allowed for your account are shown.' : 'اختر الوحدة التي تريد العمل عليها. تظهر لك فقط الوحدات المسموح بها لحسابك.'}</p>
             </div>
@@ -374,13 +374,13 @@ function Home() {
     <main className="portal-home">
       <section className="portal-home-inner">
         <div className="portal-home-heading">
-          <span className="eyebrow">NUTRITION & FITNESS CENTER</span>
+          <span className="eyebrow">مركز التغذية واللياقة</span>
           <h1>اختر البوابة التي تريد الدخول إليها</h1>
           <p>تم فصل تجربة العملاء والمتجر عن بيئة الإدارة والموظفين والمخزون ونقطة البيع.</p>
         </div>
         <div className="portal-choice-grid">
           <article className="portal-choice customer-choice">
-            <span className="eyebrow">CUSTOMER PORTAL</span>
+            <span className="eyebrow">بوابة العملاء</span>
             <h2>بوابة العملاء والمتجر</h2>
             <p>للعملاء فقط: الحساب الشخصي، القياسات، الخطط، المواعيد، المشتريات والمتجر الإلكتروني.</p>
             <div className="portal-choice-actions">
@@ -390,7 +390,7 @@ function Home() {
             <span className="portal-url">/customer</span>
           </article>
           <article className="portal-choice staff-choice">
-            <span className="eyebrow">STAFF & MANAGEMENT PORTAL</span>
+            <span className="eyebrow">بوابة الإدارة والموظفين</span>
             <h2>بوابة الإدارة والموظفين</h2>
             <p>للإدارة والأطباء والأخصائيين والموظفين: العملاء، المواعيد، المخزون، نقطة البيع والتشغيل الداخلي.</p>
             <div className="portal-choice-actions">
@@ -542,7 +542,7 @@ function CustomerStore() {
     <main className="app-shell customer-store-page">
       <header className="app-header">
         <div>
-          <span className="eyebrow">CUSTOMER STORE</span>
+          <span className="eyebrow">متجر العملاء</span>
           <h1>المتجر الإلكتروني</h1>
         </div>
         <Link className="secondary-button" to="/customer/home">بوابة العميل</Link>
@@ -583,7 +583,7 @@ function CustomerStore() {
       {cart && (
         <section className="store-cart">
           <div className="panel-heading-row">
-            <div><span className="eyebrow">CART</span><h2>سلة التسوق</h2></div>
+            <div><span className="eyebrow">السلة</span><h2>سلة التسوق</h2></div>
             <strong>{cart.subtotal} ر.س</strong>
           </div>
           {!cart.items.length ? (
@@ -606,7 +606,7 @@ function CustomerStore() {
 
               <div className="checkout-panel">
                 <div>
-                  <span className="eyebrow">CHECKOUT</span>
+                  <span className="eyebrow">إتمام الطلب</span>
                   <h3>إتمام الطلب</h3>
                 </div>
                 <label>
@@ -628,7 +628,7 @@ function CustomerStore() {
 
       <section className="store-cart">
         <div className="panel-heading-row">
-          <div><span className="eyebrow">ORDERS</span><h2>طلباتي</h2></div>
+          <div><span className="eyebrow">الطلبات</span><h2>طلباتي</h2></div>
         </div>
         {!orders.length ? (
           <p className="empty-state">لا توجد طلبات متجر حتى الآن.</p>
@@ -686,16 +686,16 @@ function StaffPOS({ user }: { user: AuthUser }) {
   const subtotal=cart.reduce((s,x)=>s+x.cartQuantity*x.price,0); const discount=cart.reduce((s,x)=>s+x.discount,0); const total=Math.max(0,subtotal-discount);
   async function completeSale(){ if(!cart.length){setError('السلة فارغة');return;} if(!customer){setError('اختر العميل قبل إتمام البيع.');return;} setLoading(true);setError('');setMessage(''); try { const r=await apiFetch<{sale:{id:string;saleNumber:string;total:string}}>('/staff/pos/sales',{method:'POST',body:JSON.stringify({customerId:customer.id,paymentMethod,paymentStatus:'paid',items:cart.map(x=>({productId:x.id,quantity:x.cartQuantity}))})}); setMessage('تم تسجيل البيع '+r.sale.saleNumber+' بإجمالي '+r.sale.total+' ر.س');setCart([]);setCustomer(null);setCustomerQuery(''); await loadSalesHistory(); await openSale(r.sale.id); } catch(e){setError(e instanceof Error?e.message:'تعذر إتمام البيع');} finally{setLoading(false);} }
 
-  return <main className="app-shell"><header className="app-header"><div><span className="eyebrow">POINT OF SALE</span><h1>نقطة البيع</h1></div><div className="portal-choice-actions"><button className="secondary-button" type="button" onClick={()=>void loadSalesHistory()}>المبيعات السابقة</button><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></div></header>
+  return <main className="app-shell"><header className="app-header"><div><span className="eyebrow">نقطة البيع</span><h1>نقطة البيع</h1></div><div className="portal-choice-actions"><button className="secondary-button" type="button" onClick={()=>void loadSalesHistory()}>المبيعات السابقة</button><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></div></header>
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
-    <section className="staff-management-grid"><section className="panel"><p className="eyebrow">PRODUCT SEARCH</p><h2>إضافة المنتجات</h2>
+    <section className="staff-management-grid"><section className="panel"><p className="eyebrow">بحث المنتجات</p><h2>إضافة المنتجات</h2>
       <input autoFocus dir="ltr" value={query} onChange={e=>void searchProducts(e.target.value)} placeholder="SKU أو باركود أو اسم المنتج" />
       {!!products.length&&<div className="cart-list">{products.map(p=><button type="button" className="cart-row" key={p.id} onClick={()=>addProduct(p)}><span><strong>{p.name}</strong><small>{p.sku}{p.barcode?' · '+p.barcode:''} · المتاح {p.quantity}</small></span><strong>{p.sellingPrice} ر.س</strong></button>)}</div>}
-      <div className="panel-heading-row"><div><p className="eyebrow">CUSTOMER</p><h3>{customer?customer.firstName+' '+customer.lastName:'اختيار العميل (مطلوب)'}</h3></div></div>
+      <div className="panel-heading-row"><div><p className="eyebrow">العميل</p><h3>{customer?customer.firstName+' '+customer.lastName:'اختيار العميل (مطلوب)'}</h3></div></div>
       <input value={customerQuery} onChange={e=>void searchCustomers(e.target.value)} placeholder="بحث بالرقم أو الجوال أو الاسم" />
       {!!customers.length&&!customer&&<div className="cart-list">{customers.map(c=><button type="button" className="cart-row" key={c.id} onClick={()=>{setCustomer(c);setCustomers([]);setCustomerQuery(c.customerNumber);}}><span><strong>{c.firstName} {c.lastName}</strong><small>{c.customerNumber} · {c.phone??'بدون جوال'}</small></span></button>)}</div>}
       {customer&&<button className="secondary-button" type="button" onClick={()=>{setCustomer(null);setCustomerQuery('');}}>إزالة العميل</button>}</section>
-    <section className="panel"><p className="eyebrow">CURRENT SALE</p><h2>السلة</h2>
+    <section className="panel"><p className="eyebrow">الفاتورة الحالية</p><h2>السلة</h2>
       {!cart.length ? <p className="empty-state">لم تتم إضافة منتجات.</p> : <div className="cart-list">
         {cart.map(item => <div className="cart-row" key={item.id}>
           <div><strong>{item.name}</strong><small>{item.price.toFixed(2)} ر.س · الكمية {item.cartQuantity}</small></div>
@@ -707,18 +707,18 @@ function StaffPOS({ user }: { user: AuthUser }) {
           </div>
         </div>)}
       </div>}
-      <div className="checkout-panel"><div><span className="eyebrow">PAYMENT</span><h3>الإجمالي: {total.toFixed(2)} ر.س</h3><small>قبل الضريبة — محرك الضريبة لم يتم ربطه بعد.</small></div>
+      <div className="checkout-panel"><div><span className="eyebrow">الدفع</span><h3>الإجمالي: {total.toFixed(2)} ر.س</h3><small>قبل الضريبة — محرك الضريبة لم يتم ربطه بعد.</small></div>
         <label>طريقة الدفع<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value as typeof paymentMethod)}><option value="cash">نقدي</option><option value="mada">مدى</option><option value="card">بطاقة</option><option value="bank_transfer">تحويل بنكي</option><option value="apple_pay">Apple Pay</option></select></label>
         {canSell && <button className="primary-action button" type="button" onClick={()=>void completeSale()} disabled={loading||!cart.length}>{loading?'جارٍ تسجيل البيع...':'إتمام البيع'}</button>}<div className="cart-note">البيع يُسجل ذريًا في المبيعات والمخزون والقيد المحاسبي.</div></div></section></section>
 
-    <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">SALES HISTORY</p><h2>آخر المبيعات</h2></div><button className="secondary-button" type="button" onClick={()=>void loadSalesHistory()} disabled={historyLoading}>{historyLoading?'جارٍ التحميل...':'تحديث'}</button></div>
+    <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">سجل المبيعات</p><h2>آخر المبيعات</h2></div><button className="secondary-button" type="button" onClick={()=>void loadSalesHistory()} disabled={historyLoading}>{historyLoading?'جارٍ التحميل...':'تحديث'}</button></div>
       {!salesHistory.length ? <p className="empty-state">اضغط «المبيعات السابقة» لعرض آخر 100 عملية بيع.</p> :
       <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>رقم البيع</th><th>العميل</th><th>الإجمالي</th><th>الدفع</th><th>التاريخ</th><th></th></tr></thead><tbody>
         {salesHistory.map(s=><tr key={s.id}><td>{s.saleNumber}</td><td>{s.customerName??'عميل نقدي'}</td><td>{s.total} ر.س</td><td>{s.paymentMethod}</td><td>{new Date(s.createdAt).toLocaleString('ar-SA')}</td><td><button className="secondary-button" type="button" onClick={()=>void openSale(s.id)}>التفاصيل</button></td></tr>)}
       </tbody></table></div>}
     </section>
 
-    {selectedSale&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">SALE RECEIPT</p><h2>{selectedSale.saleNumber}</h2></div><button className="secondary-button" type="button" onClick={()=>window.print()}>طباعة</button></div>
+    {selectedSale&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">إيصال البيع</p><h2>{selectedSale.saleNumber}</h2></div><button className="secondary-button" type="button" onClick={()=>window.print()}>طباعة</button></div>
       <p>{selectedSale.customerName??'عميل نقدي'} · {new Date(selectedSale.createdAt).toLocaleString('ar-SA')} · الحالة: {selectedSale.status}</p>
       {selectedSale.status === 'completed' && canZatca && <button className="secondary-button" type="button" onClick={()=>void prepareZatcaInvoice(selectedSale.id)}>تجهيز فاتورة ZATCA</button>}{selectedSale.status === 'completed' && canVoid && <button className="secondary-button" type="button" onClick={()=>void voidSale(selectedSale.id)}>إلغاء عملية البيع وعكس المخزون</button>}
       <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المنتج</th><th>SKU</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>{selectedSale.items.map(i=><tr key={i.id}><td>{i.productName}</td><td>{i.sku}</td><td>{i.quantity}</td><td>{i.unitPrice} ر.س</td><td>{i.lineTotal} ر.س</td></tr>)}</tbody></table></div>
@@ -842,7 +842,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
   };
 
   return <main className="app-shell">
-    <header className="app-header"><div><span className="eyebrow">OPERATIONS</span><h1>المنتجات والمخزون والطلبات</h1></div><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></header>
+    <header className="app-header"><div><span className="eyebrow">التشغيل</span><h1>المنتجات والمخزون والطلبات</h1></div><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></header>
     <div className="portal-choice-actions">
       {canManageCatalog && <button className={`secondary-button ${tab==='products'?'active':''}`} onClick={()=>setTab('products')}>المنتجات</button>}
       {canManageInventory && <button className={`secondary-button ${tab==='inventory'?'active':''}`} onClick={()=>setTab('inventory')}>المخزون</button>}
@@ -851,7 +851,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
 
     {canManageCatalog && tab==='products'&&<section className="staff-management-grid">
-      <section className="panel"><p className="eyebrow">PRODUCT MASTER</p><h2>إضافة منتج</h2><form className="form-stack" onSubmit={createProduct}>
+      <section className="panel"><p className="eyebrow">المنتجات</p><h2>إضافة منتج</h2><form className="form-stack" onSubmit={createProduct}>
         <label>SKU<input required value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label>
         <label>اسم المنتج<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label>
         <label>التصنيف<select required value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}>{categories.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
@@ -862,11 +862,11 @@ function StaffOperations({ user }: { user: AuthUser }) {
         <label>حد إعادة الطلب<input type="number" min="0" step="0.001" value={form.reorderPoint} onChange={e=>setForm({...form,reorderPoint:e.target.value})}/></label>
         {canWriteCatalog && <button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'حفظ المنتج'}</button>}
       </form></section>
-      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">CATALOG</p><h2>المنتجات</h2></div></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>التصنيف</th><th>التكلفة</th><th>البيع</th><th>الحالة</th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.categoryName??'—'}</td><td>{p.purchaseCost}</td><td>{p.sellingPrice}</td><td>{p.active?'نشط':'موقوف'}</td></tr>)}</tbody></table></div></section>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">دليل المنتجات</p><h2>المنتجات</h2></div></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>التصنيف</th><th>التكلفة</th><th>البيع</th><th>الحالة</th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.categoryName??'—'}</td><td>{p.purchaseCost}</td><td>{p.sellingPrice}</td><td>{p.active?'نشط':'موقوف'}</td></tr>)}</tbody></table></div></section>
     </section>}
 
     {canManageInventory && tab==='inventory'&&<section className="staff-management-grid">
-      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">PURCHASE RECEIPT</p><h2>استلام شراء</h2><small>استلام عدة منتجات في عملية واحدة وبشكل ذري.</small></div></div>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">استلام المشتريات</p><h2>استلام شراء</h2><small>استلام عدة منتجات في عملية واحدة وبشكل ذري.</small></div></div>
         <form className="form-stack" onSubmit={receivePurchase}>
           <label>رقم الفاتورة / المرجع<input value={receipt.reference} onChange={e=>setReceipt({...receipt,reference:e.target.value})} placeholder="اختياري"/></label>
           {receiptItems.map((item,index)=><div className="form-row" key={index}>
@@ -881,7 +881,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
         </form>
       </section>
 
-      <section className="panel"><p className="eyebrow">STOCK MOVEMENT</p><h2>إدارة حركة المخزون</h2><form className="form-stack" onSubmit={adjustStock}>
+      <section className="panel"><p className="eyebrow">حركة المخزون</p><h2>إدارة حركة المخزون</h2><form className="form-stack" onSubmit={adjustStock}>
         <label>المنتج<select required value={adjust.productId} onChange={e=>setAdjust({...adjust,productId:e.target.value})}><option value="">اختر المنتج</option>{inventory.map(p=><option key={p.productId} value={p.productId}>{p.sku} — {p.name}</option>)}</select></label>
         <label>نوع الحركة<select value={adjust.movementType} onChange={e=>setAdjust({...adjust,movementType:e.target.value})}>
           <option value="opening">رصيد افتتاحي</option><option value="purchase">شراء</option><option value="adjustment_in">تسوية إضافة</option><option value="adjustment_out">تسوية صرف</option><option value="return_in">مرتجع وارد</option><option value="return_out">مرتجع صادر</option>
@@ -891,26 +891,26 @@ function StaffOperations({ user }: { user: AuthUser }) {
         <label>ملاحظة<textarea value={adjust.notes} onChange={e=>setAdjust({...adjust,notes:e.target.value})}/></label>
         {canAdjustInventory && <button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'تسجيل حركة المخزون'}</button>}
       </form></section>
-      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">STOCK CONTROL</p><h2>الأرصدة الحالية</h2></div><span className="module-status">{inventory.filter(x=>x.lowStock).length} تحت حد الطلب</span></div>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">التحكم بالمخزون</p><h2>الأرصدة الحالية</h2></div><span className="module-status">{inventory.filter(x=>x.lowStock).length} تحت حد الطلب</span></div>
         <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>الرصيد</th><th>حد الطلب</th><th>قيمة التكلفة</th><th>الحالة</th><th></th></tr></thead><tbody>
         {inventory.map(x=><tr key={x.productId}><td>{x.sku}</td><td>{x.name}</td><td>{Number(x.quantity).toFixed(3)}</td><td>{Number(x.reorderPoint).toFixed(3)}</td><td>{(Number(x.quantity)*Number(x.purchaseCost)).toFixed(2)} ر.س</td><td>{x.lowStock?<span className="status-badge inactive">إعادة طلب</span>:<span className="status-badge active">متوفر</span>}</td><td><button className="secondary-button" type="button" onClick={()=>void openMovements(x)}>الحركات</button></td></tr>)}
         </tbody></table></div>
       </section>
     </section>}
 
-    {movementProduct && <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">MOVEMENT HISTORY</p><h2>{movementProduct.name}</h2><small>{movementProduct.sku} · الرصيد الحالي {Number(movementProduct.quantity).toFixed(3)}</small></div><button className="secondary-button" type="button" onClick={()=>setMovementProduct(null)}>إغلاق</button></div>
+    {movementProduct && <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">سجل الحركات</p><h2>{movementProduct.name}</h2><small>{movementProduct.sku} · الرصيد الحالي {Number(movementProduct.quantity).toFixed(3)}</small></div><button className="secondary-button" type="button" onClick={()=>setMovementProduct(null)}>إغلاق</button></div>
       {movementLoading ? <p className="empty-state">جارٍ تحميل الحركات...</p> : !movements.length ? <p className="empty-state">لا توجد حركات مسجلة لهذا المنتج.</p> :
       <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الحركة</th><th>الكمية</th><th>تكلفة الوحدة</th><th>التاريخ</th><th>المرجع</th><th>الملاحظة</th></tr></thead><tbody>
       {movements.map(m=><tr key={m.id}><td>{movementLabels[m.movementType]??m.movementType}</td><td>{Number(m.quantity)>0?'+':''}{Number(m.quantity).toFixed(3)}</td><td>{Number(m.unitCost).toFixed(2)} ر.س</td><td>{new Date(m.occurredAt).toLocaleString('ar-SA')}</td><td>{m.referenceType??'—'}</td><td>{m.notes??'—'}</td></tr>)}
       </tbody></table></div>}
     </section>}
 
-    {canManageOrders && tab==='orders'&&<section className="panel"><p className="eyebrow">CUSTOMER ORDERS</p><h2>طلبات العملاء</h2><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الطلب</th><th>الحالة</th><th>الإجمالي</th><th>الدفع</th><th>التاريخ</th><th>إجراء</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.orderNumber}</td><td>{o.status}</td><td>{o.total} ر.س</td><td>{o.paymentStatus}</td><td>{new Date(o.createdAt).toLocaleString('ar-SA')}</td><td>{canUpdateOrders && o.status==='pending'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'confirmed')}>تأكيد</button>}{canUpdateOrders && o.status==='confirmed'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'completed')}>إكمال</button>}{canUpdateOrders && o.status!=='completed'&&o.status!=='cancelled'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'cancelled')}>إلغاء</button>}</td></tr>)}</tbody></table></div></section>}
+    {canManageOrders && tab==='orders'&&<section className="panel"><p className="eyebrow">العميل الطلبات</p><h2>طلبات العملاء</h2><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الطلب</th><th>الحالة</th><th>الإجمالي</th><th>الدفع</th><th>التاريخ</th><th>إجراء</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.orderNumber}</td><td>{o.status}</td><td>{o.total} ر.س</td><td>{o.paymentStatus}</td><td>{new Date(o.createdAt).toLocaleString('ar-SA')}</td><td>{canUpdateOrders && o.status==='pending'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'confirmed')}>تأكيد</button>}{canUpdateOrders && o.status==='confirmed'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'completed')}>إكمال</button>}{canUpdateOrders && o.status!=='completed'&&o.status!=='cancelled'&&<button className="secondary-button" onClick={()=>void setOrderStatus(o.id,'cancelled')}>إلغاء</button>}</td></tr>)}</tbody></table></div></section>}
   </main>;
 }
 
 function Health() {
-  return <main className="shell narrow"><section className="panel"><p className="eyebrow">System Health</p><h1>النظام يعمل</h1><p>واجهة التطبيق الأساسية تعمل. حالة قاعدة البيانات وخدمات الإنتاج تُفحص من طبقة الـ API.</p><Link className="text-link" to="/">العودة</Link></section></main>;
+  return <main className="shell narrow"><section className="panel"><p className="eyebrow">حالة النظام</p><h1>النظام يعمل</h1><p>واجهة التطبيق الأساسية تعمل. حالة قاعدة البيانات وخدمات الإنتاج تُفحص من طبقة الـ API.</p><Link className="text-link" to="/">العودة</Link></section></main>;
 }
 
 function NotFound() {

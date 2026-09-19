@@ -67,7 +67,12 @@ export async function getProductCost(tx: any, args: {
   const quantity = Number(args.quantity);
   if (!(quantity > 0)) return 0;
   const fallback = Number(args.standardCost ?? 0);
-  const method = normalizeMethod(args.costMethod);
+  let effectiveMethod = args.costMethod;
+  if (!effectiveMethod) {
+    const center = await tx.execute(sql`select inventory_cost_method as "inventoryCostMethod" from centers where id=${args.centerId} limit 1`);
+    effectiveMethod = (center.rows[0] as any)?.inventoryCostMethod ?? 'standard';
+  }
+  const method = normalizeMethod(effectiveMethod);
   if (method === 'standard') return fallback;
   const rows = await movementLayers(tx, args.centerId, args.productId);
   const layers = rebuildLayers(rows);

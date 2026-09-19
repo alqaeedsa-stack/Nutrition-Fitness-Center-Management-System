@@ -104,7 +104,7 @@ export default function Vendors(){
 
   return <main className="app-shell"><div className="odoo-workspace"><PurchaseWorkspaceNav /><div className="odoo-workspace-main">
     <header className="app-header">
-      <div><span className="eyebrow">PURCHASE MANAGEMENT</span><h1>المشتريات والموردون</h1><p>دورة شراء منظمة: مورد ← طلب عرض/مسودة ← أمر شراء ← استلام ← مرتجع.</p></div>
+      <div><span className="eyebrow">إدارة المشتريات</span><h1>المشتريات والموردون</h1><p>دورة شراء منظمة: مورد ← طلب عرض/مسودة ← أمر شراء ← استلام ← مرتجع.</p></div>
       <Link className="secondary-button" to="/admin/operations">المخزون والمنتجات</Link>
     </header>
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
@@ -114,7 +114,7 @@ export default function Vendors(){
     </nav>
 
     {tab==='overview'&&<section className="staff-management-grid">
-      <section className="panel"><p className="eyebrow">PURCHASE OVERVIEW</p><h2>مركز المشتريات</h2><p>هذه الصفحة هي نقطة التحكم اليومية في دورة الشراء، وليست مجرد شاشة إدخال.</p>
+      <section className="panel"><p className="eyebrow">نظرة عامة على المشتريات</p><h2>مركز المشتريات</h2><p>هذه الصفحة هي نقطة التحكم اليومية في دورة الشراء، وليست مجرد شاشة إدخال.</p>
         <div className="stats-grid">
           <div className="stat-card"><span>الموردون النشطون</span><strong>{dashboard?.activeVendors??'—'}</strong></div>
           <div className="stat-card"><span>طلبات مفتوحة</span><strong>{dashboard?.openOrders??'—'}</strong></div>
@@ -122,45 +122,45 @@ export default function Vendors(){
           <div className="stat-card"><span>إجمالي المرتجعات</span><strong>{dashboard?Number(dashboard.returnTotal).toFixed(2):'—'} ر.س</strong></div>
         </div>
       </section>
-      <section className="panel"><p className="eyebrow">WORKFLOW</p><h2>حالات دورة الشراء</h2>
+      <section className="panel"><p className="eyebrow">دورة العمل</p><h2>حالات دورة الشراء</h2>
         <div className="portal-choice-actions"><button className="secondary-button" onClick={()=>{setTab('orders');setOrderFilter('draft')}}>طلبات عروض الأسعار {dashboard?.orderCounts.draft??0}</button><button className="secondary-button" onClick={()=>{setTab('orders');setOrderFilter('confirmed')}}>مؤكد {dashboard?.orderCounts.confirmed??0}</button><button className="secondary-button" onClick={()=>{setTab('orders');setOrderFilter('partially_received')}}>استلام جزئي {dashboard?.orderCounts.partial??0}</button><button className="secondary-button" onClick={()=>{setTab('orders');setOrderFilter('received')}}>مكتمل {dashboard?.orderCounts.received??0}</button></div>
       </section>
-      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">QUICK ACTIONS</p><h2>إجراءات سريعة</h2></div></div>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">إجراءات سريعة</p><h2>إجراءات سريعة</h2></div></div>
         <div className="portal-choice-actions"><button className="primary-action button" onClick={()=>setTab('vendors')}>إدارة الموردين</button><button className="secondary-button" onClick={()=>setTab('orders')}>إنشاء أمر شراء</button><button className="secondary-button" onClick={()=>setTab('returns')}>مراجعة المرتجعات</button></div>
       </section>
     </section>}
 
     {tab==='vendors'&&<section className="staff-management-grid">
-      <section className="panel"><p className="eyebrow">VENDOR MASTER</p><h2>مورد جديد</h2><form className="form-stack" onSubmit={createVendor}>
+      <section className="panel"><p className="eyebrow">دليل الموردين</p><h2>مورد جديد</h2><form className="form-stack" onSubmit={createVendor}>
         <div className="form-row"><label>كود المورد<input required value={vendor.code} onChange={e=>setVendor({...vendor,code:e.target.value})}/></label><label>اسم المورد<input required value={vendor.name} onChange={e=>setVendor({...vendor,name:e.target.value})}/></label></div>
         <div className="form-row"><label>الرقم الضريبي<input value={vendor.taxNumber} onChange={e=>setVendor({...vendor,taxNumber:e.target.value})}/></label><label>الجوال<input value={vendor.phone} onChange={e=>setVendor({...vendor,phone:e.target.value})}/></label><label>البريد<input type="email" value={vendor.email} onChange={e=>setVendor({...vendor,email:e.target.value})}/></label></div>
         <label>العنوان<textarea value={vendor.address} onChange={e=>setVendor({...vendor,address:e.target.value})}/></label><label>شروط الدفع<input value={vendor.paymentTerms} onChange={e=>setVendor({...vendor,paymentTerms:e.target.value})} placeholder="مثال: 30 يوم"/></label>
         <button className="primary-action button" disabled={busy}>{busy?'جارٍ الحفظ...':'حفظ المورد'}</button>
       </form></section>
-      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">VENDORS</p><h2>بطاقات الموردين</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">الموردون</p><h2>بطاقات الموردين</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
         <label>بحث المورد<input value={vendorSearch} onChange={e=>setVendorSearch(e.target.value)} placeholder="الاسم أو الكود أو الرقم الضريبي"/></label>
         <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الكود</th><th>المورد</th><th>الضريبة</th><th>الجوال</th><th>شروط الدفع</th><th>الحالة</th><th></th></tr></thead><tbody>{filteredVendors.map(v=><tr key={v.id}><td>{v.code}</td><td>{v.name}</td><td>{v.taxNumber||'—'}</td><td>{v.phone||'—'}</td><td>{v.paymentTerms||'—'}</td><td><span className={'status-badge '+(v.active?'active':'inactive')}>{v.active?'نشط':'موقوف'}</span></td><td><button className="secondary-button" onClick={()=>void openVendor(v.id)}>بطاقة المورد</button></td></tr>)}</tbody></table></div>
       </section>
     </section>}
 
-    {vendorDetail&&<section className="panel"><div className="panel-heading-row"><div><span className="eyebrow">VENDOR CARD</span><h2>{vendorDetail.vendor.name}</h2><p>{vendorDetail.vendor.code} · {vendorDetail.vendor.phone||'بدون جوال'} · {vendorDetail.vendor.paymentTerms||'بدون شروط دفع'}</p></div><button className="secondary-button" onClick={()=>setVendorDetail(null)}>إغلاق</button></div>
+    {vendorDetail&&<section className="panel"><div className="panel-heading-row"><div><span className="eyebrow">بطاقة المورد</span><h2>{vendorDetail.vendor.name}</h2><p>{vendorDetail.vendor.code} · {vendorDetail.vendor.phone||'بدون جوال'} · {vendorDetail.vendor.paymentTerms||'بدون شروط دفع'}</p></div><button className="secondary-button" onClick={()=>setVendorDetail(null)}>إغلاق</button></div>
       <div className="stats-grid"><div className="stat-card"><span>المشتريات</span><strong>{Number(vendorDetail.totals.orders).toFixed(2)} ر.س</strong></div><div className="stat-card"><span>المرتجعات</span><strong>{Number(vendorDetail.totals.returns).toFixed(2)} ر.س</strong></div><div className="stat-card"><span>الصافي التشغيلي</span><strong>{(Number(vendorDetail.totals.orders)-Number(vendorDetail.totals.returns)).toFixed(2)} ر.س</strong></div></div>
       <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>أمر الشراء</th><th>التاريخ</th><th>الحالة</th><th>الإجمالي</th><th></th></tr></thead><tbody>{vendorDetail.orders.map(x=><tr key={x.id}><td>{x.poNumber}</td><td>{x.orderDate}</td><td>{statusLabel[x.status]??x.status}</td><td>{Number(x.total).toFixed(2)} ر.س</td><td><button className="secondary-button" onClick={()=>{setTab('orders');void openOrder(x.id)}}>فتح</button></td></tr>)}</tbody></table></div>
     </section>}
 
     {tab==='orders'&&<section className="staff-management-grid">
-      <section className="panel"><p className="eyebrow">REQUEST / PURCHASE ORDER</p><h2>إنشاء طلب شراء</h2><p>يحفظ أولًا كمسودة، ثم يتم تأكيده قبل الاستلام.</p><form className="form-stack" onSubmit={createOrder}>
+      <section className="panel"><p className="eyebrow">طلب شراء</p><h2>إنشاء طلب شراء</h2><p>يحفظ أولًا كمسودة، ثم يتم تأكيده قبل الاستلام.</p><form className="form-stack" onSubmit={createOrder}>
         <div className="form-row"><label>المورد<select required value={order.vendorId} onChange={e=>setOrder({...order,vendorId:e.target.value})}>{vendors.map(v=><option key={v.id} value={v.id}>{v.code} — {v.name}</option>)}</select></label><label>تاريخ الطلب<input type="date" required value={order.orderDate} onChange={e=>setOrder({...order,orderDate:e.target.value})}/></label><label>التاريخ المتوقع<input type="date" value={order.expectedDate} onChange={e=>setOrder({...order,expectedDate:e.target.value})}/></label></div>
         {lines.map((line,i)=><div className="form-row" key={i}><label>المنتج<select required value={line.productId} onChange={e=>setLines(x=>x.map((v,j)=>j===i?{...v,productId:e.target.value}:v))}>{products.map(p=><option key={p.id} value={p.id}>{p.sku} — {p.name}</option>)}</select></label><label>الكمية<input type="number" min="0.001" step="0.001" required value={line.quantity} onChange={e=>setLines(x=>x.map((v,j)=>j===i?{...v,quantity:e.target.value}:v))}/></label><label>تكلفة الوحدة<input type="number" min="0" step="0.01" value={line.unitCost} onChange={e=>setLines(x=>x.map((v,j)=>j===i?{...v,unitCost:e.target.value}:v))}/></label><label>الضريبة<input type="number" min="0" step="0.01" value={line.tax} onChange={e=>setLines(x=>x.map((v,j)=>j===i?{...v,tax:e.target.value}:v))}/></label><button type="button" className="secondary-button" onClick={()=>setLines(x=>x.filter((_,j)=>j!==i))}>حذف</button></div>)}
         <div className="portal-choice-actions"><button type="button" className="secondary-button" onClick={addLine}>إضافة منتج</button><button className="primary-action button" disabled={busy||!lines.length}>{busy?'جارٍ الحفظ...':'حفظ كمسودة'}</button></div>
         <label>ملاحظات<textarea value={order.notes} onChange={e=>setOrder({...order,notes:e.target.value})}/></label>
       </form></section>
-      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">PURCHASE ORDERS</p><h2>سجل طلبات الشراء</h2></div><select value={orderFilter} onChange={e=>setOrderFilter(e.target.value)}><option value="all">كل الحالات</option>{Object.entries(statusLabel).filter(([k])=>k!=='posted').map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">أوامر الشراء</p><h2>سجل طلبات الشراء</h2></div><select value={orderFilter} onChange={e=>setOrderFilter(e.target.value)}><option value="all">كل الحالات</option>{Object.entries(statusLabel).filter(([k])=>k!=='posted').map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
         <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الأمر</th><th>المورد</th><th>التاريخ</th><th>الإجمالي</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody>{filteredOrders.map(o=><tr key={o.id}><td>{o.poNumber}</td><td>{o.vendorName}</td><td>{o.orderDate}</td><td>{Number(o.total).toFixed(2)} ر.س</td><td><span className={'status-badge '+(statusClass[o.status]??'inactive')}>{statusLabel[o.status]??o.status}</span></td><td><button className="secondary-button" onClick={()=>void openOrder(o.id)}>فتح</button>{o.status==='draft'&&<button className="text-link button-link" onClick={()=>void status(o.id,'sent')}>إرسال عرض السعر</button>}{o.status==='sent'&&<button className="text-link button-link" onClick={()=>void status(o.id,'confirmed')}>تأكيد الطلب</button>}{(o.status==='confirmed'||o.status==='partially_received')&&<button className="text-link button-link" onClick={()=>void openOrder(o.id)}>استلام</button>}{o.status!=='received'&&o.status!=='cancelled'&&<button className="text-link button-link" onClick={()=>void status(o.id,'cancelled')}>إلغاء</button>}</td></tr>)}</tbody></table></div>
       </section>
     </section>}
 
-    {selected&&<section className="panel"><div className="panel-heading-row"><div><span className="eyebrow">PURCHASE ORDER</span><h2>{selected.order.poNumber} · {selected.order.vendorName}</h2><p>{selected.order.orderDate}{selected.order.expectedDate?' · متوقع '+selected.order.expectedDate:''}</p></div><button className="secondary-button" onClick={()=>setSelected(null)}>إغلاق</button></div>
+    {selected&&<section className="panel"><div className="panel-heading-row"><div><span className="eyebrow">أمر الشراء</span><h2>{selected.order.poNumber} · {selected.order.vendorName}</h2><p>{selected.order.orderDate}{selected.order.expectedDate?' · متوقع '+selected.order.expectedDate:''}</p></div><button className="secondary-button" onClick={()=>setSelected(null)}>إغلاق</button></div>
       <div className="odoo-statusbar" aria-label="حالة أمر الشراء">
         {['draft','sent','confirmed','partially_received','received'].map(stage=><span key={stage} className={selected.order.status===stage?'current':''}>{statusLabel[stage]}</span>)}
       </div>
@@ -169,11 +169,11 @@ export default function Vendors(){
       {selected.items.some(x=>Number(x.receivedQuantity)>Number(x.returnedQuantity))&&<form className="form-stack" onSubmit={returnOrder}><div className="form-row"><label>تاريخ المرتجع<input type="date" required value={returnDate} onChange={e=>setReturnDate(e.target.value)}/></label></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المنتج</th><th>متاح للمرتجع</th><th>المرتجع الآن</th></tr></thead><tbody>{selected.items.filter(x=>Number(x.receivedQuantity)>Number(x.returnedQuantity)).map(x=><tr key={x.id}><td>{x.productName}</td><td>{Math.max(0,Number(x.receivedQuantity)-Number(x.returnedQuantity)).toFixed(3)}</td><td><input type="number" min="0" max={Math.max(0,Number(x.receivedQuantity)-Number(x.returnedQuantity))} step="0.001" value={returns[x.id]??''} onChange={e=>setReturns(v=>({...v,[x.id]:e.target.value}))}/></td></tr>)}</tbody></table></div><button className="secondary-button button" disabled={busy}>{busy?'جارٍ التسجيل...':'تسجيل مرتجع جزئي'}</button></form>}
     </section>}
 
-    {tab==='receipts'&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">GOODS RECEIPTS</p><h2>الاستلامات</h2><p>كل استلام أصبح مستندًا مستقلًا مرتبطًا بأمر الشراء وحركات المخزون.</p></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
+    {tab==='receipts'&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">استلام المشتريات</p><h2>الاستلامات</h2><p>كل استلام أصبح مستندًا مستقلًا مرتبطًا بأمر الشراء وحركات المخزون.</p></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
       <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>رقم الاستلام</th><th>التاريخ</th><th>أمر الشراء</th><th>المورد</th><th>الحالة</th></tr></thead><tbody>{receiptRows.map(x=><tr key={x.id}><td>{x.receiptNumber}</td><td>{x.receiptDate}</td><td>{x.poNumber}</td><td>{x.vendorName}</td><td><span className="status-badge active">{statusLabel[x.status]||x.status}</span></td></tr>)}{!receiptRows.length&&<tr><td colSpan={5}>لا توجد استلامات حتى الآن.</td></tr>}</tbody></table></div>
     </section>}
 
-    {tab==='returns'&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">PURCHASE RETURNS</p><h2>سجل مرتجعات الموردين</h2><p>كل مرتجع مرتبط بالمورد وأمر الشراء وحركة المخزون.</p></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
+    {tab==='returns'&&<section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">مرتجعات المشتريات</p><h2>سجل مرتجعات الموردين</h2><p>كل مرتجع مرتبط بالمورد وأمر الشراء وحركة المخزون.</p></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
       <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المرتجع</th><th>المورد</th><th>أمر الشراء</th><th>التاريخ</th><th>القيمة</th><th>الحالة</th></tr></thead><tbody>{returnRows.map(r=><tr key={r.id}><td>{r.returnNumber}</td><td>{r.vendorName}</td><td>{r.poNumber||'—'}</td><td>{r.returnDate}</td><td>{Number(r.total).toFixed(2)} ر.س</td><td><span className={'status-badge '+(statusClass[r.status]??'active')}>{statusLabel[r.status]??r.status}</span></td></tr>)}</tbody></table></div>
     </section>}
   </div></div></main>;

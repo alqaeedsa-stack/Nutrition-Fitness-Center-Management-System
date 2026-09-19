@@ -248,7 +248,7 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
       await tx.insert(stockMovements).values({
         centerId: auth.user.centerId!, productId: line.productId, movementType: 'purchase',
         quantity: requested.quantity.toString(), unitCost: unitCost.toFixed(2),
-        referenceType: 'purchase_order', referenceId: order[0].id, occurredAt: new Date(),
+        referenceType: 'purchase_receipt', referenceId: receipt[0].id, occurredAt: new Date(),
         createdBy: auth.user.userId, notes: parsed.data.notes || ('استلام من أمر الشراء ' + order[0].poNumber),
       });
       await tx.update(products).set({ purchaseCost: weightedCost.toFixed(2), updatedAt: new Date() })

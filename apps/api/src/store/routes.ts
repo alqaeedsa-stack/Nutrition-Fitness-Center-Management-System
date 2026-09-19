@@ -9,7 +9,7 @@ import { calculateTax } from '../tax/engine';
 import { requirePermission } from '../auth/permissions';
 import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
 import { postSale, postSaleWithProductAccounts, postSaleReturn, reverseSale } from '../accounting/service';
-import { createSubscriptionSchedule, cancelPendingSubscriptionSchedulesForSale } from '../accounting/subscriptions';
+import { createCustomerSubscription, createSubscriptionSchedule, cancelPendingSubscriptionSchedulesForSale } from '../accounting/subscriptions';
 import { getOriginalSaleUnitCost, getProductCost } from '../inventory/costing';
 
 
@@ -323,23 +323,28 @@ storeRoutes.post('/admin/sales', async c => {
 
     const subscriptions=[];
     for (const line of lineCalculations) {
-        const product=line.product;
-        if (product.productType !== 'subscription' || !product.subscriptionDeferredRevenueEnabled) continue;
-        if (!customer[0]) return { error: 'SUBSCRIPTION_CUSTOMER_REQUIRED' as const };
-        const startDate=line.item.startDate!;
-        let endDate=line.item.endDate;
-        if (!endDate && product.subscriptionDurationMonths) {
-          const d=new Date(Date.UTC(Number(startDate.slice(0,4)),Number(startDate.slice(5,7))-1,Number(startDate.slice(8,10))));
-          d.setUTCMonth(d.getUTCMonth()+product.subscriptionDurationMonths); d.setUTCDate(d.getUTCDate()-1);
-          endDate=d.toISOString().slice(0,10);
-        }
-        if (!endDate) return { error: 'SUBSCRIPTION_END_REQUIRED' as const, productId:product.id };
+      const product=line.product;
+      if (product.productType !== 'subscription') continue;
+      if (!customer[0]) return { error: 'SUBSCRIPTION_CUSTOMER_REQUIRED' as const };
+      const startDate=line.item.startDate!;
+      const endDate=line.item.endDate!;
+      const subscriptionArgs={
+        centerId:auth.user.centerId!,customerId:customer[0].id,productId:product.id,saleId:sale.id,
+        startDate,endDate,unitPrice:line.taxableBase,
+        deferredRevenueAccountId:product.deferredRevenueAccountId ?? null,
+        revenueAccountId:product.subscriptionRevenueAccountId ?? product.revenueAccountId ?? null,
+        recognitionMethod:product.subscriptionRecognitionMethod,createdBy:auth.user.userId,
+      };
+      if (product.subscriptionDeferredRevenueEnabled) {
         subscriptions.push(await createSubscriptionSchedule(tx,{
-          centerId:auth.user.centerId!,customerId:customer[0].id,productId:product.id,saleId:sale.id,
-          startDate,endDate,unitPrice:line.taxableBase,deferredRevenueAccountId:product.deferredRevenueAccountId!,
-          revenueAccountId:product.subscriptionRevenueAccountId ?? product.revenueAccountId!,recognitionMethod:product.subscriptionRecognitionMethod,
-          dailyProration:product.subscriptionDailyProration,createdBy:auth.user.userId,
+          ...subscriptionArgs,
+          deferredRevenueAccountId:product.deferredRevenueAccountId!,
+          revenueAccountId:(product.subscriptionRevenueAccountId ?? product.revenueAccountId)!,
+          dailyProration:product.subscriptionDailyProration,
         }));
+      } else {
+        subscriptions.push(await createCustomerSubscription(tx,subscriptionArgs));
+      }
     }
     return { sale, journalEntry:entry, subscriptions };
   }));

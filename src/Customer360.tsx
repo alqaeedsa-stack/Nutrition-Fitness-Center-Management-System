@@ -8,6 +8,8 @@ type Plan = { id: string; title: string; goals?: string | null; startDate: strin
 type FollowUp = { id: string; followUpAt: string; nextFollowUpAt?: string | null; weight?: string | null; height?: string | null; adherenceScore?: number | null; nutritionAdherenceScore?: number | null; fitnessAdherenceScore?: number | null; notes?: string | null; recommendations?: string | null; staffName?: string | null };
 type Appointment = { id: string; startsAt: string; endsAt: string; appointmentType: string; status: string; notes?: string | null; staffName?: string | null };
 type Sale = { id: string; saleNumber: string; status: string; subtotal: string; discount: string; tax: string; total: string; paymentStatus: string; createdAt: string };
+type ReturnLine = { id: string; productId: string; productName: string; sku: string; quantity: string; unitPrice: string; tax: string; lineTotal: string; returnedQuantity: number; returnableQuantity: number };
+type ReturnSaleData = { sale: Sale & { paymentMethod?: string | null }; items: ReturnLine[] };
 type Data = { customer: Customer; measurements: Measurement[]; nutrition: Plan[]; fitness: Plan[]; appointments: Appointment[]; sales: Sale[]; followUps: FollowUp[] };
 type Staff = { id: string; name: string; staffType: string };
 type MeasurementType = { id: string; code: string; name: string; unit?: string | null };
@@ -24,7 +26,7 @@ export default function Customer360() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [action, setAction] = useState<'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness' | 'nutritionItems' | 'fitnessExercises' | 'sale' | null>(null);
+  const [action, setAction] = useState<'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness' | 'nutritionItems' | 'fitnessExercises' | 'sale' | 'returnSale' | null>(null);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
@@ -44,6 +46,8 @@ export default function Customer360() {
   const [saleCart, setSaleCart] = useState<SaleCartItem[]>([]);
   const [salePaymentMethod, setSalePaymentMethod] = useState('cash');
   const [salePaymentStatus, setSalePaymentStatus] = useState('paid');
+  const [returnSaleData, setReturnSaleData] = useState<ReturnSaleData | null>(null);
+  const [returnQuantities, setReturnQuantities] = useState<Record<string, string>>({});
 
   const load = useCallback(async (silent = false) => {
     if (!id) return;
@@ -141,17 +145,37 @@ export default function Customer360() {
     finally { setSaving(false); }
   }
 
-  async function returnSale(sale: Sale) {
-    if (sale.status === 'returned') return;
-    const confirmed = window.confirm(`سيتم إرجاع كامل البيع ${sale.saleNumber} وإعادة الكميات إلى المخزون. هل تريد المتابعة؟`);
+  async function openReturnSale(sale: Sale) {
+    setAction('returnSale'); setActionError(''); setActionMessage(''); setSaving(true);
+    try {
+      const result = await apiFetch<ReturnSaleData>(`/store/admin/sales/${sale.id}`);
+      setReturnSaleData(result);
+      setReturnQuantities(Object.fromEntries(result.items.filter(item => item.returnableQuantity > 0).map(item => [item.productId, ''])));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'تعذر تحميل تفاصيل المرتجع.');
+      setReturnSaleData(null);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveReturn(e: FormEvent) {
+    e.preventDefault();
+    if (!returnSaleData) return;
+    const items = returnSaleData.items
+      .map(item => ({ productId: item.productId, quantity: Number(returnQuantities[item.productId] || 0) }))
+      .filter(item => item.quantity > 0);
+    if (!items.length) { setActionError('حدد كمية مرتجعة واحدة على الأقل.'); return; }
+    const confirmed = window.confirm('سيتم تسجيل المرتجع وإعادة الكميات المحددة فقط إلى المخزون. هل تريد المتابعة؟');
     if (!confirmed) return;
     setSaving(true); setActionError(''); setActionMessage('');
     try {
-      await apiFetch<{ ok: true }>(`/store/admin/sales/${sale.id}/return`, { method: 'POST' });
-      setActionMessage(`تم إرجاع البيع ${sale.saleNumber} وإعادة الكميات إلى المخزون.`);
+      const result = await apiFetch<{ ok: true; returnTotal: string; status: string }>(`/store/admin/sales/${returnSaleData.sale.id}/return`, { method: 'POST', body: JSON.stringify({ items }) });
+      setActionMessage(`تم تسجيل المرتجع بقيمة ${result.returnTotal} ريال وتحديث المخزون. الحالة: ${result.status === 'returned' ? 'مرتجع بالكامل' : 'مرتجع جزئي'}.`);
+      setReturnSaleData(null); setReturnQuantities({}); setAction(null);
       await load(true);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'تعذر إرجاع البيع.');
+      setActionError(err instanceof Error ? err.message : 'تعذر تنفيذ المرتجع.');
     } finally {
       setSaving(false);
     }
@@ -295,10 +319,17 @@ export default function Customer360() {
 
       {action && (
         <section className="customer-action-panel panel">
-          <div className="panel-heading-row"><div><span className="eyebrow">{action === 'measurement' ? 'NEW MEASUREMENT' : action === 'followUp' ? 'NEW FOLLOW-UP' : action === 'appointment' ? 'NEW APPOINTMENT' : action === 'nutrition' ? 'NEW NUTRITION PLAN' : action === 'fitness' ? 'NEW FITNESS PLAN' : action === 'sale' ? 'CUSTOMER SALE' : detailPlan?.kind === 'nutrition' ? 'NUTRITION ITEMS' : 'FITNESS EXERCISES'}</span><h2>{action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : action === 'sale' ? 'إنشاء بيع للعميل' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}</h2></div><button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button></div>
+          <div className="panel-heading-row"><div><span className="eyebrow">{action === 'measurement' ? 'NEW MEASUREMENT' : action === 'followUp' ? 'NEW FOLLOW-UP' : action === 'appointment' ? 'NEW APPOINTMENT' : action === 'nutrition' ? 'NEW NUTRITION PLAN' : action === 'fitness' ? 'NEW FITNESS PLAN' : action === 'sale' ? 'CUSTOMER SALE' : action === 'returnSale' ? 'PARTIAL RETURN' : detailPlan?.kind === 'nutrition' ? 'NUTRITION ITEMS' : 'FITNESS EXERCISES'}</span><h2>{action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : action === 'sale' ? 'إنشاء بيع للعميل' : action === 'returnSale' ? 'مرتجع جزئي من عملية بيع' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}</h2></div><button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button></div>
           {actionError && <div className="info-strip warning">{actionError}</div>}
           {actionMessage && <div className="info-strip">{actionMessage}</div>}
 
+          {action === 'returnSale' && returnSaleData && <form className="form-stack" onSubmit={saveReturn}>
+            <div className="panel-description">البيع: <strong>{returnSaleData.sale.saleNumber}</strong>. أدخل الكمية المراد إرجاعها لكل صنف. لا يمكن تجاوز الكمية المتبقية القابلة للإرجاع.</div>
+            <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المنتج</th><th>المباع</th><th>تم إرجاعه</th><th>المتبقي</th><th>كمية المرتجع</th></tr></thead><tbody>
+              {returnSaleData.items.map(item => <tr key={item.id}><td>{item.productName}<small>{item.sku}</small></td><td>{Number(item.quantity).toFixed(3)}</td><td>{item.returnedQuantity.toFixed(3)}</td><td>{item.returnableQuantity.toFixed(3)}</td><td><input type="number" min="0" max={item.returnableQuantity} step="0.001" disabled={item.returnableQuantity <= 0} value={returnQuantities[item.productId] ?? ''} onChange={e => setReturnQuantities(v => ({ ...v, [item.productId]: e.target.value }))} /></td></tr>)}
+            </tbody></table></div>
+            <button className="primary-action button" disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'تسجيل المرتجع'}</button>
+          </form>}
           {action === 'sale' && <form className="form-stack" onSubmit={saveSale}>
             <div className="store-product-grid">
               {storeProducts.map(product => <article className="store-product-card" key={product.id}>
@@ -412,7 +443,7 @@ export default function Customer360() {
         <article className="module-card"><span className="module-code">NUTRITION</span><h3>الخطط الغذائية</h3>{nutrition.length ? <div className="portal-data-list">{nutrition.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small><button className="text-link button-link" type="button" onClick={() => void openPlanDetails('nutrition', p.id)}>تفاصيل / الوجبات</button></div>)}</div> : <div className="empty-state">لا توجد خطط غذائية.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('nutrition')}>إنشاء خطة غذائية</button></article>
         <article className="module-card"><span className="module-code">FITNESS</span><h3>خطط اللياقة</h3>{fitness.length ? <div className="portal-data-list">{fitness.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small><button className="text-link button-link" type="button" onClick={() => void openPlanDetails('fitness', p.id)}>تفاصيل / التمارين</button></div>)}</div> : <div className="empty-state">لا توجد خطط لياقة.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('fitness')}>إنشاء خطة لياقة</button></article>
         <article className="module-card"><span className="module-code">APPOINTMENTS</span><h3>المواعيد القادمة</h3>{upcoming.length ? <div className="portal-data-list">{upcoming.map(a => <div className="portal-data-row" key={a.id}><strong>{a.appointmentType}</strong><span>{label(a.status)}</span><small>{new Date(a.startsAt).toLocaleString('ar-SA')}{a.staffName ? ` · ${a.staffName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد مواعيد قادمة.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('appointment')}>حجز موعد</button></article>
-        <article className="module-card"><span className="module-code">SALES</span><h3>مشتريات العميل</h3>{sales.length ? <div className="portal-data-list">{sales.slice(0, 8).map(s => <div className="portal-data-row" key={s.id}><strong>{s.saleNumber}</strong><span>{s.total} ر.س</span><small>{label(s.status)} · {new Date(s.createdAt).toLocaleDateString('ar-SA')} · {label(s.paymentStatus)}</small>{s.status === 'completed' && <button className="text-link button-link" type="button" disabled={saving} onClick={() => void returnSale(s)}>إرجاع البيع</button>}</div>)}</div> : <div className="empty-state">لا توجد مشتريات مرتبطة بالعميل.</div>}</article>
+        <article className="module-card"><span className="module-code">SALES</span><h3>مشتريات العميل</h3>{sales.length ? <div className="portal-data-list">{sales.slice(0, 8).map(s => <div className="portal-data-row" key={s.id}><strong>{s.saleNumber}</strong><span>{s.total} ر.س</span><small>{label(s.status)} · {new Date(s.createdAt).toLocaleDateString('ar-SA')} · {label(s.paymentStatus)}</small>{(s.status === 'completed' || s.status === 'partially_returned') && <button className="text-link button-link" type="button" disabled={saving} onClick={() => void openReturnSale(s)}>إرجاع البيع</button>}</div>)}</div> : <div className="empty-state">لا توجد مشتريات مرتبطة بالعميل.</div>}</article>
         <article className="module-card"><span className="module-code">ACTIVITY</span><h3>ملخص العميل</h3><div className="portal-data-list"><div className="portal-data-row"><strong>القياسات</strong><span>{measurements.length}</span></div><div className="portal-data-row"><strong>الخطط الغذائية</strong><span>{nutrition.length}</span></div><div className="portal-data-row"><strong>خطط اللياقة</strong><span>{fitness.length}</span></div><div className="portal-data-row"><strong>المواعيد</strong><span>{appointments.length}</span></div><div className="portal-data-row"><strong>المتابعات</strong><span>{followUps.length}</span></div><div className="portal-data-row"><strong>المبيعات</strong><span>{sales.length}</span></div></div></article>
       </section>
     </main>

@@ -465,3 +465,58 @@ h2 { font-size: clamp(25px, 5vw, 42px); line-height: 1.25; }
 
 .password-toggle svg { width: 19px; height: 19px; display: block; }
 .password-toggle:hover { background: #f8fafc; color: var(--navy); }
+
+
+/* ERP compact workspace — reduce empty space and keep records above the fold */
+.shell, .app-shell {
+  padding: 12px 0 32px;
+}
+.topbar, .app-header {
+  padding: 8px 0 12px;
+  gap: 12px;
+}
+.app-header h1 {
+  font-size: 22px;
+}
+.app-header p {
+  margin: 2px 0 0;
+}
+.dashboard-intro {
+  padding: 10px 0 12px;
+}
+.dashboard-intro.compact {
+  padding: 8px 0 10px;
+}
+.dashboard-intro h2 {
+  margin: 0 0 4px;
+  font-size: 19px;
+}
+.dashboard-intro p:not(.eyebrow) {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.panel {
+  margin-top: 10px;
+}
+.section-heading {
+  margin-bottom: 14px;
+}
+.info-strip {
+  margin-bottom: 10px;
+}
+@media (max-width:720px) {
+  .shell, .app-shell {
+    width: min(100% - 20px, 1440px);
+    padding: 8px 0 24px;
+  }
+  .app-header {
+    padding: 6px 0 10px;
+  }
+  .app-header h1 {
+    font-size: 20px;
+  }
+  .dashboard-intro {
+    padding: 8px 0 10px;
+  }
+}

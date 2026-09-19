@@ -572,7 +572,7 @@ staffRoutes.post('/inventory/receipt', async c => {
   const result = await withDatabase(c.env, db => db.transaction(async tx => {
     const productIds = [...new Set(body.data.items.map(item => item.productId))];
     const productRows = await tx.select({
-      id: products.id, sku: products.sku, name: products.name, productType: products.productType, purchaseCost: products.purchaseCost, active: products.active, inventoryTracking: products.inventoryTracking, serialAutoGenerate: products.serialAutoGenerate, serialPrefix: products.serialPrefix,
+      id: products.id, sku: products.sku, name: products.name, productType: products.productType, purchaseCost: products.purchaseCost, costMethod: products.costMethod, active: products.active, inventoryTracking: products.inventoryTracking, serialAutoGenerate: products.serialAutoGenerate, serialPrefix: products.serialPrefix,
     }).from(products).where(and(
       eq(products.centerId, auth.user.centerId!),
       inArray(products.id, productIds),
@@ -614,6 +614,17 @@ staffRoutes.post('/inventory/receipt', async c => {
         notes: body.data.notes?.trim() || null,
       };
     })).returning({ id: stockMovements.id });
+    for (const item of body.data.items) {
+      const product = productMap.get(item.productId)!;
+      if (product.costMethod === 'average') {
+        const averageCost = await getProductCost(tx, {
+          centerId: auth.user.centerId!, productId: product.id, quantity: 1,
+          costMethod: product.costMethod, standardCost: Number(product.purchaseCost),
+        });
+        await tx.update(products).set({ purchaseCost: averageCost.toFixed(2), updatedAt: new Date() })
+          .where(and(eq(products.id, product.id), eq(products.centerId, auth.user.centerId!)));
+      }
+    }
     if (serialRows.length) await tx.insert(productSerials).values(serialRows);
     return { receivedLines: inserted.length, generatedSerials: serialRows.length, reference };
   }));

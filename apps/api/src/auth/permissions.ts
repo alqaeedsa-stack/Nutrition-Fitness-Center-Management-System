@@ -22,6 +22,7 @@ export type PermissionCode =
   | 'orders.update'
   | 'measurements.read'
   | 'measurements.write'
+  | 'followups.read'
   | 'followups.write'
   | 'nutrition.read'
   | 'nutrition.write'
@@ -56,6 +57,7 @@ export const PERMISSIONS: Array<{ code: PermissionCode; resource: string; action
   { code: 'orders.update', resource: 'orders', action: 'update', name: 'تعديل حالات الطلبات' },
   { code: 'measurements.read', resource: 'measurements', action: 'read', name: 'عرض القياسات' },
   { code: 'measurements.write', resource: 'measurements', action: 'write', name: 'إدارة القياسات' },
+  { code: 'followups.read', resource: 'followups', action: 'read', name: 'عرض المتابعات' },
   { code: 'followups.write', resource: 'followups', action: 'write', name: 'إدارة المتابعات' },
   { code: 'nutrition.read', resource: 'nutrition', action: 'read', name: 'عرض الخطط الغذائية' },
   { code: 'nutrition.write', resource: 'nutrition', action: 'write', name: 'إدارة الخطط الغذائية' },

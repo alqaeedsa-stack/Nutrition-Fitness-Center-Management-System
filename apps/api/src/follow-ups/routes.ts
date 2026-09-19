@@ -8,7 +8,7 @@ import { customerFollowUps, customers, staffProfiles, users } from '../db/schema
 export type FollowUpBindings = { HYPERDRIVE?: { connectionString: string }; DATABASE_URL?: string };
 export const followUpRoutes = new Hono<{ Bindings: FollowUpBindings }>();
 
-async function auth(c: any, permission: 'customers.read' | 'followups.write') {
+async function auth(c: any, permission: 'followups.read' | 'followups.write') {
   const result = await requirePermission(c, permission);
   if ('error' in result) return result;
   if (!result.user.centerId) return { error: c.json({ error: { code: 'CENTER_REQUIRED', message: 'الحساب غير مرتبط بمركز' } }, 403) };
@@ -30,7 +30,7 @@ const followUpSchema = z.object({
 });
 
 followUpRoutes.get('/options', async c => {
-  const a = await auth(c, 'customers.read');
+  const a = await auth(c, 'followups.read');
   if ('error' in a) return a.error;
   const [customerRows, staffRows] = await Promise.all([
     withDatabase(c.env, db => db.select({

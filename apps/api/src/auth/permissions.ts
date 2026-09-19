@@ -27,6 +27,8 @@ export type PermissionCode =
   | 'reports.read'
   | 'reports.export'
   | 'zatca.manage'
+  | 'accounting.read'
+  | 'accounting.write'
   | 'purchases.read'
   | 'purchases.write'
   | 'purchases.post'
@@ -56,6 +58,8 @@ export const PERMISSIONS: Array<{ code: PermissionCode; resource: string; action
   { code: 'reports.read', resource: 'reports', action: 'read', name: 'عرض التقارير' },
   { code: 'reports.export', resource: 'reports', action: 'export', name: 'تصدير التقارير' },
   { code: 'zatca.manage', resource: 'zatca', action: 'manage', name: 'إدارة ZATCA والفوترة الإلكترونية' },
+  { code: 'accounting.read', resource: 'accounting', action: 'read', name: 'عرض المحاسبة' },
+  { code: 'accounting.write', resource: 'accounting', action: 'write', name: 'إدارة المحاسبة والترحيل' },
   { code: 'purchases.read', resource: 'purchases', action: 'read', name: 'عرض المشتريات والموردين' },
   { code: 'purchases.write', resource: 'purchases', action: 'write', name: 'إنشاء وتعديل مستندات المشتريات' },
   { code: 'purchases.post', resource: 'purchases', action: 'post', name: 'ترحيل فواتير الموردين' },

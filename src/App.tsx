@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import Customers from './Customers';
 import Appointments from './Appointments';
@@ -929,7 +929,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
   </main>;
 }
 
-function ERPRouteChrome({ title, children }: { title: string; children: React.ReactNode }) {
+function ERPRouteChrome({ title, children }: { title: string; children: ReactNode }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [view, setView] = useState<ERPView>('list');

@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { getAuthenticatedUser } from '../auth/session';
+import { z } from 'zod';
 import { withDatabase } from '../db/client';
 import {
   appointments,
@@ -11,6 +12,9 @@ import {
   nutritionPlanItems,
   nutritionPlans,
   products,
+  customers,
+  staffProfiles,
+  users,
 } from '../db/schema';
 import { storeOrderItems, storeOrders } from '../db/store';
 import { customerAccounts } from '../db/customer-accounts';

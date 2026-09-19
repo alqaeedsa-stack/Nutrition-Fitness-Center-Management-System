@@ -37,7 +37,7 @@ async function createEntry(tx: any, args: {
   if (Math.abs(totalDebit-totalCredit) > 0.005) throw new Error('ACCOUNTING_UNBALANCED');
   const existing = await tx.execute(sql`select id, entry_number from journal_entries where center_id=${args.centerId} and source_type=${args.sourceType} and source_id=${args.sourceId} limit 1`);
   if (existing.rows[0]) return existing.rows[0] as any;
-  const entryNumber = journalNumber(args.sourceType === 'purchase_bill' ? 'JE-BILL' : 'JE-PAY');
+  const entryNumber = journalNumber(args.sourceType === 'purchase_bill' ? 'JE-BILL' : args.sourceType === 'purchase_payment' ? 'JE-PAY' : 'JE-SALE');
   const inserted = await tx.execute(sql`insert into journal_entries (center_id,entry_number,entry_date,source_type,source_id,description,status,created_by,posted_at) values (${args.centerId},${entryNumber},${args.date},${args.sourceType},${args.sourceId},${args.description},'posted',${args.createdBy},now()) returning id,entry_number`);
   const entry = inserted.rows[0] as any;
   for (const line of args.lines) {

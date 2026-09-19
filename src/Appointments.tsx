@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from './lib/api';
 import { useLanguage } from './i18n';
+import { OdooKanban, OdooKanbanCard, OdooStatusbar, OdooViewSwitcher, ERPView } from './components/OdooERP';
 
 type User = { staffType?: string | null; permissions?: string[] };
 type Appointment = {
@@ -82,6 +83,7 @@ export default function Appointments({ user }: { user: User }) {
     const haystack=(x.customerName+' '+x.customerLastName+' '+x.staffName+' '+x.appointmentType).toLowerCase();
     return matchesStatus&&matchesStaff&&(!normalizedSearch||haystack.includes(normalizedSearch));
   });
+  const [view, setView] = useState<ERPView>('list');
   const appointmentKpis=[
     [t('إجمالي المواعيد','Total appointments'),appointments.length],
     [t('مجدولة','Scheduled'),appointments.filter(x=>x.status==='scheduled').length],
@@ -109,21 +111,34 @@ export default function Appointments({ user }: { user: User }) {
       <section className="panel">
         <p className="eyebrow">اليوم والمواعيد القادمة</p><h2>مواعيد المركز</h2>
         <div className="erp-kpi-strip">{appointmentKpis.map(([label,value])=><div className="erp-kpi" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
-        <div className="module-toolbar"><div className="toolbar-filters">
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t('بحث بالعميل أو المختص أو نوع الموعد','Search customer, specialist or appointment type')} />
-          <select value={staffFilter} onChange={e=>setStaffFilter(e.target.value)}><option value="all">{t('كل المختصين','All specialists')}</option>{staff.map(x=><option key={x.id} value={x.id}>{x.name} {x.lastName??''}</option>)}</select>
-        </div></div>
+        <div className="module-toolbar">
+          <div className="toolbar-filters">
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t('بحث بالعميل أو المختص أو نوع الموعد','Search customer, specialist or appointment type')} />
+            <select value={staffFilter} onChange={e=>setStaffFilter(e.target.value)}><option value="all">{t('كل المختصين','All specialists')}</option>{staff.map(x=><option key={x.id} value={x.id}>{x.name} {x.lastName??''}</option>)}</select>
+          </div>
+          <OdooViewSwitcher value={view} onChange={setView} views={['list','kanban']} />
+        </div>
         <div className="portal-choice-actions">{[['all',t('الكل','All')],...statuses.map(([v,l])=>[v,t(l,l)])].map(([v,l])=><button type="button" key={v} className={`secondary-button ${filter===v?'active':''}`} onClick={()=>setFilter(v)}>{l}</button>)}</div>
       </section>
     </section>}
     {!canManage && <div className="info-strip warning">لديك صلاحية عرض المواعيد فقط. تعديل المواعيد متاح للمستخدمين الذين لديهم صلاحية إدارة المواعيد.</div>}
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
     <section className="panel">
-      <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>{t('التاريخ','Date')}</th><th>{t('العميل','Customer')}</th><th>{t('المختص','Specialist')}</th><th>{t('النوع','Type')}</th><th>{t('الحالة','Status')}</th><th>{t('إجراء','Action')}</th></tr></thead>
-      <tbody>{loading?<tr><td colSpan={6}>{t('جارٍ تحميل المواعيد...','Loading appointments...')}</td></tr>:visible.length===0?<tr><td colSpan={6}>{t('لا توجد مواعيد.','No appointments found.')}</td></tr>:visible.map(x=><tr key={x.id}>
+      {loading ? <div className="empty-state">{t('جارٍ تحميل المواعيد...','Loading appointments...')}</div> : visible.length === 0 ? <div className="empty-state">{t('لا توجد مواعيد.','No appointments found.')}</div> : view === 'kanban' ? (
+        <OdooKanban>
+          {visible.map(x => <OdooKanbanCard key={x.id} title={`${x.customerName} ${x.customerLastName}`} subtitle={`${new Date(x.startsAt).toLocaleString('ar-SA')} · ${x.staffName}`} status={statuses.find(s=>s[0]===x.status)?.[1] ?? x.status} onClick={canManage ? () => edit(x) : undefined}>
+            <div>{x.appointmentType}</div>
+            {canManage && <div className="erp-page-actions">
+              {x.status==='scheduled' && <button className="secondary-button" type="button" onClick={(e)=>{e.stopPropagation();void quickStatus(x.id,'confirmed')}}>{t('تأكيد','Confirm')}</button>}
+              {x.status==='confirmed' && <button className="secondary-button" type="button" onClick={(e)=>{e.stopPropagation();void quickStatus(x.id,'completed')}}>{t('إكمال','Complete')}</button>}
+            </div>}
+          </OdooKanbanCard>)}
+        </OdooKanban>
+      ) : <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>{t('التاريخ','Date')}</th><th>{t('العميل','Customer')}</th><th>{t('المختص','Specialist')}</th><th>{t('النوع','Type')}</th><th>{t('الحالة','Status')}</th><th>{t('إجراء','Action')}</th></tr></thead>
+      <tbody>{visible.map(x=><tr key={x.id}>
         <td>{new Date(x.startsAt).toLocaleString('ar-SA')}</td><td>{x.customerName} {x.customerLastName}</td><td>{x.staffName}</td><td>{x.appointmentType}</td><td>{statuses.find(s=>s[0]===x.status)?.[1]??x.status}</td>
-        <td>{canManage&&<><button className="secondary-button" onClick={()=>edit(x)}>{t('تعديل','Edit')}</button>{x.status==='scheduled'&&<button className="secondary-button" onClick={()=>void quickStatus(x.id,'confirmed')}>{t('تأكيد','Confirm')}</button>}{x.status==='confirmed'&&<button className="secondary-button" onClick={()=>void quickStatus(x.id,'completed')}>{t('إكمال','Complete')}</button>}</>}</td>
-      </tr>)}</tbody></table></div>
+        <td>{canManage&&<><button className="secondary-button" type="button" onClick={()=>edit(x)}>{t('تعديل','Edit')}</button>{x.status==='scheduled'&&<button className="secondary-button" type="button" onClick={()=>void quickStatus(x.id,'confirmed')}>{t('تأكيد','Confirm')}</button>}{x.status==='confirmed'&&<button className="secondary-button" type="button" onClick={()=>void quickStatus(x.id,'completed')}>{t('إكمال','Complete')}</button>}</>}</td>
+      </tr>)}</tbody></table></div>}
     </section>
   </main>;
 }

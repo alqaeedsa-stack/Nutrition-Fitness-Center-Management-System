@@ -1,0 +1,87 @@
+import { FormEvent, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { apiFetch } from './lib/api';
+
+type Vendor = { id:string; code:string; name:string; taxNumber?:string|null; phone?:string|null; email?:string|null; address?:string|null; paymentTerms?:string|null; active:boolean };
+type Product = { id:string; sku:string; name:string; purchaseCost:string };
+type Order = { id:string; poNumber:string; status:string; orderDate:string; expectedDate?:string|null; subtotal:string; tax:string; total:string; vendorId:string; vendorName:string };
+type OrderItem = { id:string; productId:string; productName:string; sku:string; quantity:string; receivedQuantity:string; unitCost:string; tax:string; lineTotal:string };
+const statusLabel:Record<string,string>={draft:'مسودة',sent:'مرسل',confirmed:'مؤكد',partially_received:'مستلم جزئيًا',received:'مستلم بالكامل',cancelled:'ملغي'};
+
+export default function Vendors(){
+  const [tab,setTab]=useState<'vendors'|'orders'>('vendors');
+  const [vendors,setVendors]=useState<Vendor[]>([]);
+  const [products,setProducts]=useState<Product[]>([]);
+  const [orders,setOrders]=useState<Order[]>([]);
+  const [selected,setSelected]=useState<{order:Order;items:OrderItem[]}|null>(null);
+  const [vendor,setVendor]=useState({code:'',name:'',taxNumber:'',phone:'',email:'',address:'',paymentTerms:''});
+  const [order,setOrder]=useState({vendorId:'',orderDate:new Date().toISOString().slice(0,10),expectedDate:'',notes:''});
+  const [lines,setLines]=useState<{productId:string;quantity:string;unitCost:string;tax:string}[]>([]);
+  const [receive,setReceive]=useState<Record<string,string>>({});
+  const [busy,setBusy]=useState(false); const [error,setError]=useState(''); const [message,setMessage]=useState('');
+
+  async function load(){
+    try{
+      const [v,p,o]=await Promise.all([
+        apiFetch<{vendors:Vendor[]}>('/purchases/vendors'),
+        apiFetch<{products:Product[]}>('/staff/products'),
+        apiFetch<{orders:Order[]}>('/purchases/orders')
+      ]);
+      setVendors(v.vendors); setProducts(p.products); setOrders(o.orders);
+      if(!order.vendorId && v.vendors[0]) setOrder(x=>({...x,vendorId:v.vendors[0].id}));
+    }catch(e){setError(e instanceof Error?e.message:'تعذر تحميل بيانات الموردين والمشتريات');}
+  }
+  useEffect(()=>{void load()},[]);
+
+  async function createVendor(e:FormEvent){
+    e.preventDefault();setBusy(true);setError('');setMessage('');
+    try{await apiFetch('/purchases/vendors',{method:'POST',body:JSON.stringify({...vendor,taxNumber:vendor.taxNumber||null,phone:vendor.phone||null,email:vendor.email||null,address:vendor.address||null,paymentTerms:vendor.paymentTerms||null})});setVendor({code:'',name:'',taxNumber:'',phone:'',email:'',address:'',paymentTerms:''});setMessage('تم حفظ المورد.');await load();}
+    catch(e){setError(e instanceof Error?e.message:'تعذر حفظ المورد');}finally{setBusy(false)}
+  }
+  function addLine(){if(products[0])setLines(x=>[...x,{productId:products[0].id,quantity:'1',unitCost:products[0].purchaseCost||'0',tax:'0'}])}
+  async function createOrder(e:FormEvent){
+    e.preventDefault();setBusy(true);setError('');setMessage('');
+    try{
+      const items=lines.filter(x=>x.productId&&Number(x.quantity)>0).map(x=>({productId:x.productId,quantity:Number(x.quantity),unitCost:Number(x.unitCost),tax:Number(x.tax||0)}));
+      if(!items.length)throw new Error('أضف بندًا واحدًا على الأقل.');
+      const result=await apiFetch<{order:{poNumber:string}}>('/purchases/orders',{method:'POST',body:JSON.stringify({...order,expectedDate:order.expectedDate||null,notes:order.notes||null,items})});
+      setLines([]);setOrder(x=>({...x,notes:'',expectedDate:''}));setMessage('تم إنشاء أمر الشراء '+result.order.poNumber+' كمسودة.');await load();setTab('orders');
+    }catch(e){setError(e instanceof Error?e.message:'تعذر إنشاء أمر الشراء');}finally{setBusy(false)}
+  }
+  async function status(id:string,status:'sent'|'confirmed'|'cancelled'){try{await apiFetch('/purchases/orders/'+id+'/status',{method:'PATCH',body:JSON.stringify({status})});setMessage('تم تحديث حالة أمر الشراء.');await load();if(selected)void openOrder(id)}catch(e){setError(e instanceof Error?e.message:'تعذر تحديث الحالة')}}
+  async function openOrder(id:string){try{const r=await apiFetch<{order:Order;items:OrderItem[]}>('/purchases/orders/'+id);setSelected(r);setReceive(Object.fromEntries(r.items.map(x=>[x.id,''])))}catch(e){setError(e instanceof Error?e.message:'تعذر تحميل أمر الشراء')}}
+  async function receiveOrder(e:FormEvent){e.preventDefault();if(!selected)return;setBusy(true);setError('');setMessage('');
+    try{const items=selected.items.map(x=>({itemId:x.id,quantity:Number(receive[x.id]||0)})).filter(x=>x.quantity>0);if(!items.length)throw new Error('حدد كمية مستلمة واحدة على الأقل.');const r=await apiFetch<{status:string}>('/purchases/orders/'+selected.order.id+'/receive',{method:'POST',body:JSON.stringify({items})});setMessage(r.status==='received'?'تم استلام أمر الشراء بالكامل.':'تم تسجيل استلام جزئي وتحديث المخزون.');await load();await openOrder(selected.order.id);}catch(e){setError(e instanceof Error?e.message:'تعذر تسجيل الاستلام')}finally{setBusy(false)}
+  }
+
+  return <main className="app-shell">
+    <header className="app-header"><div><span className="eyebrow">PURCHASE & VENDORS</span><h1>الموردون والمشتريات</h1><p>سير عمل قريب من Odoo: مورد ← أمر شراء ← تأكيد ← استلام جزئي/كامل ← حركة مخزون.</p></div><Link className="secondary-button" to="/admin/operations">المخزون والمنتجات</Link></header>
+    {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
+    <div className="portal-choice-actions"><button className={'secondary-button '+(tab==='vendors'?'active':'')} onClick={()=>setTab('vendors')}>الموردون</button><button className={'secondary-button '+(tab==='orders'?'active':'')} onClick={()=>setTab('orders')}>أوامر الشراء</button></div>
+
+    {tab==='vendors'&&<section className="staff-management-grid">
+      <section className="panel"><p className="eyebrow">VENDOR MASTER</p><h2>مورد جديد</h2><form className="form-stack" onSubmit={createVendor}>
+        <div className="form-row"><label>كود المورد<input required value={vendor.code} onChange={e=>setVendor({...vendor,code:e.target.value})}/></label><label>اسم المورد<input required value={vendor.name} onChange={e=>setVendor({...vendor,name:e.target.value})}/></label></div>
+        <div className="form-row"><label>الرقم الضريبي<input value={vendor.taxNumber} onChange={e=>setVendor({...vendor,taxNumber:e.target.value})}/></label><label>الجوال<input value={vendor.phone} onChange={e=>setVendor({...vendor,phone:e.target.value})}/></label><label>البريد<input type="email" value={vendor.email} onChange={e=>setVendor({...vendor,email:e.target.value})}/></label></div>
+        <label>العنوان<textarea value={vendor.address} onChange={e=>setVendor({...vendor,address:e.target.value})}/></label><label>شروط الدفع<input value={vendor.paymentTerms} onChange={e=>setVendor({...vendor,paymentTerms:e.target.value})} placeholder="مثال: 30 يوم"/></label>
+        <button className="primary-action button" disabled={busy}>{busy?'جارٍ الحفظ...':'حفظ المورد'}</button>
+      </form></section>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">VENDORS</p><h2>قائمة الموردين</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الكود</th><th>المورد</th><th>الضريبة</th><th>الجوال</th><th>شروط الدفع</th><th>الحالة</th></tr></thead><tbody>{vendors.map(v=><tr key={v.id}><td>{v.code}</td><td>{v.name}</td><td>{v.taxNumber||'—'}</td><td>{v.phone||'—'}</td><td>{v.paymentTerms||'—'}</td><td>{v.active?'نشط':'موقوف'}</td></tr>)}</tbody></table></div></section>
+    </section>}
+
+    {tab==='orders'&&<section className="staff-management-grid">
+      <section className="panel"><p className="eyebrow">PURCHASE ORDER</p><h2>إنشاء أمر شراء</h2><form className="form-stack" onSubmit={createOrder}>
+        <div className="form-row"><label>المورد<select required value={order.vendorId} onChange={e=>setOrder({...order,vendorId:e.target.value})}>{vendors.map(v=><option key={v.id} value={v.id}>{v.code} — {v.name}</option>)}</select></label><label>تاريخ الطلب<input type="date" required value={order.orderDate} onChange={e=>setOrder({...order,orderDate:e.target.value})}/></label><label>التاريخ المتوقع<input type="date" value={order.expectedDate} onChange={e=>setOrder({...order,expectedDate:e.target.value})}/></label></div>
+        {lines.map((line,i)=><div className="form-row" key={i}><label>المنتج<select required value={line.productId} onChange={e=>setLines(x=>x.map((v,j)=>j===i?{...v,productId:e.target.value}:v))}>{products.map(p=><option key={p.id} value={p.id}>{p.sku} — {p.name}</option>)}</select></label><label>الكمية<input type="number" min="0.001" step="0.001" required value={line.quantity} onChange={e=>setLines(x=>x.map((v,j)=>j===i?{...v,quantity:e.target.value}:v))}/></label><label>تكلفة الوحدة<input type="number" min="0" step="0.01" value={line.unitCost} onChange={e=>setLines(x=>x.map((v,j)=>j===i?{...v,unitCost:e.target.value}:v))}/></label><label>الضريبة<input type="number" min="0" step="0.01" value={line.tax} onChange={e=>setLines(x=>x.map((v,j)=>j===i?{...v,tax:e.target.value}:v))}/></label><button type="button" className="secondary-button" onClick={()=>setLines(x=>x.filter((_,j)=>j!==i))}>حذف</button></div>)}
+        <div className="portal-choice-actions"><button type="button" className="secondary-button" onClick={addLine}>إضافة منتج</button><button className="primary-action button" disabled={busy||!lines.length}>{busy?'جارٍ الحفظ...':'حفظ كمسودة'}</button></div>
+        <label>ملاحظات<textarea value={order.notes} onChange={e=>setOrder({...order,notes:e.target.value})}/></label>
+      </form></section>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">PURCHASE ORDERS</p><h2>أوامر الشراء</h2></div></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الأمر</th><th>المورد</th><th>التاريخ</th><th>الإجمالي</th><th>الحالة</th><th></th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.poNumber}</td><td>{o.vendorName}</td><td>{o.orderDate}</td><td>{o.total} ر.س</td><td>{statusLabel[o.status]??o.status}</td><td><button className="secondary-button" onClick={()=>void openOrder(o.id)}>فتح</button>{o.status==='draft'&&<button className="text-link button-link" onClick={()=>void status(o.id,'confirmed')}>تأكيد</button>}{o.status==='confirmed'&&<button className="text-link button-link" onClick={()=>void openOrder(o.id)}>استلام</button>}</td></tr>)}</tbody></table></div></section>
+    </section>}
+
+    {selected&&<section className="panel"><div className="panel-heading-row"><div><span className="eyebrow">RECEIPT</span><h2>{selected.order.poNumber} · {selected.order.vendorName}</h2><p>{statusLabel[selected.order.status]??selected.order.status}</p></div><button className="secondary-button" onClick={()=>setSelected(null)}>إغلاق</button></div>
+      <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المنتج</th><th>المطلوب</th><th>المستلم</th><th>المتبقي</th><th>تكلفة الوحدة</th><th>استلام الآن</th></tr></thead><tbody>{selected.items.map(x=><tr key={x.id}><td>{x.productName}<small>{x.sku}</small></td><td>{Number(x.quantity).toFixed(3)}</td><td>{Number(x.receivedQuantity).toFixed(3)}</td><td>{Math.max(0,Number(x.quantity)-Number(x.receivedQuantity)).toFixed(3)}</td><td>{Number(x.unitCost).toFixed(2)}</td><td><input type="number" min="0" max={Math.max(0,Number(x.quantity)-Number(x.receivedQuantity))} step="0.001" disabled={selected.order.status!=='confirmed'&&selected.order.status!=='partially_received'} value={receive[x.id]??''} onChange={e=>setReceive(v=>({...v,[x.id]:e.target.value}))}/></td></tr>)}</tbody></table></div>
+      {(selected.order.status==='confirmed'||selected.order.status==='partially_received')&&<form className="form-stack" onSubmit={receiveOrder}><label>ملاحظات الاستلام<textarea placeholder="اختياري"/></label><button className="primary-action button" disabled={busy}>{busy?'جارٍ التسجيل...':'تسجيل الاستلام وتحديث المخزون'}</button></form>}
+    </section>}
+  </main>
+}

@@ -45,10 +45,4 @@ ALTER TABLE customer_subscriptions
 ALTER TABLE accounting_settings
   ADD COLUMN IF NOT EXISTS deferred_revenue_account_id uuid REFERENCES accounting_accounts(id),
   ADD COLUMN IF NOT EXISTS subscription_revenue_account_id uuid REFERENCES accounting_accounts(id);
-
--- Keep the subscription contract dates explicit and prevent invalid ranges.
-ALTER TABLE customer_subscriptions
-  ADD CONSTRAINT customer_subscriptions_date_ck_v2 CHECK (end_date >= start_date);
-
--- Default all existing stock-tracked products to automatic serial generation only
--- when the center enables serial tracking later; no historical rows are fabricated.
+ 

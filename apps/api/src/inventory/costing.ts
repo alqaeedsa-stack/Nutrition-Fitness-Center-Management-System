@@ -44,6 +44,30 @@ function rebuildLayers(rows: Array<{ quantity: string | number; unitCost: string
   return layers;
 }
 
+function averageInventoryCost(rows: Array<{ quantity: string | number; unitCost: string | number | null }>, fallbackCost:number) {
+  let quantity = 0;
+  let value = 0;
+  for (const row of rows) {
+    const q = Number(row.quantity);
+    if (!Number.isFinite(q) || Math.abs(q) < 0.000001) continue;
+    const unitCost = Number(row.unitCost ?? fallbackCost);
+    const cost = Number.isFinite(unitCost) ? unitCost : fallbackCost;
+    if (q > 0) {
+      quantity += q;
+      value += q * cost;
+    } else {
+      const issueQty = Math.min(quantity, -q);
+      value -= issueQty * cost;
+      quantity += q;
+      if (quantity < 0.000001) {
+        quantity = 0;
+        value = 0;
+      }
+    }
+  }
+  return quantity > 0.000001 ? Math.max(0, value / quantity) : fallbackCost;
+}
+
 function fifoIssueCost(layers: Layer[], quantity: number, fallbackCost: number) {
   let remaining = quantity;
   let cost = 0;
@@ -75,13 +99,8 @@ export async function getProductCost(tx: any, args: {
   const method = normalizeMethod(effectiveMethod);
   if (method === 'standard') return fallback;
   const rows = await movementLayers(tx, args.centerId, args.productId);
+  if (method === 'average') return averageInventoryCost(rows, fallback);
   const layers = rebuildLayers(rows);
-  const onHand = layers.reduce((sum, layer) => sum + layer.quantity, 0);
-  if (method === 'average') {
-    if (onHand <= 0.000001) return fallback;
-    const value = layers.reduce((sum, layer) => sum + layer.quantity * layer.unitCost, 0);
-    return Math.max(0, value / onHand);
-  }
   return fifoIssueCost(layers, quantity, fallback) / quantity;
 }
 

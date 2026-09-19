@@ -202,14 +202,14 @@ body,
   color: var(--odoo-text);
 }
 body * {
-  font-weight: 400;
+  font-weight: 700;
 }
 h1, h2, h3, h4, h5, h6,
 strong, b,
 button,
 label,
 th {
-  font-weight: 500;
+  font-weight: 700;
 }
 p,
 span,
@@ -260,7 +260,7 @@ textarea::placeholder {
 .odoo-sidebar-group a,
 .odoo-side-links a {
   color: #495057;
-  font-weight: 400;
+  font-weight: 700;
 }
 .odoo-sidebar-group a:hover,
 .odoo-side-links a:hover {
@@ -272,7 +272,7 @@ textarea::placeholder {
 .odoo-side-links a.selected {
   color: var(--odoo-text);
   background: #E9ECEF;
-  font-weight: 500;
+  font-weight: 700;
 }
 .odoo-tile-code {
   color: var(--odoo-link);
@@ -290,11 +290,11 @@ textarea::placeholder {
 }
 .odoo-statusbar span {
   color: var(--odoo-muted);
-  font-weight: 400;
+  font-weight: 700;
 }
 .odoo-statusbar span.current {
   color: #FFFFFF;
-  font-weight: 500;
+  font-weight: 700;
 }
 .status,
 .module-status {
@@ -321,13 +321,13 @@ textarea::placeholder {
   color: #495057;
   font: inherit;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0,0,0,.04);
 }
 .language-switcher .active {
   color: #714B67;
-  font-weight: 600;
+  font-weight: 700;
 }
 .language-divider {
   color: #ADB5BD;

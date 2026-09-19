@@ -123,8 +123,8 @@ fitnessRoutes.post('/:id/exercises', async c => {
   const parsed=exerciseSchema.safeParse(await c.req.json().catch(()=>null));
   if(!parsed.success)return c.json({error:{code:'INVALID_INPUT',message:parsed.error.issues[0]?.message??'بيانات التمرين غير صحيحة'}},400);
   const d=parsed.data;
-  const [plan]=await withDatabase(c.env,db=>db.select({id:fitnessPlans.id}).from(fitnessPlans).where(and(eq(fitnessPlans.id,c.req.param('id')),eq(fitnessPlans.centerId,a.user.centerId!))).limit(1));
-  if(!plan)return c.json({error:{code:'PLAN_NOT_FOUND',message:'الخطة الرياضية غير موجودة'}},404);
+  const [plan]=await withDatabase(c.env,db=>db.select({id:fitnessPlans.id,status:fitnessPlans.status}).from(fitnessPlans).where(and(eq(fitnessPlans.id,c.req.param('id')),eq(fitnessPlans.centerId,a.user.centerId!))).limit(1));
+  if(!plan)return c.json({error:{code:'PLAN_NOT_FOUND',message:'الخطة الرياضية غير موجودة'}},404);if(['completed','cancelled'].includes(plan.status))return c.json({error:{code:'PLAN_LOCKED',message:'لا يمكن تعديل خطة مكتملة أو ملغاة'}},409);
   const [exercise]=await withDatabase(c.env,db=>db.insert(fitnessPlanExercises).values({
     fitnessPlanId:plan.id,exerciseName:d.exerciseName,sets:d.sets??null,repetitions:d.repetitions??null,
     durationSeconds:d.durationSeconds??null,restSeconds:d.restSeconds??null,targetNotes:d.targetNotes||null,sortOrder:d.sortOrder,
@@ -136,10 +136,10 @@ fitnessRoutes.patch('/:id/exercises/:exerciseId', async c => {
   const a=await auth(c,'fitness.write'); if('error' in a)return a.error;
   const parsed=exerciseSchema.partial().safeParse(await c.req.json().catch(()=>null));
   if(!parsed.success)return c.json({error:{code:'INVALID_INPUT',message:parsed.error.issues[0]?.message??'بيانات التمرين غير صحيحة'}},400);
-  const [exercise]=await withDatabase(c.env,db=>db.select({id:fitnessPlanExercises.id}).from(fitnessPlanExercises)
+  const [exercise]=await withDatabase(c.env,db=>db.select({id:fitnessPlanExercises.id,planStatus:fitnessPlans.status}).from(fitnessPlanExercises)
     .innerJoin(fitnessPlans,eq(fitnessPlans.id,fitnessPlanExercises.fitnessPlanId))
     .where(and(eq(fitnessPlanExercises.id,c.req.param('exerciseId')),eq(fitnessPlans.id,c.req.param('id')),eq(fitnessPlans.centerId,a.user.centerId!))).limit(1));
-  if(!exercise)return c.json({error:{code:'EXERCISE_NOT_FOUND',message:'التمرين غير موجود'}},404);
+  if(!exercise)return c.json({error:{code:'EXERCISE_NOT_FOUND',message:'التمرين غير موجود'}},404);if(['completed','cancelled'].includes(exercise.planStatus))return c.json({error:{code:'PLAN_LOCKED',message:'لا يمكن تعديل خطة مكتملة أو ملغاة'}},409);
   const d=parsed.data;
   const [updated]=await withDatabase(c.env,db=>db.update(fitnessPlanExercises).set({
     ...(d.exerciseName?{exerciseName:d.exerciseName}:{}),...(d.sets!==undefined?{sets:d.sets??null}:{}),

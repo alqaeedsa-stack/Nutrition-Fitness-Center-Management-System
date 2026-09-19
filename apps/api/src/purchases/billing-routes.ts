@@ -43,9 +43,9 @@ purchaseBillingRoutes.get('/billing-summary', async c => {
   const auth=await access(c,'purchases.read'); if('error' in auth) return auth.error;
   const rows=await withDatabase(c.env,db=>db.select({status:purchaseBills.status,total:purchaseBills.total,balanceDue:purchaseBills.balanceDue,dueDate:purchaseBills.dueDate}).from(purchaseBills).where(eq(purchaseBills.centerId,auth.user.centerId!)));
   const today=new Date().toISOString().slice(0,10);
-  const summary={draft:0,posted:0,partiallyPaid:0,paid:0,overdue:0,totalDue:0};
-  for(const x of rows){ if(x.status==='draft')summary.draft++; if(x.status==='posted')summary.posted++; if(x.status==='partially_paid')summary.partiallyPaid++; if(x.status==='paid')summary.paid++; const due=Number(x.balanceDue); summary.totalDue+=due; if(due>0 && x.dueDate && String(x.dueDate)<today && x.status!=='paid')summary.overdue++; }
-  return c.json({summary:{...summary,totalDue:summary.totalDue.toFixed(2)}});
+  const summary={draft:0,posted:0,partiallyPaid:0,paid:0,overdue:0,totalDue:0,overdueAmount:0};
+  for(const x of rows){ if(x.status==='draft')summary.draft++; if(x.status==='posted')summary.posted++; if(x.status==='partially_paid')summary.partiallyPaid++; if(x.status==='paid')summary.paid++; const due=Number(x.balanceDue); summary.totalDue+=due; if(due>0 && x.dueDate && String(x.dueDate)<today && x.status!=='paid'){summary.overdue++; summary.overdueAmount+=due;} }
+  return c.json({summary:{...summary,totalDue:summary.totalDue.toFixed(2),overdueAmount:summary.overdueAmount.toFixed(2)}});
 });
 
 purchaseBillingRoutes.get('/bills', async c => {
@@ -75,8 +75,10 @@ purchaseBillingRoutes.get('/bills/candidates/:orderId', async c => {
 purchaseBillingRoutes.post('/bills', async c => {
   const auth=await access(c,'purchases.write'); if('error' in auth) return auth.error; const parsed=billSchema.safeParse(await c.req.json().catch(()=>null));
   if(!parsed.success) return c.json({error:{code:'VALIDATION_ERROR',message:'بيانات فاتورة المورد غير صحيحة',details:parsed.error.flatten()}},400); const input=parsed.data;
+  if(input.dueDate && input.dueDate < input.billDate) return c.json({error:{code:'INVALID_DUE_DATE',message:'تاريخ الاستحقاق لا يمكن أن يسبق تاريخ الفاتورة'}},400);
   const result=await withDatabase(c.env,db=>db.transaction(async tx=>{
     const vendor=await tx.select({id:vendors.id}).from(vendors).where(and(eq(vendors.id,input.vendorId),eq(vendors.centerId,auth.user.centerId!))).limit(1); if(!vendor[0]) throw new Error('المورد غير موجود');
+    if(input.vendorInvoiceNumber){ const duplicate=await tx.select({id:purchaseBills.id}).from(purchaseBills).where(and(eq(purchaseBills.centerId,auth.user.centerId!),eq(purchaseBills.vendorId,input.vendorId),eq(purchaseBills.vendorInvoiceNumber,input.vendorInvoiceNumber))).limit(1); if(duplicate[0]) throw new Error('رقم فاتورة المورد مستخدم بالفعل لهذا المورد'); }
     if(input.purchaseOrderId){ const order=await tx.select({id:purchaseOrders.id,vendorId:purchaseOrders.vendorId}).from(purchaseOrders).where(and(eq(purchaseOrders.id,input.purchaseOrderId),eq(purchaseOrders.centerId,auth.user.centerId!))).limit(1); if(!order[0]) throw new Error('أمر الشراء غير موجود'); if(order[0].vendorId!==input.vendorId) throw new Error('المورد لا يطابق أمر الشراء'); }
     const normalized:any[]=[]; let subtotal=0,tax=0;
     for(const item of input.items){ let productId=item.productId??null,description=item.description,unitCost=item.unitCost;

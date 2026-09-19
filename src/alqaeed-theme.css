@@ -682,3 +682,7 @@ textarea:focus-visible {
 .erp-bar span{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);font-size:10px;color:#495057;margin-bottom:3px}
 @media(max-width:800px){.erp-kanban-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.erp-page-tools{align-items:stretch}.erp-search-toolbar{min-width:100%;flex-direction:column;align-items:stretch}.erp-search-input,.erp-search-toolbar select{width:100%}.erp-view-switcher{width:100%}.erp-view-switcher button{flex:1}.erp-kanban-grid,.erp-pivot{grid-template-columns:1fr}.erp-smart-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.erp-smart-buttons button{min-width:0}}
+
+.erp-route-chrome{width:100%;margin-bottom:10px}
+.erp-page-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+@media(max-width:560px){.erp-page-actions{width:100%}.erp-page-actions>*{flex:1}.erp-action-menu{min-width:0}.erp-action-menu>.secondary-button{width:100%}}

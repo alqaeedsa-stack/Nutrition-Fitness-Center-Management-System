@@ -183,7 +183,7 @@ export default function StaffManagement() {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div><span className="eyebrow">STAFF MANAGEMENT</span><h1>الموظفون والأطباء والأخصائيون</h1></div>
+        <div><span className="eyebrow">إدارة الموظفين</span><h1>الموظفون والأطباء والأخصائيون</h1></div>
         <Link className="secondary-button" to="/admin/dashboard">العودة للوحة الإدارة</Link>
       </header>
 
@@ -201,7 +201,7 @@ export default function StaffManagement() {
             <label>الجوال <span>(اختياري)</span><input type="tel" dir="ltr" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+9665XXXXXXXX" autoComplete="tel" /></label>
             <label>كلمة المرور<input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} minLength={10} autoComplete="new-password" required /><small>10 أحرف على الأقل.</small></label>
 
-            <div className="panel-heading-row"><div><p className="eyebrow">PERMISSIONS</p><h3>صلاحيات الحساب</h3></div><div className="portal-choice-actions"><button type="button" className="secondary-button" onClick={() => selectAll('new')} disabled={!permissions.length}>تحديد الكل</button><button type="button" className="secondary-button" onClick={() => clearAll('new')}>إلغاء الكل</button></div></div>
+            <div className="panel-heading-row"><div><p className="eyebrow">الصلاحيات</p><h3>صلاحيات الحساب</h3></div><div className="portal-choice-actions"><button type="button" className="secondary-button" onClick={() => selectAll('new')} disabled={!permissions.length}>تحديد الكل</button><button type="button" className="secondary-button" onClick={() => clearAll('new')}>إلغاء الكل</button></div></div>
             {form.staffType === 'admin' && <div className="form-success">حساب الإدارة يحصل على الصلاحيات الكاملة تلقائيًا لحماية إدارة النظام.</div>}
             <PermissionSelector permissions={permissions}
               selected={form.staffType === 'admin' ? permissions.map(permission => permission.code) : form.permissionCodes}
@@ -221,7 +221,7 @@ export default function StaffManagement() {
       </section>
 
       {selectedStaffId && <section className="panel">
-        <div className="panel-heading-row"><div><p className="eyebrow">ACCESS CONTROL</p><h2>تعديل صلاحيات الموظف</h2><p className="panel-description">{staff.find(x => x.id === selectedStaffId)?.displayName ?? ''}</p></div><div className="portal-choice-actions"><button type="button" className="secondary-button" onClick={() => clearAll('existing')}>إلغاء الكل</button><button type="button" className="secondary-button" onClick={() => selectAll('existing')}>تحديد الكل</button><button type="button" className="primary-action" onClick={() => void saveSelectedPermissions()} disabled={permissionSaving}>{permissionSaving ? 'جارٍ الحفظ...' : 'حفظ الصلاحيات'}</button></div></div>
+        <div className="panel-heading-row"><div><p className="eyebrow">التحكم في الوصول</p><h2>تعديل صلاحيات الموظف</h2><p className="panel-description">{staff.find(x => x.id === selectedStaffId)?.displayName ?? ''}</p></div><div className="portal-choice-actions"><button type="button" className="secondary-button" onClick={() => clearAll('existing')}>إلغاء الكل</button><button type="button" className="secondary-button" onClick={() => selectAll('existing')}>تحديد الكل</button><button type="button" className="primary-action" onClick={() => void saveSelectedPermissions()} disabled={permissionSaving}>{permissionSaving ? 'جارٍ الحفظ...' : 'حفظ الصلاحيات'}</button></div></div>
         <PermissionSelector permissions={permissions} selected={selectedPermissions}
           onToggle={(code, checked) => togglePermission(code, checked, 'existing')} />
       </section>}

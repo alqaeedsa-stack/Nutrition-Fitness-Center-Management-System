@@ -1,3 +1,4 @@
+import type { ExecutionContext, ScheduledController } from '@cloudflare/workers-types';
 import api from '../apps/api/src/index';
 import { withDatabase } from '../apps/api/src/db/client';
 import { recognizeDueSubscriptionSchedules } from '../apps/api/src/accounting/subscriptions';

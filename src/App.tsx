@@ -16,6 +16,7 @@ import Reports from './Reports';
 import Vendors from './Vendors';
 import VendorBilling from './VendorBilling';
 import Accounting from './Accounting';
+import { LanguageProvider, LanguageSwitcher, useLanguage } from './i18n';
 
 type AuthUser = {
   id: string;
@@ -225,6 +226,8 @@ function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
 }
 
 function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
+  const { language } = useLanguage();
+  const en = language === 'en';
   const staffType = user.staffType ?? 'employee';
   const isAdmin = staffType === 'admin';
   const can = (permission: string) => isAdmin || (user.permissions ?? []).includes(permission);
@@ -240,46 +243,46 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
 
   const groups = [
     {
-      title: 'العملاء والخدمات',
+      title: en ? 'Customers & Services' : 'العملاء والخدمات',
       code: 'FRONT OFFICE',
       items: [
-        ...(canCustomers ? [['العملاء', 'CUSTOMERS', 'ملفات العملاء والبيانات الأساسية.', '/admin/customers']] : []),
-        ...(can('appointments.read') ? [['المواعيد', 'APPOINTMENTS', 'الحجوزات ومواعيد الأطباء والأخصائيين.', '/admin/appointments']] : []),
-        ...(canCustomers ? [['متابعة العملاء', 'FOLLOW-UP', 'الزيارات والمتابعات الدورية والتوصيات.', '/admin/follow-ups']] : []),
-        ...(can('nutrition.read') ? [['الخطط الغذائية', 'NUTRITION', 'إعداد ومتابعة الخطط الغذائية.', '/admin/nutrition']] : []),
-        ...(can('fitness.read') ? [['الخطط الرياضية', 'FITNESS', 'إعداد ومتابعة خطط اللياقة.', '/admin/fitness']] : []),
+        ...(canCustomers ? [[en ? 'Customers' : 'العملاء', 'CUSTOMERS', en ? 'Customer files and basic information.' : 'ملفات العملاء والبيانات الأساسية.', '/admin/customers']] : []),
+        ...(can('appointments.read') ? [[en ? 'Appointments' : 'المواعيد', 'APPOINTMENTS', en ? 'Bookings and appointments for doctors and specialists.' : 'الحجوزات ومواعيد الأطباء والأخصائيين.', '/admin/appointments']] : []),
+        ...(canCustomers ? [[en ? 'Customer Follow-up' : 'متابعة العملاء', 'FOLLOW-UP', en ? 'Visits, periodic follow-ups and recommendations.' : 'الزيارات والمتابعات الدورية والتوصيات.', '/admin/follow-ups']] : []),
+        ...(can('nutrition.read') ? [[en ? 'Nutrition Plans' : 'الخطط الغذائية', 'NUTRITION', en ? 'Create and manage nutrition plans.' : 'إعداد ومتابعة الخطط الغذائية.', '/admin/nutrition']] : []),
+        ...(can('fitness.read') ? [[en ? 'Fitness Plans' : 'الخطط الرياضية', 'FITNESS', en ? 'Create and manage fitness plans.' : 'إعداد ومتابعة خطط اللياقة.', '/admin/fitness']] : []),
       ] as string[][],
     },
     {
-      title: 'المبيعات والمتجر',
+      title: en ? 'Sales & Store' : 'المبيعات والمتجر',
       code: 'SALES',
       items: [
-        ...(canPos ? [['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', '/admin/pos']] : []),
-        ...(canOperations ? [['المنتجات والمخزون والطلبات', 'INVENTORY', 'المنتجات والأرصدة وحركات المخزون والطلبات.', '/admin/operations']] : []),
+        ...(canPos ? [[en ? 'Point of Sale' : 'نقطة البيع', 'POS', en ? 'Sales, invoices and returns.' : 'المبيعات والفواتير والمرتجعات.', '/admin/pos']] : []),
+        ...(canOperations ? [[en ? 'Products, Inventory & Orders' : 'المنتجات والمخزون والطلبات', 'INVENTORY', en ? 'Products, stock balances, movements and orders.' : 'المنتجات والأرصدة وحركات المخزون والطلبات.', '/admin/operations']] : []),
       ] as string[][],
     },
     {
-      title: 'المشتريات والموردون',
+      title: en ? 'Purchases & Vendors' : 'المشتريات والموردون',
       code: 'PURCHASE',
       items: [
-        ...(can('inventory.read') ? [['الموردون والمشتريات', 'PURCHASE', 'الموردون وأوامر الشراء والاستلام وحركات المخزون.', '/admin/purchases']] : []),
-        ...(can('purchases.read') ? [['فواتير ومدفوعات الموردين', 'PAYABLES', 'فواتير الموردين والترحيل والمدفوعات وكشوف الحساب.', '/admin/purchase-billing']] : []),
+        ...(can('inventory.read') ? [[en ? 'Vendors & Purchases' : 'الموردون والمشتريات', 'PURCHASE', en ? 'Vendors, purchase orders, receipts and stock movements.' : 'الموردون وأوامر الشراء والاستلام وحركات المخزون.', '/admin/purchases']] : []),
+        ...(can('purchases.read') ? [[en ? 'Vendor Bills & Payments' : 'فواتير ومدفوعات الموردين', 'PAYABLES', en ? 'Vendor bills, posting, payments and statements.' : 'فواتير الموردين والترحيل والمدفوعات وكشوف الحساب.', '/admin/purchase-billing']] : []),
       ] as string[][],
     },
     {
-      title: 'المحاسبة والتقارير',
+      title: en ? 'Accounting & Reports' : 'المحاسبة والتقارير',
       code: 'ACCOUNTING',
       items: [
-        ...(can('purchases.read') ? [['المحاسبة', 'ACCOUNTING', 'دليل الحسابات والقيود والترحيل والتقارير المالية.', '/admin/accounting']] : []),
-        ...(can('reports.read') ? [['التقارير', 'REPORTS', 'تقارير التشغيل والمبيعات والمخزون.', '/admin/reports']] : []),
-        ...(can('zatca.manage') ? [['الضرائب والفوترة الإلكترونية', 'ZATCA', 'إعداد الضرائب ومتابعة الفوترة الإلكترونية.', '/admin/zatca']] : []),
+        ...(can('purchases.read') ? [[en ? 'Accounting' : 'المحاسبة', 'ACCOUNTING', en ? 'Chart of accounts, journals, posting and financial reports.' : 'دليل الحسابات والقيود والترحيل والتقارير المالية.', '/admin/accounting']] : []),
+        ...(can('reports.read') ? [[en ? 'Reports' : 'التقارير', 'REPORTS', en ? 'Operational, sales and inventory reports.' : 'تقارير التشغيل والمبيعات والمخزون.', '/admin/reports']] : []),
+        ...(can('zatca.manage') ? [[en ? 'Tax & E-Invoicing' : 'الضرائب والفوترة الإلكترونية', 'ZATCA', en ? 'Tax settings and electronic invoicing.' : 'إعداد الضرائب ومتابعة الفوترة الإلكترونية.', '/admin/zatca']] : []),
       ] as string[][],
     },
     ...(isAdmin || can('staff.manage') ? [{
-      title: 'الإدارة',
+      title: en ? 'Administration' : 'الإدارة',
       code: 'ADMIN',
       items: [
-        ...(can('staff.manage') ? [['الموظفون والأطباء والأخصائيون', 'STAFF', 'حسابات الطاقم والصلاحيات.', '/admin/staff']] : []),
+        ...(can('staff.manage') ? [[en ? 'Staff, Doctors & Specialists' : 'الموظفون والأطباء والأخصائيون', 'STAFF', en ? 'Staff accounts and permissions.' : 'حسابات الطاقم والصلاحيات.', '/admin/staff']] : []),
       ] as string[][],
     }] : []),
   ];
@@ -293,15 +296,16 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
           <div className="brand-mark">N</div>
           <div>
             <span className="eyebrow">NUTRITION & FITNESS CENTER</span>
-            <h1>مساحة عمل الإدارة</h1>
+            <h1>{en ? 'Administration Workspace' : 'مساحة عمل الإدارة'}</h1>
           </div>
         </div>
         <div className="odoo-dashboard-user">
           <div className="odoo-user-info">
-            <strong>{user.email ?? user.phone ?? 'حساب موظف'}</strong>
-            <span>{isAdmin ? 'مدير النظام' : 'موظف'}</span>
+            <strong>{user.email ?? user.phone ?? (en ? 'Staff account' : 'حساب موظف')}</strong>
+            <span>{isAdmin ? (en ? 'System Administrator' : 'مدير النظام') : (en ? 'Staff' : 'موظف')}</span>
           </div>
-          <button className="secondary-button" onClick={logout}>تسجيل الخروج</button>
+          <LanguageSwitcher />
+          <button className="secondary-button" onClick={logout}>{en ? 'Log out' : 'تسجيل الخروج'}</button>
         </div>
       </header>
 
@@ -309,7 +313,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
         <aside className="odoo-dashboard-sidebar">
           <div className="odoo-sidebar-title">
             <span className="eyebrow">WORKSPACE</span>
-            <strong>الوحدات</strong>
+            <strong>{en ? 'Modules' : 'الوحدات'}</strong>
           </div>
           <nav>
             {visibleGroups.map(group => (
@@ -324,15 +328,15 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
         <section className="odoo-dashboard-main">
           <div className="odoo-dashboard-welcome">
             <div>
-              <span className="eyebrow">الإدارة والتشغيل الداخلي</span>
-              <h2>لوحة العمل</h2>
-              <p>اختر الوحدة التي تريد العمل عليها. تظهر لك فقط الوحدات المسموح بها لحسابك.</p>
+              <span className="eyebrow">{en ? 'INTERNAL ADMINISTRATION & OPERATIONS' : 'الإدارة والتشغيل الداخلي'}</span>
+              <h2>{en ? 'Workspace' : 'لوحة العمل'}</h2>
+              <p>{en ? 'Choose a module to work in. Only modules allowed for your account are shown.' : 'اختر الوحدة التي تريد العمل عليها. تظهر لك فقط الوحدات المسموح بها لحسابك.'}</p>
             </div>
             <div className="odoo-dashboard-quick">
-              {canCustomers && <Link to="/admin/customers">العملاء</Link>}
-              {canPos && <Link to="/admin/pos">نقطة البيع</Link>}
-              {can('inventory.read') && <Link to="/admin/purchases">المشتريات</Link>}
-              {can('purchases.read') && <Link to="/admin/accounting">المحاسبة</Link>}
+              {canCustomers && <Link to="/admin/customers">{en ? 'Customers' : 'العملاء'}</Link>}
+              {canPos && <Link to="/admin/pos">{en ? 'Point of Sale' : 'نقطة البيع'}</Link>}
+              {can('inventory.read') && <Link to="/admin/purchases">{en ? 'Purchases' : 'المشتريات'}</Link>}
+              {can('purchases.read') && <Link to="/admin/accounting">{en ? 'Accounting' : 'المحاسبة'}</Link>}
             </div>
           </div>
 
@@ -343,7 +347,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
                   <span className="eyebrow">{group.code}</span>
                   <h3>{group.title}</h3>
                 </div>
-                <span>{group.items.length} وحدات</span>
+                <span>{group.items.length} {en ? 'modules' : 'وحدات'}</span>
               </div>
               <div className="odoo-module-grid">
                 {group.items.map(([code, title, description, path]) => (
@@ -351,7 +355,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
                     <span className="odoo-tile-code">{code}</span>
                     <strong>{title}</strong>
                     <p>{description}</p>
-                    <span className="odoo-tile-open">فتح الوحدة ←</span>
+                    <span className="odoo-tile-open">{en ? 'Open module →' : 'فتح الوحدة ←'}</span>
                   </Link>
                 ))}
               </div>
@@ -360,7 +364,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
         </section>
       </div>
 
-      <footer className="app-footer"><span>بوابة الإدارة والموظفين</span><span>{user.email ?? user.phone ?? 'حساب موظف'}</span></footer>
+      <footer className="app-footer"><span>{en ? 'Administration & Staff Portal' : 'بوابة الإدارة والموظفين'}</span><span>{user.email ?? user.phone ?? (en ? 'Staff account' : 'حساب موظف')}</span></footer>
     </main>
   );
 }
@@ -905,7 +909,7 @@ function NotFound() {
   return <main className="shell narrow"><section className="panel"><p className="eyebrow">404</p><h1>الصفحة غير موجودة</h1><Link className="text-link" to="/">العودة للبوابات</Link></section></main>;
 }
 
-export default function App() {
+function AppContent() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
 
@@ -963,5 +967,14 @@ export default function App() {
       <Route path="/customers" element={permissionGuard('customers.read') ? <Customers user={user!} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
+  );
+}
+
+
+export default function App() {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
   );
 }

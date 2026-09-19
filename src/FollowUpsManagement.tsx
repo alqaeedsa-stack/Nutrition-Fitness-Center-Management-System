@@ -31,6 +31,7 @@ export default function FollowUpsManagement() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   async function load(customerFilter = customerId) {
     try {
@@ -57,8 +58,8 @@ export default function FollowUpsManagement() {
     e.preventDefault();
     setSaving(true); setError(''); setMessage('');
     try {
-      await apiFetch('/follow-ups', {
-        method: 'POST',
+      await apiFetch(editingId ? '/follow-ups/' + editingId : '/follow-ups', {
+        method: editingId ? 'PATCH' : 'POST',
         body: JSON.stringify({
           customerId, staffId,
           followUpAt: followUpAt ? new Date(followUpAt).toISOString() : undefined,
@@ -73,11 +74,30 @@ export default function FollowUpsManagement() {
       setFollowUpAt(''); setNextFollowUpAt(''); setWeight(''); setHeight('');
       setAdherenceScore(''); setNutritionScore(''); setFitnessScore('');
       setNotes(''); setRecommendations('');
-      setMessage('تم حفظ المتابعة');
+      setMessage(editingId ? 'تم تحديث المتابعة' : 'تم حفظ المتابعة');
+      setEditingId(null);
       await load(customerId);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'تعذر حفظ المتابعة');
     } finally { setSaving(false); }
+  }
+
+  function editRow(r: FollowUp) {
+    setEditingId(r.id); setCustomerId(r.customerId); setStaffId(r.staffId);
+    setFollowUpAt(r.followUpAt ? new Date(r.followUpAt).toISOString().slice(0,16) : '');
+    setNextFollowUpAt(r.nextFollowUpAt ? new Date(r.nextFollowUpAt).toISOString().slice(0,16) : '');
+    setWeight(r.weight ?? ''); setHeight(r.height ?? '');
+    setAdherenceScore(r.adherenceScore == null ? '' : String(r.adherenceScore));
+    setNutritionScore(r.nutritionAdherenceScore == null ? '' : String(r.nutritionAdherenceScore));
+    setFitnessScore(r.fitnessAdherenceScore == null ? '' : String(r.fitnessAdherenceScore));
+    setNotes(r.notes ?? ''); setRecommendations(r.recommendations ?? '');
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  async function deleteRow(id:string) {
+    if(!window.confirm('هل تريد حذف سجل المتابعة؟')) return;
+    try { await apiFetch('/follow-ups/'+id,{method:'DELETE'}); setMessage('تم حذف المتابعة'); await load(customerId); }
+    catch(e){setError(e instanceof Error?e.message:'تعذر حذف المتابعة');}
   }
 
   const selectedCustomer = customers.find(c => c.id === customerId);
@@ -96,7 +116,7 @@ export default function FollowUpsManagement() {
       {message && <div className="info-strip">{message}</div>}
 
       <section className="panel">
-        <div className="panel-heading-row"><div><p className="eyebrow">NEW FOLLOW-UP</p><h2>تسجيل متابعة</h2></div></div>
+        <div className="panel-heading-row"><div><p className="eyebrow">FOLLOW-UP</p><h2>{editingId ? 'تعديل المتابعة' : 'تسجيل متابعة'}</h2></div>{editingId && <button type="button" className="secondary-button" onClick={()=>setEditingId(null)}>إلغاء التعديل</button>}</div>
         <form className="form-stack" onSubmit={save}>
           <div className="form-row">
             <label>العميل<select required value={customerId} onChange={e => { setCustomerId(e.target.value); void load(e.target.value); }}>
@@ -135,7 +155,7 @@ export default function FollowUpsManagement() {
               <td>{r.height ? r.height + ' سم' : '—'}</td>
               <td>{r.adherenceScore == null ? '—' : r.adherenceScore + '%'}</td>
               <td>{r.nextFollowUpAt ? new Date(r.nextFollowUpAt).toLocaleDateString('ar-SA') : '—'}</td>
-              <td>{r.recommendations || r.notes ? <details><summary>عرض</summary><div><strong>الملاحظات:</strong> {r.notes || '—'}<br/><strong>التوصيات:</strong> {r.recommendations || '—'}</div></details> : '—'}</td>
+              <td><div className="header-actions"><button className="secondary-button" type="button" onClick={()=>editRow(r)}>تعديل</button><button className="secondary-button" type="button" onClick={()=>void deleteRow(r.id)}>حذف</button>{r.recommendations || r.notes ? <details><summary>عرض</summary><div><strong>الملاحظات:</strong> {r.notes || '—'}<br/><strong>التوصيات:</strong> {r.recommendations || '—'}</div></details> : '—'}</div></td>
             </tr>)}</tbody>
           </table></div>}
       </section>

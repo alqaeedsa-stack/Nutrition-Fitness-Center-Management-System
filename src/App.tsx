@@ -660,9 +660,9 @@ function StaffPOS({ user }: { user: AuthUser }) {
   const canSell = can('pos.sell');
   const canVoid = can('pos.void');
   const canZatca = can('zatca.manage');
-  type Product = { id:string; sku:string; name:string; productType?:string; sellingPrice:string; purchaseCost:string; barcode?:string|null; quantity:string };
+  type Product = { id:string; sku:string; name:string; productType?:string; sellingPrice:string; purchaseCost:string; barcode?:string|null; quantity:string; subscriptionDeferredRevenueEnabled?:boolean; subscriptionDurationMonths?:number|null };
   type Customer = { id:string; customerNumber:string; firstName:string; lastName:string; phone?:string|null };
-  type CartItem = Product & { cartQuantity:number; price:number; discount:number };
+  type CartItem = Product & { cartQuantity:number; price:number; discount:number; startDate?:string; endDate?:string };
   type Sale = { id:string; saleNumber:string; status:string; subtotal:string; discount:string; tax:string; total:string; paymentMethod:string; createdAt:string; customerName?:string|null };
   type SaleDetail = Sale & { items:{id:string; productId:string; productName:string; sku:string; quantity:string; unitPrice:string; discount:string; tax:string; lineTotal:string}[] };
 
@@ -681,7 +681,17 @@ function StaffPOS({ user }: { user: AuthUser }) {
       setProducts(r.products.filter(p => p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term) || (p.barcode ?? '').toLowerCase().includes(term)).slice(0,20));
     } catch(e){setError(e instanceof Error?e.message:'تعذر البحث عن المنتج');}
   }
-  function addProduct(p:Product) { const isNonStock=['subscription','service'].includes(p.productType ?? 'product'); if(!isNonStock&&Number(p.quantity)<=0){setError('المنتج غير متوفر في المخزون');return;} setCart(v=>{const x=v.find(i=>i.id===p.id); return x?v.map(i=>i.id===p.id?{...i,cartQuantity:isNonStock?i.cartQuantity+1:Math.min(Number(p.quantity),i.cartQuantity+1)}:i):[...v,{...p,cartQuantity:1,price:Number(p.sellingPrice),discount:0}];}); setQuery('');setProducts([]);setError(''); }
+  function addProduct(p:Product) {
+    const isNonStock=['subscription','service'].includes(p.productType ?? 'product');
+    if(!isNonStock&&Number(p.quantity)<=0){setError('المنتج غير متوفر في المخزون');return;}
+    const today=new Date().toISOString().slice(0,10);
+    let defaultEnd:string|undefined;
+    if(p.productType==='subscription' && p.subscriptionDurationMonths){
+      const d=new Date(today+'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth()+p.subscriptionDurationMonths); d.setUTCDate(d.getUTCDate()-1); defaultEnd=d.toISOString().slice(0,10);
+    }
+    setCart(v=>{const x=v.find(i=>i.id===p.id); return x?v.map(i=>i.id===p.id?{...i,cartQuantity:isNonStock?i.cartQuantity+1:Math.min(Number(p.quantity),i.cartQuantity+1)}:i):[...v,{...p,cartQuantity:1,price:Number(p.sellingPrice),discount:0,startDate:p.productType==='subscription'?today:undefined,endDate:p.productType==='subscription'?defaultEnd:undefined}];});
+    setQuery('');setProducts([]);setError('');
+  }
   async function searchCustomers(value:string) { setCustomerQuery(value); if(!value.trim()){setCustomers([]);return;} try { const r=await apiFetch<{customers:Customer[]}>(`/customers?limit=20&search=${encodeURIComponent(value.trim())}`);setCustomers(r.customers); } catch(e){setError(e instanceof Error?e.message:'تعذر البحث عن العميل');} }
   async function loadSalesHistory(){ setHistoryLoading(true); try { const r=await apiFetch<{sales:Sale[]}>('/store/admin/sales'); setSalesHistory(r.sales); } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل المبيعات');} finally{setHistoryLoading(false);} }
   async function openSale(id:string){ try { const r=await apiFetch<{sale:SaleDetail}>('/store/admin/sales/'+id); setSelectedSale(r.sale); } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل تفاصيل البيع');} }
@@ -695,7 +705,17 @@ function StaffPOS({ user }: { user: AuthUser }) {
     ['آخر بيع',salesHistory[0]?.total ? salesHistory[0].total+' ر.س' : '—'],
   ] as const;
 
-  async function completeSale(){ if(!cart.length){setError('السلة فارغة');return;} if(!customer){setError('اختر العميل قبل إتمام البيع.');return;} setLoading(true);setError('');setMessage(''); try { const r=await apiFetch<{sale:{id:string;saleNumber:string;total:string}}>('/staff/pos/sales',{method:'POST',body:JSON.stringify({customerId:customer.id,paymentMethod,paymentStatus:'paid',items:cart.map(x=>({productId:x.id,quantity:x.cartQuantity}))})}); setMessage('تم تسجيل البيع '+r.sale.saleNumber+' بإجمالي '+r.sale.total+' ر.س');setCart([]);setCustomer(null);setCustomerQuery(''); await loadSalesHistory(); await openSale(r.sale.id); } catch(e){setError(e instanceof Error?e.message:'تعذر إتمام البيع');} finally{setLoading(false);} }
+  async function completeSale(){
+    if(!cart.length){setError('السلة فارغة');return;}
+    if(!customer){setError('اختر العميل قبل إتمام البيع.');return;}
+    const invalid=cart.find(x=>x.productType==='subscription' && x.subscriptionDeferredRevenueEnabled && (!x.startDate || !x.endDate || x.endDate<x.startDate));
+    if(invalid){setError('أدخل تاريخ بداية ونهاية صحيحين لكل اشتراك مؤجل قبل إتمام البيع.');return;}
+    setLoading(true);setError('');setMessage('');
+    try {
+      const r=await apiFetch<{sale:{id:string;saleNumber:string;total:string}}>('/store/admin/sales',{method:'POST',body:JSON.stringify({customerId:customer.id,paymentMethod:paymentMethod==='apple_pay'?'card':paymentMethod,paymentStatus:'paid',items:cart.map(x=>({productId:x.id,quantity:x.cartQuantity,startDate:x.startDate,endDate:x.endDate}))})});
+      setMessage('تم تسجيل البيع '+r.sale.saleNumber+' بإجمالي '+r.sale.total+' ر.س');setCart([]);setCustomer(null);setCustomerQuery('');await loadSalesHistory();await openSale(r.sale.id);
+    } catch(e){setError(e instanceof Error?e.message:'تعذر إتمام البيع');} finally{setLoading(false);}
+  }
 
   return <main className="app-shell"><header className="app-header"><div><span className="eyebrow">نقطة البيع</span><h1>نقطة البيع</h1></div><div className="portal-choice-actions"><button className="secondary-button" type="button" onClick={()=>void loadSalesHistory()}>المبيعات السابقة</button><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></div></header>
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}
@@ -710,7 +730,12 @@ function StaffPOS({ user }: { user: AuthUser }) {
     <section className="panel"><p className="eyebrow">الفاتورة الحالية</p><h2>السلة</h2>
       {!cart.length ? <p className="empty-state">لم تتم إضافة منتجات.</p> : <div className="cart-list">
         {cart.map(item => <div className="cart-row" key={item.id}>
-          <div><strong>{item.name}</strong><small>{item.price.toFixed(2)} ر.س · الكمية {item.cartQuantity}</small></div>
+          <div><strong>{item.name}</strong><small>{item.price.toFixed(2)} ر.س · الكمية {item.cartQuantity}</small>
+            {item.productType==='subscription' && item.subscriptionDeferredRevenueEnabled && <div className="form-row">
+              <label>من<input type="date" value={item.startDate??''} onChange={e=>setCart(v=>v.map(x=>x.id===item.id?{...x,startDate:e.target.value}:x))}/></label>
+              <label>إلى<input type="date" value={item.endDate??''} onChange={e=>setCart(v=>v.map(x=>x.id===item.id?{...x,endDate:e.target.value}:x))}/></label>
+            </div>}
+          </div>
           <div className="cart-controls">
             <button type="button" onClick={() => setCart(v => v.map(x => x.id === item.id ? {...x, cartQuantity: Math.max(1, x.cartQuantity - 1)} : x))}>−</button>
             <span>{item.cartQuantity}</span>
@@ -752,7 +777,8 @@ function StaffOperations({ user }: { user: AuthUser }) {
     inventoryValuationMethod?:string|null; costMethod?:string|null; inventoryTracking?:string; serialAutoGenerate?:boolean; serialPrefix?:string|null; allowNegativeStock?:boolean; expiryTracking?:boolean;
     posAvailable?:boolean; ecommerceAvailable?:boolean; requiresCustomer?:boolean; requiresSpecialist?:boolean; purchaseAllowed?:boolean; salesUom?:string; purchaseUom?:string; minimumSalesPrice?:string|null;
     inventoryAccountId?:string|null; costOfSalesAccountId?:string|null; revenueAccountId?:string|null; purchaseAccountId?:string|null; salesReturnAccountId?:string|null; purchaseReturnAccountId?:string|null;
-    deferredRevenueAccountId?:string|null; subscriptionRevenueAccountId?:string|null };
+    deferredRevenueAccountId?:string|null; subscriptionRevenueAccountId?:string|null;
+    subscriptionDeferredRevenueEnabled?:boolean; subscriptionRecognitionMethod?:string; subscriptionDurationMonths?:number|null; subscriptionDailyProration?:boolean };
   type Inventory = { productId: string; sku: string; name: string; quantity: string; reorderPoint: string; purchaseCost: string; sellingPrice: string; lowStock: boolean };
   type Movement = { id: string; movementType: string; quantity: string; unitCost: string; referenceType?: string | null; referenceId?: string | null; occurredAt: string; notes?: string | null };
   type Order = { id: string; orderNumber: string; customerId: string; status: string; total: string; paymentMethod?: string | null; paymentStatus: string; createdAt: string };
@@ -808,6 +834,10 @@ function StaffOperations({ user }: { user: AuthUser }) {
       inventoryAccountId: product.inventoryAccountId ?? '', costOfSalesAccountId: product.costOfSalesAccountId ?? '', revenueAccountId: product.revenueAccountId ?? '',
       purchaseAccountId: product.purchaseAccountId ?? '', salesReturnAccountId: product.salesReturnAccountId ?? '', purchaseReturnAccountId: product.purchaseReturnAccountId ?? '',
       deferredRevenueAccountId: product.deferredRevenueAccountId ?? '', subscriptionRevenueAccountId: product.subscriptionRevenueAccountId ?? '',
+      subscriptionDeferredRevenueEnabled: product.subscriptionDeferredRevenueEnabled ?? false,
+      subscriptionRecognitionMethod: product.subscriptionRecognitionMethod ?? 'monthly',
+      subscriptionDurationMonths: product.subscriptionDurationMonths ?? '',
+      subscriptionDailyProration: product.subscriptionDailyProration ?? true,
     });
     setError(''); setMessage('');
   }
@@ -820,7 +850,11 @@ function StaffOperations({ user }: { user: AuthUser }) {
         minimumSalesPrice:settingsForm.minimumSalesPrice===''?null:Number(settingsForm.minimumSalesPrice),serialPrefix:settingsForm.serialPrefix||null,
         inventoryAccountId:settingsForm.inventoryAccountId||null,costOfSalesAccountId:settingsForm.costOfSalesAccountId||null,revenueAccountId:settingsForm.revenueAccountId||null,
         purchaseAccountId:settingsForm.purchaseAccountId||null,salesReturnAccountId:settingsForm.salesReturnAccountId||null,purchaseReturnAccountId:settingsForm.purchaseReturnAccountId||null,
-        deferredRevenueAccountId:settingsForm.deferredRevenueAccountId||null,subscriptionRevenueAccountId:settingsForm.subscriptionRevenueAccountId||null})});
+        deferredRevenueAccountId:settingsForm.deferredRevenueAccountId||null,subscriptionRevenueAccountId:settingsForm.subscriptionRevenueAccountId||null,
+        subscriptionDeferredRevenueEnabled:Boolean(settingsForm.subscriptionDeferredRevenueEnabled),
+        subscriptionRecognitionMethod:settingsForm.subscriptionRecognitionMethod||'monthly',
+        subscriptionDurationMonths:settingsForm.subscriptionDurationMonths===''?null:Number(settingsForm.subscriptionDurationMonths),
+        subscriptionDailyProration:Boolean(settingsForm.subscriptionDailyProration)})});
       setSelectedProduct(null);setSettingsForm(null);setMessage('تم حفظ إعدادات الصنف.');await load();
     }catch(e){setError(e instanceof Error?e.message:'تعذر حفظ إعدادات الصنف');}finally{setSaving(false);}
   }
@@ -948,7 +982,11 @@ function StaffOperations({ user }: { user: AuthUser }) {
       <section className="panel"><h3>الحسابات المحاسبية</h3><div className="form-row">
         <label key="inventoryAccountId">حساب المخزون<select value={settingsForm.inventoryAccountId} onChange={e=>updateSetting('inventoryAccountId',e.target.value)}><option value="">افتراضي إعدادات المحاسبة</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label key="costOfSalesAccountId">تكلفة المبيعات<select value={settingsForm.costOfSalesAccountId} onChange={e=>updateSetting('costOfSalesAccountId',e.target.value)}><option value="">افتراضي إعدادات المحاسبة</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label key="revenueAccountId">إيراد المبيعات<select value={settingsForm.revenueAccountId} onChange={e=>updateSetting('revenueAccountId',e.target.value)}><option value="">افتراضي إعدادات المحاسبة</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label key="purchaseAccountId">المشتريات<select value={settingsForm.purchaseAccountId} onChange={e=>updateSetting('purchaseAccountId',e.target.value)}><option value="">افتراضي إعدادات المحاسبة</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label key="salesReturnAccountId">مرتجعات المبيعات<select value={settingsForm.salesReturnAccountId} onChange={e=>updateSetting('salesReturnAccountId',e.target.value)}><option value="">افتراضي إعدادات المحاسبة</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label key="purchaseReturnAccountId">مرتجعات المشتريات<select value={settingsForm.purchaseReturnAccountId} onChange={e=>updateSetting('purchaseReturnAccountId',e.target.value)}><option value="">افتراضي إعدادات المحاسبة</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>
       </div>
-      {selectedProduct.productType === 'subscription' && <div className="form-row"><label>حساب الإيراد المؤجل<select value={settingsForm.deferredRevenueAccountId} onChange={e=>updateSetting('deferredRevenueAccountId',e.target.value)}><option value="">افتراضي</option>{accounts.filter(a=>a.accountType==='liability').map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label>حساب إيراد الاشتراك<select value={settingsForm.subscriptionRevenueAccountId} onChange={e=>updateSetting('subscriptionRevenueAccountId',e.target.value)}><option value="">افتراضي</option>{accounts.filter(a=>a.accountType==='revenue').map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label></div>}
+      {selectedProduct.productType === 'subscription' && <><div className="panel"><h3>إدارة الاعتراف بالإيراد</h3><div className="form-stack">
+        <label><input type="checkbox" checked={Boolean(settingsForm.subscriptionDeferredRevenueEnabled)} onChange={e=>updateSetting('subscriptionDeferredRevenueEnabled',e.target.checked)}/> تفعيل الإيراد المؤجل والاعتراف التلقائي للاشتراك</label>
+        <small>عند التفعيل: البيع يُرحّل إلى إيراد مؤجل، ويُنشأ جدول من تاريخ إلى تاريخ وتُرحّل القيود تلقائيًا. عند عدم التفعيل: يُرحّل مباشرة إلى إيراد الاشتراكات.</small>
+        <div className="form-row"><label>مدة الاشتراك بالأشهر<input type="number" min="1" max="120" value={settingsForm.subscriptionDurationMonths} onChange={e=>updateSetting('subscriptionDurationMonths',e.target.value)}/></label><label>طريقة الاعتراف<select value={settingsForm.subscriptionRecognitionMethod} onChange={e=>updateSetting('subscriptionRecognitionMethod',e.target.value)}><option value="monthly">شهري</option><option value="daily">يومي</option></select></label><label><input type="checkbox" checked={Boolean(settingsForm.subscriptionDailyProration)} onChange={e=>updateSetting('subscriptionDailyProration',e.target.checked)}/> احتساب نسبي حسب الأيام</label></div>
+      </div></div><div className="form-row"><label>حساب الإيراد المؤجل<select value={settingsForm.deferredRevenueAccountId} onChange={e=>updateSetting('deferredRevenueAccountId',e.target.value)}><option value="">افتراضي</option>{accounts.filter(a=>a.accountType==='liability').map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label>حساب إيراد الاشتراك<select value={settingsForm.subscriptionRevenueAccountId} onChange={e=>updateSetting('subscriptionRevenueAccountId',e.target.value)}><option value="">افتراضي</option>{accounts.filter(a=>a.accountType==='revenue').map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label></div>}
       <button className="primary-action button" type="button" disabled={saving} onClick={()=>void saveProductSettings()}>{saving?'جارٍ الحفظ...':'حفظ إعدادات الصنف'}</button></section>
     </section>}
     {canManageInventory && tab==='inventory'&&<section className="staff-management-grid">

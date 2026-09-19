@@ -300,7 +300,7 @@ customerRoutes.post('/:id/subscriptions', async c => {
     return { subscription: row };
   }));
 
-  if ('error' in result) {
+  if ('error' in result && result.error) {
     const messages: Record<string, [string, number]> = {
       CUSTOMER_NOT_FOUND: ['العميل غير موجود أو غير نشط', 404],
       SUBSCRIPTION_PRODUCT_REQUIRED: ['يجب اختيار منتج من نوع اشتراك', 409],

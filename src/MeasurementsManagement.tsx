@@ -119,7 +119,7 @@ export default function MeasurementsManagement() {
     <main className="app-shell">
       <header className="app-header">
         <div>
-          <span className="eyebrow">MEASUREMENTS</span>
+          <span className="eyebrow">القياسات</span>
           <h1>القياسات الصحية</h1>
         </div>
         <Link className="secondary-button" to="/admin/dashboard">
@@ -133,7 +133,7 @@ export default function MeasurementsManagement() {
       <section className="panel">
         <div className="panel-heading-row">
           <div>
-            <p className="eyebrow">RECORD</p>
+            <p className="eyebrow">تسجيل القياس</p>
             <h2>تسجيل قياس جديد</h2>
           </div>
         </div>
@@ -206,7 +206,7 @@ export default function MeasurementsManagement() {
       <section className="panel">
         <div className="panel-heading-row">
           <div>
-            <p className="eyebrow">HISTORY</p>
+            <p className="eyebrow">السجل</p>
             <h2>سجل القياسات</h2>
           </div>
           <button className="secondary-button" onClick={() => void load()}>

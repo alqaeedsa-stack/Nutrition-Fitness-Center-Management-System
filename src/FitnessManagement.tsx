@@ -14,6 +14,7 @@ export default function FitnessManagement({user}:{user:User}){
  const [form,setForm]=useState({customerId:'',specialistId:'',title:'',goals:'',startDate:new Date().toISOString().slice(0,10),endDate:'',status:'draft'});
  const [exercise,setExercise]=useState({exerciseName:'',sets:'',repetitions:'',durationSeconds:'',restSeconds:'',targetNotes:''});
  const [error,setError]=useState(''),[message,setMessage]=useState(''),[saving,setSaving]=useState(false);
+ const [planSearch,setPlanSearch]=useState(''),[statusFilter,setStatusFilter]=useState('all');
  async function load(){try{const[p,o]=await Promise.all([apiFetch<{plans:Plan[]}>('/fitness'),apiFetch<{customers:Customer[];specialists:Specialist[]}>('/fitness/options')]);setPlans(p.plans);setCustomers(o.customers);setSpecialists(o.specialists);if(!form.customerId&&o.customers[0])setForm(v=>({...v,customerId:o.customers[0].id}));if(!form.specialistId&&o.specialists[0])setForm(v=>({...v,specialistId:o.specialists[0].id}));}catch(e){setError(e instanceof Error?e.message:'تعذر تحميل الخطط الرياضية');}}
  useEffect(()=>{void load()},[]);
  async function createPlan(e:FormEvent){e.preventDefault();if(!canWrite)return;setSaving(true);setError('');try{const r=await apiFetch<{plan:Plan}>('/fitness',{method:'POST',body:JSON.stringify({...form,endDate:form.endDate||null})});setSelectedId(r.plan.id);setMessage('تم إنشاء الخطة الرياضية');setForm(v=>({...v,title:'',goals:'',endDate:'',status:'draft'}));await load();}catch(e){setError(e instanceof Error?e.message:'تعذر إنشاء الخطة');}finally{setSaving(false);}}

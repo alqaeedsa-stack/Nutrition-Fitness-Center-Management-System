@@ -89,3 +89,28 @@ body { background: #F8FAFC; }
   .feature-grid article { border-radius: 12px; }
   .phone-field { grid-template-columns: 1fr; }
 }
+
+/* Odoo-style internal purchase workspace */
+.odoo-workspace { display:grid; grid-template-columns:210px minmax(0,1fr); gap:20px; align-items:start; direction:ltr; }
+.odoo-workspace-main { min-width:0; direction:rtl; }
+.odoo-side-menu { position:sticky; top:18px; direction:rtl; border:1px solid #E2E8F0; border-radius:10px; background:#FFFFFF; overflow:hidden; box-shadow:0 6px 18px rgba(15,23,42,.04); }
+.odoo-side-title { padding:16px 15px; border-bottom:1px solid #E2E8F0; display:flex; flex-direction:column; gap:4px; }
+.odoo-side-title strong { font-size:18px; }
+.odoo-side-links { display:flex; flex-direction:column; padding:7px; gap:3px; }
+.odoo-side-links a { padding:10px 11px; border-radius:6px; color:#334155; text-decoration:none; font-size:14px; }
+.odoo-side-links a:hover { background:#F1F5F9; }
+.odoo-side-links a.selected { background:#E2E8F0; color:#0F172A; font-weight:800; }
+.odoo-side-section { border-top:1px solid #E2E8F0; padding:13px 14px; display:flex; flex-direction:column; gap:5px; }
+.odoo-side-section span { font-size:12px; color:#64748B; }
+.odoo-side-section small { color:#475569; line-height:1.7; }
+@media (max-width:800px) {
+  .odoo-workspace { grid-template-columns:1fr; gap:12px; }
+  .odoo-side-menu { position:static; }
+  .odoo-side-links { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .odoo-side-links a { text-align:center; }
+  .odoo-side-section { display:none; }
+}
+@media (max-width:520px) {
+  .odoo-side-links { grid-template-columns:1fr; }
+  .odoo-side-links a { text-align:right; }
+}

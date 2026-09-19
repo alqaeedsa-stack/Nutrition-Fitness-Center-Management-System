@@ -291,6 +291,9 @@ purchaseRoutes.get('/dashboard', async c => {
     const purchaseTotal = orders.filter(x => x.status !== 'cancelled').reduce((s, x) => s + Number(x.total), 0);
     const received = orders.filter(x => x.status === 'received').length;
     const partial = orders.filter(x => x.status === 'partially_received').length;
+    const draft = orders.filter(x => x.status === 'draft').length;
+    const sent = orders.filter(x => x.status === 'sent').length;
+    const confirmed = orders.filter(x => x.status === 'confirmed').length;
     const cancelled = orders.filter(x => x.status === 'cancelled').length;
     const returnTotal = returns.reduce((s, x) => s + Number(x.total), 0);
     return {
@@ -298,7 +301,7 @@ purchaseRoutes.get('/dashboard', async c => {
       openOrders: Number(openOrders[0]?.count ?? 0),
       purchaseTotal: purchaseTotal.toFixed(2),
       returnTotal: returnTotal.toFixed(2),
-      orderCounts: { received, partial, cancelled, total: orders.length },
+      orderCounts: { draft, sent, confirmed, received, partial, cancelled, total: orders.length },
     };
   });
   return c.json(rows);

@@ -12,7 +12,7 @@ async function access(c:any, permission:'accounting.read'|'accounting.write') { 
 function reportDates(c:any) {
   const from=c.req.query('from') ?? new Date(new Date().getFullYear(),0,1).toISOString().slice(0,10);
   const to=c.req.query('to') ?? new Date().toISOString().slice(0,10);
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(from) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(to) || from>to) return null;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from>to) return null;
   return {from,to};
 }
 

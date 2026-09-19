@@ -21,6 +21,23 @@ const paymentSchema = z.object({ billId: z.string().uuid(), paymentDate: z.strin
 function billNumber(){ const stamp=new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14); return 'BILL-'+stamp+'-'+crypto.randomUUID().slice(0,8).toUpperCase(); }
 function paymentNumber(){ const stamp=new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14); return 'PAY-'+stamp+'-'+crypto.randomUUID().slice(0,8).toUpperCase(); }
 
+purchaseBillingRoutes.get('/billing-orders', async c => {
+  const auth = await access(c, 'purchases.read');
+  if ('error' in auth) return auth.error;
+  const rows = await withDatabase(c.env, db => db.select({
+    id: purchaseOrders.id,
+    poNumber: purchaseOrders.poNumber,
+    vendorId: purchaseOrders.vendorId,
+    vendorName: vendors.name,
+    orderDate: purchaseOrders.orderDate,
+    status: purchaseOrders.status,
+    total: purchaseOrders.total,
+  }).from(purchaseOrders).innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId))
+    .where(and(eq(purchaseOrders.centerId, auth.user.centerId!), eq(purchaseOrders.status, 'received')))
+    .orderBy(desc(purchaseOrders.orderDate)));
+  return c.json({ orders: rows });
+});
+
 purchaseBillingRoutes.get('/bills', async c => {
   const auth=await access(c,'purchases.read'); if('error' in auth) return auth.error; const status=c.req.query('status');
   const rows=await withDatabase(c.env,db=>db.select({id:purchaseBills.id,billNumber:purchaseBills.billNumber,vendorInvoiceNumber:purchaseBills.vendorInvoiceNumber,billDate:purchaseBills.billDate,dueDate:purchaseBills.dueDate,status:purchaseBills.status,vendorId:purchaseBills.vendorId,vendorName:vendors.name,purchaseOrderId:purchaseBills.purchaseOrderId,poNumber:purchaseOrders.poNumber,subtotal:purchaseBills.subtotal,tax:purchaseBills.tax,total:purchaseBills.total,paidAmount:purchaseBills.paidAmount,balanceDue:purchaseBills.balanceDue}).from(purchaseBills).innerJoin(vendors,eq(vendors.id,purchaseBills.vendorId)).leftJoin(purchaseOrders,eq(purchaseOrders.id,purchaseBills.purchaseOrderId)).where(status?and(eq(purchaseBills.centerId,auth.user.centerId!),eq(purchaseBills.status,status)):eq(purchaseBills.centerId,auth.user.centerId!)).orderBy(desc(purchaseBills.billDate),desc(purchaseBills.createdAt)));

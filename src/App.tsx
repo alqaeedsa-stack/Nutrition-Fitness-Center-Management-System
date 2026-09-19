@@ -887,7 +887,7 @@ function StaffOperations({ user }: { user: AuthUser }) {
     </section>}
 
     {canManageInventory && tab==='inventory'&&<section className="staff-management-grid">
-      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">استلام المشتريات</p><h2>استلام شراء</h2><small>استلام عدة منتجات في عملية واحدة وبشكل ذري.</small></div></div>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">استلام المخزون</p><h2>استلام مخزون مباشر</h2><small>استلام مباشر لمنتجات مخزنية عند الحاجة. أمر الشراء الرسمي يبقى في وحدة المشتريات.</small></div></div>
         <form className="form-stack" onSubmit={receivePurchase}>
           <label>رقم الفاتورة / المرجع<input value={receipt.reference} onChange={e=>setReceipt({...receipt,reference:e.target.value})} placeholder="اختياري"/></label>
           {receiptItems.map((item,index)=><div className="form-row" key={index}>

@@ -17,6 +17,7 @@ import Vendors from './Vendors';
 import VendorBilling from './VendorBilling';
 import Accounting from './Accounting';
 import { LanguageProvider, LanguageSwitcher, useLanguage } from './i18n';
+import { OdooBreadcrumbs, OdooActionMenu, OdooSearchToolbar, OdooViewSwitcher, ERPView } from './components/OdooERP';
 
 type AuthUser = {
   id: string;
@@ -928,6 +929,28 @@ function StaffOperations({ user }: { user: AuthUser }) {
   </main>;
 }
 
+function ERPRouteChrome({ title, children }: { title: string; children: React.ReactNode }) {
+  const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+  const [view, setView] = useState<ERPView>('list');
+  const [filter, setFilter] = useState('');
+  const actions = [
+    { label: 'تحديث الصفحة', onClick: () => window.location.reload() },
+    { label: 'العودة للوحة الإدارة', onClick: () => navigate('/admin/dashboard') },
+  ];
+  return <div className="erp-route-chrome">
+    <OdooBreadcrumbs items={[{ label: 'الإدارة', to: '/admin/dashboard' }, { label: title }]} />
+    <div className="erp-page-tools">
+      <OdooSearchToolbar value={search} onChange={setSearch} placeholder={'بحث داخل ' + title + '...'} filters={filter ? [filter] : []} onFilter={setFilter} />
+      <div className="erp-page-actions">
+        <OdooViewSwitcher value={view} onChange={setView} />
+        <OdooActionMenu actions={actions} />
+      </div>
+    </div>
+    {children}
+  </div>;
+}
+
 function Health() {
   return <main className="shell narrow"><section className="panel"><p className="eyebrow">حالة النظام</p><h1>النظام يعمل</h1><p>واجهة التطبيق الأساسية تعمل. حالة قاعدة البيانات وخدمات الإنتاج تُفحص من طبقة الـ API.</p><Link className="text-link" to="/">العودة</Link></section></main>;
 }
@@ -971,21 +994,21 @@ function AppContent() {
       <Route path="/admin" element={user ? <Navigate to={user.role === 'staff' ? '/admin/dashboard' : '/customer/home'} replace /> : <Login portal="staff" onLogin={setUser} />} />
       <Route path="/admin/login" element={<Navigate to="/admin" replace />} />
       <Route path="/admin/dashboard" element={staffGuard ? <StaffDashboard user={user} onLogout={async () => { try { await apiFetch('/auth/logout', { method: 'POST' }); } finally { setUser(null); } }} /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/staff" element={permissionGuard('staff.manage') ? <StaffManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/pos" element={permissionGuard('pos.read') ? <StaffPOS user={user!} /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/appointments" element={permissionGuard('appointments.read') ? <Appointments user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/nutrition" element={permissionGuard('nutrition.read') ? <NutritionManagement user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/fitness" element={permissionGuard('fitness.read') ? <FitnessManagement user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/customers" element={permissionGuard('customers.read') ? <Customers user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/customers/:id" element={permissionGuard('customers.read') ? <Customer360 /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/measurements" element={permissionGuard('measurements.read') ? <MeasurementsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/follow-ups" element={permissionGuard('followups.read') ? <FollowUpsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/operations" element={staffGuard && (user?.staffType === 'admin' || ['catalog.read','inventory.read','orders.read'].some(p => (user?.permissions ?? []).includes(p))) ? <StaffOperations user={user} /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/purchases" element={permissionGuard('purchases.read') ? <Vendors /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/purchase-billing" element={permissionGuard('purchases.read') ? <VendorBilling /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/accounting" element={permissionGuard('accounting.read') ? <Accounting /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/reports" element={permissionGuard('reports.read') ? <Reports user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/zatca" element={permissionGuard('zatca.manage') ? <ZatcaSettings /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/staff" element={<ERPRouteChrome title="الموظفون">permissionGuard('staff.manage') ? <StaffManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace /></ERPRouteChrome> } />>
+      <Route path="/admin/pos" element={<ERPRouteChrome title="نقطة البيع">permissionGuard('pos.read') ? <StaffPOS user={user!</ERPRouteChrome> } />> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/appointments" element={<ERPRouteChrome title="المواعيد">permissionGuard('appointments.read') ? <Appointments user={user!</ERPRouteChrome> } />> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/nutrition" element={<ERPRouteChrome title="الخطط الغذائية">permissionGuard('nutrition.read') ? <NutritionManagement user={user!</ERPRouteChrome> } />> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/fitness" element={<ERPRouteChrome title="الخطط الرياضية">permissionGuard('fitness.read') ? <FitnessManagement user={user!</ERPRouteChrome> } />> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/customers" element={<ERPRouteChrome title="العملاء">permissionGuard('customers.read') ? <Customers user={user!</ERPRouteChrome> } />> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/customers/:id" element={<ERPRouteChrome title="ملف العميل">permissionGuard('customers.read') ? <Customer360 /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace /></ERPRouteChrome> } />>
+      <Route path="/admin/measurements" element={<ERPRouteChrome title="القياسات">permissionGuard('measurements.read') ? <MeasurementsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace /></ERPRouteChrome> } />>
+      <Route path="/admin/follow-ups" element={<ERPRouteChrome title="متابعة العملاء">permissionGuard('followups.read') ? <FollowUpsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace /></ERPRouteChrome> } />>
+      <Route path="/admin/operations" element={<ERPRouteChrome title="المنتجات والمخزون والطلبات">staffGuard && (user?.staffType === 'admin' || ['catalog.read','inventory.read','orders.read'].some(p => (user?.permissions ?? []).includes(p))) ? <StaffOperations user={user</ERPRouteChrome> } />> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/purchases" element={<ERPRouteChrome title="الموردون والمشتريات">permissionGuard('purchases.read') ? <Vendors /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace /></ERPRouteChrome> } />>
+      <Route path="/admin/purchase-billing" element={<ERPRouteChrome title="فواتير ومدفوعات الموردين">permissionGuard('purchases.read') ? <VendorBilling /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace /></ERPRouteChrome> } />>
+      <Route path="/admin/accounting" element={<ERPRouteChrome title="المحاسبة">permissionGuard('accounting.read') ? <Accounting /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace /></ERPRouteChrome> } />>
+      <Route path="/admin/reports" element={<ERPRouteChrome title="التقارير">permissionGuard('reports.read') ? <Reports user={user!</ERPRouteChrome> } />> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/zatca" element={<ERPRouteChrome title="الضرائب والفوترة الإلكترونية">permissionGuard('zatca.manage') ? <ZatcaSettings /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace /></ERPRouteChrome> } />>
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
 
       <Route path="/login" element={<Navigate to="/customer" replace />} />

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from './lib/api';
 import { OdooReportViews } from './components/OdooERP';
@@ -105,8 +105,6 @@ export default function Reports({ user }: { user: { staffType?: string | null; p
     link.click();
     URL.revokeObjectURL(url);
   };
-
-  const maxDaily = useMemo(() => Math.max(...(data?.dailySales.map(row => Number(row.total)) ?? [0]), 1), [data]);
 
   return <main className="app-shell">
     <header className="app-header">

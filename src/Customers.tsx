@@ -101,7 +101,6 @@ export default function Customers({ user }: { user: { staffType?: string | null;
       <header className="app-header">
         <div><p className="eyebrow">ملف العميل الشامل</p><h1>العملاء</h1></div>
         <div className="header-actions">
-          <Link className="secondary-button" to="/admin/dashboard">لوحة التحكم</Link>
           {canCreate && <button className="primary-action button" onClick={() => { setEditing(null); setShowForm((value) => !value); }}>{showForm ? 'إغلاق' : 'عميل جديد'}</button>}
         </div>
       </header>

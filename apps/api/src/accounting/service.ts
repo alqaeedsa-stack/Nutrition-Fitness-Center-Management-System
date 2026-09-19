@@ -86,3 +86,25 @@ export async function postSale(tx:any,args:{centerId:string;saleId:string;saleNu
  ];
  return createEntry(tx,{centerId:args.centerId,date:args.saleDate,sourceType:'sale',sourceId:args.saleId,description:`ترحيل عملية البيع ${args.saleNumber}`,createdBy:args.createdBy,lines});
 }
+
+
+export async function reverseSale(tx:any,args:{centerId:string;saleId:string;saleNumber:string;date:string;createdBy:string}) {
+  const original = await tx.execute(sql`select id from journal_entries where center_id=${args.centerId} and source_type='sale' and source_id=${args.saleId} limit 1`);
+  if (!original.rows[0]) throw new Error('SALE_JOURNAL_NOT_FOUND');
+  const lines = await tx.execute(sql`select account_id,debit,credit from journal_entry_lines where journal_entry_id=${original.rows[0].id} order by id`);
+  if (!lines.rows.length) throw new Error('SALE_JOURNAL_EMPTY');
+  return createEntry(tx,{
+    centerId:args.centerId,
+    date:args.date,
+    sourceType:'sale_void',
+    sourceId:args.saleId,
+    description:`عكس عملية البيع ${args.saleNumber}`,
+    createdBy:args.createdBy,
+    lines:lines.rows.map((line:any)=>({
+      accountId:line.account_id,
+      description:`عكس عملية البيع ${args.saleNumber}`,
+      debit:Number(line.credit),
+      credit:Number(line.debit),
+    })),
+  });
+}

@@ -402,3 +402,58 @@ export const auditLogs = pgTable('audit_logs', {
   index('audit_resource_date_idx').on(table.resourceType, table.resourceId, table.createdAt),
   index('audit_actor_date_idx').on(table.actorUserId, table.createdAt),
 ]);
+
+
+export const vendors = pgTable('vendors', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
+  code: varchar('code', { length: 80 }).notNull(),
+  name: varchar('name', { length: 200 }).notNull(),
+  taxNumber: varchar('tax_number', { length: 30 }),
+  phone: varchar('phone', { length: 30 }),
+  email: varchar('email', { length: 320 }),
+  address: text('address'),
+  paymentTerms: varchar('payment_terms', { length: 100 }),
+  active: boolean('active').notNull().default(true),
+  ...auditTimestamps,
+}, (table) => [
+  uniqueIndex('vendors_center_code_uq').on(table.centerId, table.code),
+  index('vendors_center_active_idx').on(table.centerId, table.active),
+]);
+
+export const purchaseOrders = pgTable('purchase_orders', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
+  vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
+  poNumber: varchar('po_number', { length: 100 }).notNull(),
+  status: varchar('status', { length: 30 }).notNull().default('draft'),
+  orderDate: date('order_date').notNull(),
+  expectedDate: date('expected_date'),
+  currencyCode: varchar('currency_code', { length: 3 }).notNull().default('SAR'),
+  subtotal: numeric('subtotal', { precision: 14, scale: 2 }).notNull().default('0'),
+  tax: numeric('tax_total', { precision: 14, scale: 2 }).notNull().default('0'),
+  total: numeric('grand_total', { precision: 14, scale: 2 }).notNull().default('0'),
+  notes: text('notes'),
+  createdBy: uuid('created_by').notNull().references(() => users.id),
+  ...auditTimestamps,
+}, (table) => [
+  uniqueIndex('purchase_orders_center_number_uq').on(table.centerId, table.poNumber),
+  index('purchase_orders_center_status_idx').on(table.centerId, table.status),
+  index('purchase_orders_vendor_date_idx').on(table.vendorId, table.orderDate),
+]);
+
+export const purchaseOrderItems = pgTable('purchase_order_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  purchaseOrderId: uuid('purchase_order_id').notNull().references(() => purchaseOrders.id, { onDelete: 'cascade' }),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  description: varchar('description', { length: 250 }),
+  quantity: numeric('quantity', { precision: 14, scale: 3 }).notNull(),
+  receivedQuantity: numeric('received_quantity', { precision: 14, scale: 3 }).notNull().default('0'),
+  unitCost: numeric('unit_cost', { precision: 14, scale: 2 }).notNull(),
+  tax: numeric('tax', { precision: 14, scale: 2 }).notNull().default('0'),
+  lineTotal: numeric('line_total', { precision: 14, scale: 2 }).notNull(),
+  ...auditTimestamps,
+}, (table) => [
+  index('purchase_order_items_order_idx').on(table.purchaseOrderId),
+  index('purchase_order_items_product_idx').on(table.productId),
+]);

@@ -748,7 +748,11 @@ function StaffOperations({ user }: { user: AuthUser }) {
   const canWriteCatalog = can('catalog.write');
   const canManageOrders = can('orders.read');
   const canUpdateOrders = can('orders.update');
-  type Product = { id: string; sku: string; name: string; productType?: string; purchaseCost: string; sellingPrice: string; reorderPoint: string; active: boolean; categoryName?: string | null; brandName?: string | null };
+  type Product = { id:string; sku:string; name:string; productType?:string; purchaseCost:string; sellingPrice:string; reorderPoint:string; active:boolean; categoryName?:string|null; brandName?:string|null;
+    inventoryValuationMethod?:string|null; costMethod?:string|null; inventoryTracking?:string; serialAutoGenerate?:boolean; serialPrefix?:string|null; allowNegativeStock?:boolean; expiryTracking?:boolean;
+    posAvailable?:boolean; ecommerceAvailable?:boolean; requiresCustomer?:boolean; requiresSpecialist?:boolean; purchaseAllowed?:boolean; salesUom?:string; purchaseUom?:string; minimumSalesPrice?:string|null;
+    inventoryAccountId?:string|null; costOfSalesAccountId?:string|null; revenueAccountId?:string|null; purchaseAccountId?:string|null; salesReturnAccountId?:string|null; purchaseReturnAccountId?:string|null;
+    deferredRevenueAccountId?:string|null; subscriptionRevenueAccountId?:string|null };
   type Inventory = { productId: string; sku: string; name: string; quantity: string; reorderPoint: string; purchaseCost: string; sellingPrice: string; lowStock: boolean };
   type Movement = { id: string; movementType: string; quantity: string; unitCost: string; referenceType?: string | null; referenceId?: string | null; occurredAt: string; notes?: string | null };
   type Order = { id: string; orderNumber: string; customerId: string; status: string; total: string; paymentMethod?: string | null; paymentStatus: string; createdAt: string };
@@ -759,6 +763,9 @@ function StaffOperations({ user }: { user: AuthUser }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [categories, setCategories] = useState<{id:string;name:string}[]>([]);
   const [brands, setBrands] = useState<{id:string;name:string}[]>([]);
+  const [accounts, setAccounts] = useState<{id:string;code:string;name:string;accountType:string}[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [settingsForm, setSettingsForm] = useState<Record<string, any> | null>(null);
   const [form, setForm] = useState({sku:'',name:'',categoryId:'',brandId:'',productType:'product',purchaseCost:'0',sellingPrice:'0',taxCode:'',reorderPoint:'0'});
   const [adjust, setAdjust] = useState({productId:'',quantity:'',movementType:'opening',unitCost:'',notes:''});
   const [receipt, setReceipt] = useState({reference:'',notes:''});
@@ -772,12 +779,13 @@ function StaffOperations({ user }: { user: AuthUser }) {
   async function load() {
     try {
       if (canManageCatalog || canManageInventory) {
-        const [p,i,opt] = await Promise.all([
+        const [p,i,opt,a] = await Promise.all([
           canManageCatalog ? apiFetch<{products:Product[]}>('/staff/products') : Promise.resolve({products: [] as Product[]}),
           canManageInventory ? apiFetch<{inventory:Inventory[]}>('/staff/inventory') : Promise.resolve({inventory: [] as Inventory[]}),
           canManageCatalog ? apiFetch<{categories:{id:string;name:string}[];brands:{id:string;name:string}[]}>('/staff/catalog-options') : Promise.resolve({categories: [], brands: []}),
+          can('accounting.read') ? apiFetch<{accounts:{id:string;code:string;name:string;accountType:string}[]}>('/accounting/accounts') : Promise.resolve({accounts: [] as {id:string;code:string;name:string;accountType:string}[]}),
         ]);
-        setProducts(p.products); setInventory(i.inventory); setCategories(opt.categories); setBrands(opt.brands);
+        setProducts(p.products); setInventory(i.inventory); setCategories(opt.categories); setBrands(opt.brands); setAccounts(a.accounts);
         if (!form.categoryId && opt.categories[0]) setForm(v=>({...v,categoryId:opt.categories[0].id}));
         if (!adjust.productId && i.inventory[0]) setAdjust(v=>({...v,productId:i.inventory[0].productId}));
       }
@@ -788,6 +796,34 @@ function StaffOperations({ user }: { user: AuthUser }) {
     } catch(e){setError(e instanceof Error?e.message:'تعذر تحميل بيانات التشغيل');}
   }
   useEffect(()=>{void load()},[]);
+
+  function openProductSettings(product: Product) {
+    setSelectedProduct(product);
+    setSettingsForm({
+      inventoryValuationMethod: product.inventoryValuationMethod ?? 'inherit', costMethod: product.costMethod ?? 'inherit',
+      inventoryTracking: product.inventoryTracking ?? 'none', serialAutoGenerate: product.serialAutoGenerate ?? true, serialPrefix: product.serialPrefix ?? '',
+      allowNegativeStock: product.allowNegativeStock ?? false, expiryTracking: product.expiryTracking ?? false, posAvailable: product.posAvailable ?? true,
+      ecommerceAvailable: product.ecommerceAvailable ?? false, requiresCustomer: product.requiresCustomer ?? false, requiresSpecialist: product.requiresSpecialist ?? false,
+      purchaseAllowed: product.purchaseAllowed ?? true, salesUom: product.salesUom ?? 'unit', purchaseUom: product.purchaseUom ?? 'unit', minimumSalesPrice: product.minimumSalesPrice ?? '',
+      inventoryAccountId: product.inventoryAccountId ?? '', costOfSalesAccountId: product.costOfSalesAccountId ?? '', revenueAccountId: product.revenueAccountId ?? '',
+      purchaseAccountId: product.purchaseAccountId ?? '', salesReturnAccountId: product.salesReturnAccountId ?? '', purchaseReturnAccountId: product.purchaseReturnAccountId ?? '',
+      deferredRevenueAccountId: product.deferredRevenueAccountId ?? '', subscriptionRevenueAccountId: product.subscriptionRevenueAccountId ?? '',
+    });
+    setError(''); setMessage('');
+  }
+  const updateSetting=(key:string,value:any)=>setSettingsForm(v=>v?{...v,[key]:value}:v);
+  async function saveProductSettings(){
+    if(!selectedProduct||!settingsForm)return;
+    setSaving(true);setError('');setMessage('');
+    try{
+      await apiFetch('/staff/products/'+selectedProduct.id,{method:'PATCH',body:JSON.stringify({...settingsForm,
+        minimumSalesPrice:settingsForm.minimumSalesPrice===''?null:Number(settingsForm.minimumSalesPrice),serialPrefix:settingsForm.serialPrefix||null,
+        inventoryAccountId:settingsForm.inventoryAccountId||null,costOfSalesAccountId:settingsForm.costOfSalesAccountId||null,revenueAccountId:settingsForm.revenueAccountId||null,
+        purchaseAccountId:settingsForm.purchaseAccountId||null,salesReturnAccountId:settingsForm.salesReturnAccountId||null,purchaseReturnAccountId:settingsForm.purchaseReturnAccountId||null,
+        deferredRevenueAccountId:settingsForm.deferredRevenueAccountId||null,subscriptionRevenueAccountId:settingsForm.subscriptionRevenueAccountId||null})});
+      setSelectedProduct(null);setSettingsForm(null);setMessage('تم حفظ إعدادات الصنف.');await load();
+    }catch(e){setError(e instanceof Error?e.message:'تعذر حفظ إعدادات الصنف');}finally{setSaving(false);}
+  }
 
   async function createProduct(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError(''); setMessage('');
@@ -883,9 +919,38 @@ function StaffOperations({ user }: { user: AuthUser }) {
         <label>حد إعادة الطلب<input type="number" min="0" step="0.001" value={form.reorderPoint} onChange={e=>setForm({...form,reorderPoint:e.target.value})}/></label>
         {canWriteCatalog && <button className="primary-action button" disabled={saving}>{saving?'جارٍ الحفظ...':'حفظ المنتج'}</button>}
       </form></section>
-      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">دليل المنتجات</p><h2>المنتجات</h2></div></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>التصنيف</th><th>التكلفة</th><th>البيع</th><th>الحالة</th></tr></thead><tbody>{visibleProducts.map(p=><tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.categoryName??'—'}</td><td>{p.purchaseCost}</td><td>{p.sellingPrice}</td><td>{p.active?'نشط':'موقوف'}</td></tr>)}</tbody></table></div></section>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">دليل المنتجات</p><h2>المنتجات</h2></div></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>التصنيف</th><th>التكلفة</th><th>البيع</th><th>الحالة</th></tr></thead><tbody>{visibleProducts.map(p=><tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.categoryName??'—'}</td><td>{p.purchaseCost}</td><td>{p.sellingPrice}</td><td>{p.active?'نشط':'موقوف'}</td><td><button className="secondary-button" type="button" onClick={()=>openProductSettings(p)}>إعدادات</button></td></tr>)}</tbody></table></div></section>
     </section>}
 
+    {selectedProduct && settingsForm && <section className="panel">
+      <div className="panel-heading-row"><div><p className="eyebrow">إعدادات الصنف</p><h2>{selectedProduct.name}</h2><small>{selectedProduct.sku}</small></div><button className="secondary-button" type="button" onClick={()=>{setSelectedProduct(null);setSettingsForm(null)}}>إغلاق</button></div>
+      <div className="staff-management-grid">
+        <section className="panel"><h3>المخزون والتكلفة</h3><div className="form-stack">
+          <label>تقييم المخزون<select value={settingsForm.inventoryValuationMethod} onChange={e=>updateSetting('inventoryValuationMethod',e.target.value)}><option value="inherit">افتراضي المركز</option><option value="perpetual">جرد مستمر</option><option value="periodic">جرد دوري</option></select></label>
+          <label>طريقة التكلفة<select value={settingsForm.costMethod} onChange={e=>updateSetting('costMethod',e.target.value)}><option value="inherit">افتراضي المركز</option><option value="standard">معياري</option><option value="average">متوسط مرجح</option><option value="fifo">FIFO</option></select></label>
+          <label>تتبع المخزون<select value={settingsForm.inventoryTracking} onChange={e=>updateSetting('inventoryTracking',e.target.value)}><option value="none">بدون</option><option value="lot">دفعة Lot</option><option value="serial">Serial</option></select></label>
+          <label><input type="checkbox" checked={settingsForm.serialAutoGenerate} onChange={e=>updateSetting('serialAutoGenerate',e.target.checked)}/> توليد السيريال تلقائيًا</label>
+          <label>بادئة السيريال<input value={settingsForm.serialPrefix} onChange={e=>updateSetting('serialPrefix',e.target.value)}/></label>
+          <label><input type="checkbox" checked={settingsForm.allowNegativeStock} onChange={e=>updateSetting('allowNegativeStock',e.target.checked)}/> السماح بالمخزون السالب</label>
+          <label><input type="checkbox" checked={settingsForm.expiryTracking} onChange={e=>updateSetting('expiryTracking',e.target.checked)}/> تتبع الصلاحية</label>
+          <label>وحدة البيع<input value={settingsForm.salesUom} onChange={e=>updateSetting('salesUom',e.target.value)}/></label>
+          <label>وحدة الشراء<input value={settingsForm.purchaseUom} onChange={e=>updateSetting('purchaseUom',e.target.value)}/></label>
+          <label>الحد الأدنى لسعر البيع<input type="number" min="0" step="0.01" value={settingsForm.minimumSalesPrice} onChange={e=>updateSetting('minimumSalesPrice',e.target.value)}/></label>
+        </div></section>
+        <section className="panel"><h3>المبيعات والمشتريات</h3><div className="form-stack">
+          <label><input type="checkbox" checked={settingsForm.posAvailable} onChange={e=>updateSetting('posAvailable',e.target.checked)}/> متاح في نقطة البيع</label>
+          <label><input type="checkbox" checked={settingsForm.ecommerceAvailable} onChange={e=>updateSetting('ecommerceAvailable',e.target.checked)}/> متاح في المتجر الإلكتروني</label>
+          <label><input type="checkbox" checked={settingsForm.requiresCustomer} onChange={e=>updateSetting('requiresCustomer',e.target.checked)}/> العميل مطلوب عند البيع</label>
+          <label><input type="checkbox" checked={settingsForm.requiresSpecialist} onChange={e=>updateSetting('requiresSpecialist',e.target.checked)}/> الأخصائي مطلوب</label>
+          <label><input type="checkbox" checked={settingsForm.purchaseAllowed} onChange={e=>updateSetting('purchaseAllowed',e.target.checked)}/> السماح بالشراء</label>
+        </div></section>
+      </div>
+      <section className="panel"><h3>الحسابات المحاسبية</h3><div className="form-row">
+        <label key="inventoryAccountId">حساب المخزون<select value={settingsForm.inventoryAccountId} onChange={e=>updateSetting('inventoryAccountId',e.target.value)}><option value="">افتراضي إعدادات المحاسبة</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label key="costOfSalesAccountId">تكلفة المبيعات<select value={settingsForm.costOfSalesAccountId} onChange={e=>updateSetting('costOfSalesAccountId',e.target.value)}><option value="">افتراضي إعدادات المحاسبة</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label key="revenueAccountId">إيراد المبيعات<select value={settingsForm.revenueAccountId} onChange={e=>updateSetting('revenueAccountId',e.target.value)}><option value="">افتراضي إعدادات المحاسبة</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label key="purchaseAccountId">المشتريات<select value={settingsForm.purchaseAccountId} onChange={e=>updateSetting('purchaseAccountId',e.target.value)}><option value="">افتراضي إعدادات المحاسبة</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label key="salesReturnAccountId">مرتجعات المبيعات<select value={settingsForm.salesReturnAccountId} onChange={e=>updateSetting('salesReturnAccountId',e.target.value)}><option value="">افتراضي إعدادات المحاسبة</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label key="purchaseReturnAccountId">مرتجعات المشتريات<select value={settingsForm.purchaseReturnAccountId} onChange={e=>updateSetting('purchaseReturnAccountId',e.target.value)}><option value="">افتراضي إعدادات المحاسبة</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>
+      </div>
+      {selectedProduct.productType === 'subscription' && <div className="form-row"><label>حساب الإيراد المؤجل<select value={settingsForm.deferredRevenueAccountId} onChange={e=>updateSetting('deferredRevenueAccountId',e.target.value)}><option value="">افتراضي</option>{accounts.filter(a=>a.accountType==='liability').map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label><label>حساب إيراد الاشتراك<select value={settingsForm.subscriptionRevenueAccountId} onChange={e=>updateSetting('subscriptionRevenueAccountId',e.target.value)}><option value="">افتراضي</option>{accounts.filter(a=>a.accountType==='revenue').map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label></div>}
+      <button className="primary-action button" type="button" disabled={saving} onClick={()=>void saveProductSettings()}>{saving?'جارٍ الحفظ...':'حفظ إعدادات الصنف'}</button></section>
+    </section>}
     {canManageInventory && tab==='inventory'&&<section className="staff-management-grid">
       <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">استلام المخزون</p><h2>استلام مخزون مباشر</h2><small>استلام مباشر لمنتجات مخزنية عند الحاجة. أمر الشراء الرسمي يبقى في وحدة المشتريات.</small></div></div>
         <form className="form-stack" onSubmit={receivePurchase}>

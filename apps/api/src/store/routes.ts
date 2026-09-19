@@ -99,6 +99,43 @@ storeRoutes.get('/admin/customers/:customerId/sales', async c => {
   return c.json({ sales: rows });
 });
 
+storeRoutes.get('/admin/sales/:saleId', async c => {
+  const auth = await staffContext(c, 'pos.read');
+  if ('error' in auth) return auth.error;
+  const saleId = c.req.param('saleId');
+  if (!z.string().uuid().safeParse(saleId).success) return c.json({ error: { code: 'INVALID_SALE_ID', message: 'رقم عملية البيع غير صحيح' } }, 400);
+
+  const sale = await withDatabase(c.env, db => db.select({
+    id: sales.id, saleNumber: sales.saleNumber, status: sales.status, subtotal: sales.subtotal,
+    discount: sales.discount, tax: sales.tax, total: sales.total, paymentStatus: sales.paymentStatus,
+    paymentMethod: sales.paymentMethod, createdAt: sales.createdAt,
+  }).from(sales).where(and(eq(sales.id, saleId), eq(sales.centerId, auth.user.centerId!))).limit(1));
+  if (!sale[0]) return c.json({ error: { code: 'SALE_NOT_FOUND', message: 'عملية البيع غير موجودة' } }, 404);
+
+  const items = await withDatabase(c.env, db => db.select({
+    id: saleItems.id, productId: saleItems.productId, productName: products.name,
+    sku: products.sku, quantity: saleItems.quantity, unitPrice: saleItems.unitPrice,
+    tax: saleItems.tax, lineTotal: saleItems.lineTotal,
+  }).from(saleItems).innerJoin(products, eq(products.id, saleItems.productId))
+    .where(eq(saleItems.saleId, saleId)).orderBy(asc(products.name)));
+
+  const returnedRows = await withDatabase(c.env, db => db.select({
+    productId: stockMovements.productId, quantity: stockMovements.quantity,
+  }).from(stockMovements).where(and(
+    eq(stockMovements.centerId, auth.user.centerId!),
+    eq(stockMovements.referenceType, 'sale_return'),
+    eq(stockMovements.referenceId, saleId),
+  )));
+  const returned = new Map<string, number>();
+  for (const row of returnedRows) returned.set(row.productId, (returned.get(row.productId) ?? 0) + Number(row.quantity));
+
+  return c.json({ sale: sale[0], items: items.map(item => ({
+    ...item,
+    returnedQuantity: returned.get(item.productId) ?? 0,
+    returnableQuantity: Math.max(0, Number(item.quantity) - (returned.get(item.productId) ?? 0)),
+  })) });
+});
+
 const staffSaleSchema = z.object({
   customerId: z.string().uuid(),
   paymentMethod: z.enum(['cash', 'mada', 'card', 'bank_transfer', 'apple_pay']),
@@ -221,6 +258,13 @@ storeRoutes.post('/admin/sales', async c => {
   return c.json({ sale: result.sale }, 201);
 });
 
+const saleReturnSchema = z.object({
+  items: z.array(z.object({
+    productId: z.string().uuid(),
+    quantity: z.number().positive().max(9999),
+  })).min(1),
+});
+
 storeRoutes.post('/admin/sales/:saleId/return', async c => {
   const auth = await staffContext(c, 'pos.void');
   if ('error' in auth) return auth.error;
@@ -229,80 +273,93 @@ storeRoutes.post('/admin/sales/:saleId/return', async c => {
   if (!z.string().uuid().safeParse(saleId).success) {
     return c.json({ error: { code: 'INVALID_SALE_ID', message: 'رقم عملية البيع غير صحيح' } }, 400);
   }
+  const parsed = saleReturnSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'حدد كميات المرتجع لكل منتج' } }, 400);
 
   const result = await withDatabase(c.env, db => db.transaction(async tx => {
     const saleRows = await tx.select({
-      id: sales.id,
-      status: sales.status,
-      customerId: sales.customerId,
-      saleNumber: sales.saleNumber,
+      id: sales.id, status: sales.status, customerId: sales.customerId, saleNumber: sales.saleNumber,
     }).from(sales).where(and(eq(sales.id, saleId), eq(sales.centerId, auth.user.centerId!))).limit(1);
 
     if (!saleRows[0]) return { error: 'SALE_NOT_FOUND' as const };
-    if (saleRows[0].status === 'returned') return { error: 'SALE_ALREADY_RETURNED' as const };
-    if (saleRows[0].status !== 'completed') return { error: 'SALE_NOT_RETURNABLE' as const };
+    if (!['completed', 'partially_returned'].includes(saleRows[0].status)) return { error: 'SALE_NOT_RETURNABLE' as const };
 
-    const items = await tx.select({
-      productId: saleItems.productId,
-      quantity: saleItems.quantity,
-      unitPrice: saleItems.unitPrice,
+    const saleLines = await tx.select({
+      productId: saleItems.productId, quantity: saleItems.quantity, unitPrice: saleItems.unitPrice, tax: saleItems.tax,
     }).from(saleItems).where(eq(saleItems.saleId, saleId));
+    if (!saleLines.length) return { error: 'SALE_ITEMS_NOT_FOUND' as const };
 
-    if (!items.length) return { error: 'SALE_ITEMS_NOT_FOUND' as const };
+    const returnedRows = await tx.select({
+      productId: stockMovements.productId, quantity: stockMovements.quantity,
+    }).from(stockMovements).where(and(
+      eq(stockMovements.centerId, auth.user.centerId!),
+      eq(stockMovements.referenceType, 'sale_return'),
+      eq(stockMovements.referenceId, saleId),
+    ));
+    const alreadyReturned = new Map<string, number>();
+    for (const row of returnedRows) alreadyReturned.set(row.productId, (alreadyReturned.get(row.productId) ?? 0) + Number(row.quantity));
 
-    const productIds = [...new Set(items.map(item => item.productId))];
-    const productRows = await tx.select({
-      id: products.id,
-      purchaseCost: products.purchaseCost,
-      active: products.active,
-    }).from(products).where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds)));
+    const requested = new Map<string, number>();
+    for (const item of parsed.data.items) requested.set(item.productId, (requested.get(item.productId) ?? 0) + item.quantity);
 
+    let returnTotal = 0;
+    let returnedLines = 0;
+    for (const [productId, quantity] of requested) {
+      const line = saleLines.find(item => item.productId === productId);
+      if (!line) return { error: 'PRODUCT_NOT_IN_SALE' as const, productId };
+      const remaining = Number(line.quantity) - (alreadyReturned.get(productId) ?? 0);
+      if (quantity > remaining + 0.000001) return { error: 'RETURN_QTY_EXCEEDED' as const, productId, remaining, requested: quantity };
+
+      const taxPerUnit = Number(line.quantity) > 0 ? Number(line.tax) / Number(line.quantity) : 0;
+      const refundPerUnit = Number(line.unitPrice) + taxPerUnit;
+      returnTotal += quantity * refundPerUnit;
+      returnedLines++;
+    }
+
+    const productIds = [...requested.keys()];
+    const productRows = await tx.select({ id: products.id, purchaseCost: products.purchaseCost })
+      .from(products).where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds)));
     const productMap = new Map(productRows.map(product => [product.id, product]));
-    for (const item of items) {
-      const product = productMap.get(item.productId);
+
+    for (const [productId, quantity] of requested) {
+      const product = productMap.get(productId);
       if (!product) return { error: 'PRODUCT_NOT_FOUND' as const };
       await tx.insert(stockMovements).values({
-        centerId: auth.user.centerId!,
-        productId: item.productId,
-        movementType: 'return_in',
-        quantity: Number(item.quantity).toString(),
-        unitCost: product.purchaseCost,
-        referenceType: 'sale_return',
-        referenceId: saleId,
-        occurredAt: new Date(),
-        createdBy: auth.user.userId,
-        notes: 'عكس البيع ' + saleRows[0].saleNumber,
+        centerId: auth.user.centerId!, productId, movementType: 'return_in', quantity: quantity.toString(),
+        unitCost: product.purchaseCost, referenceType: 'sale_return', referenceId: saleId,
+        occurredAt: new Date(), createdBy: auth.user.userId,
+        notes: 'مرتجع جزئي/كلي للفاتورة ' + saleRows[0].saleNumber,
       });
     }
 
+    const allReturned = saleLines.every(line =>
+      (alreadyReturned.get(line.productId) ?? 0) + (requested.get(line.productId) ?? 0) >= Number(line.quantity) - 0.000001
+    );
     await tx.update(sales).set({
-      status: 'returned',
-      paymentStatus: 'refunded',
+      status: allReturned ? 'returned' : 'partially_returned',
+      paymentStatus: allReturned ? 'refunded' : 'partial',
       updatedAt: new Date(),
     }).where(and(eq(sales.id, saleId), eq(sales.centerId, auth.user.centerId!)));
 
-    return { saleNumber: saleRows[0].saleNumber, customerId: saleRows[0].customerId };
+    return { saleNumber: saleRows[0].saleNumber, returnTotal, returnedLines, status: allReturned ? 'returned' : 'partially_returned' };
   }));
 
   if ('error' in result) {
     const errorCode = result.error;
     const messages: Record<string, string> = {
       SALE_NOT_FOUND: 'عملية البيع غير موجودة',
-      SALE_ALREADY_RETURNED: 'تم إرجاع هذه العملية مسبقًا',
-      SALE_NOT_RETURNABLE: 'لا يمكن إرجاع عملية البيع بحالتها الحالية',
-      SALE_ITEMS_NOT_FOUND: 'لا توجد بنود مرتبطة بعملية البيع',
-      PRODUCT_NOT_FOUND: 'أحد المنتجات المرتبطة بالبيع غير موجود في المركز',
+      SALE_NOT_RETURNABLE: 'لا يمكن إرجاع هذه العملية بحالتها الحالية',
+      SALE_ITEMS_NOT_FOUND: 'لا توجد بنود مرتبطة بالبيع',
+      PRODUCT_NOT_IN_SALE: 'المنتج المحدد غير موجود ضمن البيع',
+      RETURN_QTY_EXCEEDED: 'كمية المرتجع أكبر من الكمية المتبقية القابلة للإرجاع',
+      PRODUCT_NOT_FOUND: 'أحد المنتجات غير موجود في المركز',
     };
-    if (!errorCode) {
-      return c.json({ error: { code: 'SALE_RETURN_FAILED', message: 'تعذر إرجاع البيع' } }, 500);
-    }
-    return c.json(
-      { error: { code: errorCode, message: messages[errorCode] ?? 'تعذر إرجاع البيع' } },
-      errorCode === 'SALE_NOT_FOUND' ? 404 : 409,
-    );
+    if (errorCode === 'RETURN_QTY_EXCEEDED') return c.json({ error: { code: errorCode, message: messages[errorCode], details: { productId: result.productId, remaining: result.remaining, requested: result.requested } } }, 409);
+    if (errorCode === 'PRODUCT_NOT_IN_SALE') return c.json({ error: { code: errorCode, message: messages[errorCode] } }, 409);
+    return c.json({ error: { code: errorCode, message: messages[errorCode] ?? 'تعذر تنفيذ المرتجع' } }, errorCode === 'SALE_NOT_FOUND' ? 404 : 409);
   }
 
-  return c.json({ ok: true, saleNumber: result.saleNumber });
+  return c.json({ ok: true, saleNumber: result.saleNumber, returnTotal: result.returnTotal.toFixed(2), returnedLines: result.returnedLines, status: result.status });
 });
 
 const itemSchema = z.object({

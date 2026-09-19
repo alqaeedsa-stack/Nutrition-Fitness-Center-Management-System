@@ -300,3 +300,79 @@ textarea::placeholder {
 .module-status {
   color: var(--odoo-muted);
 }
+
+
+/* Global Arabic / English direction and Odoo-style language switcher */
+.global-language-switcher {
+  position: fixed;
+  top: 14px;
+  inset-inline-end: 16px;
+  z-index: 1000;
+}
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 5px 10px;
+  border: 1px solid #DEE2E6;
+  border-radius: 6px;
+  background: #FFFFFF;
+  color: #495057;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+.language-switcher .active {
+  color: #714B67;
+  font-weight: 600;
+}
+.language-divider {
+  color: #ADB5BD;
+}
+html[dir="rtl"] .odoo-dashboard-layout {
+  direction: rtl;
+}
+html[dir="ltr"] .odoo-dashboard-layout {
+  direction: ltr;
+}
+html[dir="rtl"] .odoo-dashboard-sidebar {
+  direction: rtl;
+}
+html[dir="ltr"] .odoo-dashboard-sidebar {
+  direction: ltr;
+}
+html[dir="ltr"] .odoo-sidebar-group > span,
+html[dir="ltr"] .odoo-sidebar-group a {
+  text-align: left;
+}
+html[dir="rtl"] .odoo-sidebar-group > span,
+html[dir="rtl"] .odoo-sidebar-group a {
+  text-align: right;
+}
+html[dir="ltr"] .odoo-dashboard-main {
+  direction: ltr;
+  text-align: left;
+}
+html[dir="rtl"] .odoo-dashboard-main {
+  direction: rtl;
+  text-align: right;
+}
+html[dir="ltr"] .odoo-dashboard-quick {
+  justify-content: flex-start;
+}
+html[dir="rtl"] .odoo-dashboard-quick {
+  justify-content: flex-start;
+}
+@media (max-width: 720px) {
+  .global-language-switcher {
+    top: 9px;
+    inset-inline-end: 10px;
+  }
+  .language-switcher {
+    min-height: 32px;
+    padding: 4px 8px;
+  }
+}

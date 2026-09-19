@@ -6,7 +6,7 @@ function journalNumber(prefix: string) {
 }
 
 async function settings(tx: any, centerId: string) {
-  const result = await tx.execute(sql`select inventory_account_id, input_vat_account_id, accounts_payable_account_id, cash_bank_account_id from accounting_settings where center_id=${centerId} limit 1`);
+  const result = await tx.execute(sql`select inventory_account_id, input_vat_account_id, accounts_payable_account_id, cash_bank_account_id, revenue_account_id, output_vat_account_id, cost_of_sales_account_id from accounting_settings where center_id=${centerId} limit 1`);
   return result.rows[0] as any;
 }
 

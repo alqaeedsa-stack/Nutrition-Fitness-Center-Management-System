@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from './lib/api';
+import { OdooReportViews } from './components/OdooERP';
 
 type ReportData = {
   from: string;
@@ -145,9 +146,7 @@ export default function Reports({ user }: { user: { staffType?: string | null; p
       <section className="panel">
         <div className="panel-heading-row"><div><p className="eyebrow">مبيعات اليوم</p><h2>المبيعات اليومية</h2></div><span>{data.from} — {data.to}</span></div>
         {!data.dailySales.length ? <p className="empty-state">لا توجد مبيعات مكتملة في الفترة المحددة.</p> :
-          <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>التاريخ</th><th>عدد العمليات</th><th>الإجمالي</th><th>مؤشر</th></tr></thead><tbody>
-            {data.dailySales.map(row => <tr key={row.date}><td>{row.date}</td><td>{row.count}</td><td>{formatMoney(row.total)}</td><td><div style={{ minWidth: 120 }}><div style={{ width: Math.max(4, Number(row.total) / maxDaily * 100) + '%', height: 8, borderRadius: 4, background: 'currentColor' }} /></div></td></tr>)}
-          </tbody></table></div>}
+          <OdooReportViews rows={data.dailySales.map(row => ({ التاريخ: row.date, العمليات: row.count, الإجمالي: formatMoney(row.total), totalValue: Number(row.total) }))} valueKeys={['العمليات','totalValue']} />}
       </section>
 
       <section className="staff-management-grid">

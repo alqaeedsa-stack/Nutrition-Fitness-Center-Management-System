@@ -9,6 +9,7 @@ import { calculateTax } from '../tax/engine';
 import { requirePermission } from '../auth/permissions';
 import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
 import { postSale, postSaleWithProductAccounts, reverseSale } from '../accounting/service';
+import { createSubscriptionSchedule } from '../accounting/subscriptions';
 
 export type StoreBindings = {
   HYPERDRIVE?: { connectionString: string };

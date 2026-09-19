@@ -422,19 +422,21 @@ storeRoutes.post('/admin/sales/:saleId/return', async c => {
     }
 
     const productIds = [...requested.keys()];
-    const productRows = await tx.select({ id: products.id, purchaseCost: products.purchaseCost })
+    const productRows = await tx.select({ id: products.id, purchaseCost: products.purchaseCost, productType: products.productType })
       .from(products).where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds)));
     const productMap = new Map(productRows.map(product => [product.id, product]));
 
     for (const [productId, quantity] of requested) {
       const product = productMap.get(productId);
       if (!product) return { error: 'PRODUCT_NOT_FOUND' as const };
-      await tx.insert(stockMovements).values({
-        centerId: auth.user.centerId!, productId, movementType: 'return_in', quantity: quantity.toString(),
-        unitCost: product.purchaseCost, referenceType: 'sale_return', referenceId: saleId,
-        occurredAt: new Date(), createdBy: auth.user.userId,
-        notes: 'مرتجع جزئي/كلي للفاتورة ' + saleRows[0].saleNumber,
-      });
+      if (product.productType !== 'subscription') {
+        await tx.insert(stockMovements).values({
+          centerId: auth.user.centerId!, productId, movementType: 'return_in', quantity: quantity.toString(),
+          unitCost: product.purchaseCost, referenceType: 'sale_return', referenceId: saleId,
+          occurredAt: new Date(), createdBy: auth.user.userId,
+          notes: 'مرتجع جزئي/كلي للفاتورة ' + saleRows[0].saleNumber,
+        });
+      }
     }
 
     const allReturned = saleLines.every(line =>

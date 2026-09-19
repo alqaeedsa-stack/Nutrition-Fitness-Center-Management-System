@@ -69,7 +69,11 @@ export async function getAuthenticatedUser(env: Parameters<typeof withDatabase>[
       ))
       .limit(1);
 
-    return rows[0] ?? null;
+    const session = rows[0] ?? null;
+    if (session) {
+      await db.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, session.sessionId));
+    }
+    return session;
   });
 }
 

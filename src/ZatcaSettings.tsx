@@ -62,7 +62,7 @@ export default function ZatcaSettings() {
    </section>}
    <section className='staff-management-grid'>
     <section className='panel'><p className='eyebrow'>ZATCA CONFIGURATION</p><h2>إعدادات المنشأة</h2><form className='form-stack' onSubmit={saveSettings}>
-     <label>بيئة الإرسال<select value={form.environment} onChange={e=>setForm(v=>({...v,environment:e.target.value as 'simulation'|'production'}))}><option value='simulation'>المحاكاة</option><option value='production'>الإنتاج — الإنتاج</option></select></label>
+     <label>بيئة الإرسال<select value={form.environment} onChange={e=>setForm(v=>({...v,environment:e.target.value as 'simulation'|'production'}))}><option value='simulation'>المحاكاة</option><option value='production'>الإنتاج</option></select></label>
      <label>الرقم الضريبي<input dir='ltr' value={form.vatNumber} onChange={e=>setForm(v=>({...v,vatNumber:e.target.value}))} placeholder='الرقم الضريبي' /></label>
      <label>الاسم القانوني للمنشأة<input value={form.legalName} onChange={e=>setForm(v=>({...v,legalName:e.target.value}))}/></label>
      <label>نوع الفاتورة<input dir='ltr' value={form.invoiceTypeCode} onChange={e=>setForm(v=>({...v,invoiceTypeCode:e.target.value}))}/></label>

@@ -31,6 +31,9 @@ type AuthUser = {
 
 type LoginPortal = 'customer' | 'staff';
 
+const orderStatusLabels: Record<string,string> = { pending:'جديد', confirmed:'مؤكد', completed:'مكتمل', cancelled:'ملغي' };
+const paymentStatusLabels: Record<string,string> = { paid:'مدفوع', unpaid:'غير مدفوع', partial:'جزئي', refunded:'مسترد' };
+
 function PasswordEyeIcon({ open }: { open: boolean }) {
   return open ? (
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A11.8 11.8 0 0 1 12 5c5.2 0 9.4 3.3 10.5 7-.4 1.3-1.2 2.5-2.2 3.5M6.2 6.2C3.9 7.5 2.3 9.5 1.5 12c1.1 3.7 5.3 7 10.5 7 1.2 0 2.4-.2 3.5-.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -685,9 +688,6 @@ function StaffPOS({ user }: { user: AuthUser }) {
   async function prepareZatcaInvoice(id:string){ setError(''); setMessage(''); try { const r=await apiFetch<{invoice:{invoiceNumber:string;status:string}}>('/zatca/sales/'+id+'/prepare',{method:'POST',body:JSON.stringify({invoiceType:'simplified'})}); setMessage('تم تجهيز الفاتورة الإلكترونية '+r.invoice.invoiceNumber+' بصيغة ZATCA. التوقيع والإرسال إلى FATOORA ما زالا يحتاجان CSID.'); } catch(e){setError(e instanceof Error?e.message:'تعذر تجهيز الفاتورة الإلكترونية');} }
   const subtotal=cart.reduce((s,x)=>s+x.cartQuantity*x.price,0); const discount=cart.reduce((s,x)=>s+x.discount,0); const total=Math.max(0,subtotal-discount);
   async function completeSale(){ if(!cart.length){setError('السلة فارغة');return;} if(!customer){setError('اختر العميل قبل إتمام البيع.');return;} setLoading(true);setError('');setMessage(''); try { const r=await apiFetch<{sale:{id:string;saleNumber:string;total:string}}>('/staff/pos/sales',{method:'POST',body:JSON.stringify({customerId:customer.id,paymentMethod,paymentStatus:'paid',items:cart.map(x=>({productId:x.id,quantity:x.cartQuantity}))})}); setMessage('تم تسجيل البيع '+r.sale.saleNumber+' بإجمالي '+r.sale.total+' ر.س');setCart([]);setCustomer(null);setCustomerQuery(''); await loadSalesHistory(); await openSale(r.sale.id); } catch(e){setError(e instanceof Error?e.message:'تعذر إتمام البيع');} finally{setLoading(false);} }
-
-  const orderStatusLabels: Record<string,string> = { pending:'جديد', confirmed:'مؤكد', completed:'مكتمل', cancelled:'ملغي' };
-  const paymentStatusLabels: Record<string,string> = { paid:'مدفوع', unpaid:'غير مدفوع', partial:'جزئي', refunded:'مسترد' };
 
   return <main className="app-shell"><header className="app-header"><div><span className="eyebrow">نقطة البيع</span><h1>نقطة البيع</h1></div><div className="portal-choice-actions"><button className="secondary-button" type="button" onClick={()=>void loadSalesHistory()}>المبيعات السابقة</button><Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link></div></header>
     {error&&<div className="info-strip warning">{error}</div>}{message&&<div className="info-strip">{message}</div>}

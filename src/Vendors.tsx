@@ -6,7 +6,8 @@ type Vendor = { id:string; code:string; name:string; taxNumber?:string|null; pho
 type Product = { id:string; sku:string; name:string; purchaseCost:string };
 type Order = { id:string; poNumber:string; status:string; orderDate:string; expectedDate?:string|null; subtotal:string; tax:string; total:string; vendorId:string; vendorName:string };
 type OrderItem = { id:string; productId:string; productName:string; sku:string; quantity:string; receivedQuantity:string; returnedQuantity:string; unitCost:string; tax:string; lineTotal:string };
-type ReceiptRow = { id:string; receiptNumber:string; receiptDate:string; status:string; poNumber:string; vendorName:string };\ntype ReturnRow = { id:string; returnNumber:string; status:string; returnDate:string; total:string; notes?:string|null; vendorId:string; vendorName:string; poNumber?:string|null };
+type ReceiptRow = { id:string; receiptNumber:string; receiptDate:string; status:string; poNumber:string; vendorName:string };
+type ReturnRow = { id:string; returnNumber:string; status:string; returnDate:string; total:string; notes?:string|null; vendorId:string; vendorName:string; poNumber?:string|null };
 type VendorDetail = { vendor:Vendor; orders:Pick<Order,'id'|'poNumber'|'status'|'orderDate'|'total'>[]; returns:Pick<ReturnRow,'id'|'returnNumber'|'returnDate'|'total'|'poNumber'>[]; totals:{orders:string;returns:string} };
 type Dashboard = { activeVendors:number; openOrders:number; purchaseTotal:string; returnTotal:string; orderCounts:{draft:number;sent:number;confirmed:number;received:number;partial:number;cancelled:number;total:number} };
 
@@ -18,7 +19,8 @@ export default function Vendors(){
   const [vendors,setVendors]=useState<Vendor[]>([]);
   const [products,setProducts]=useState<Product[]>([]);
   const [orders,setOrders]=useState<Order[]>([]);
-  const [returnRows,setReturnRows]=useState<ReturnRow[]>([]);\n  const [receiptRows,setReceiptRows]=useState<ReceiptRow[]>([]);
+  const [returnRows,setReturnRows]=useState<ReturnRow[]>([]);
+  const [receiptRows,setReceiptRows]=useState<ReceiptRow[]>([]);
   const [dashboard,setDashboard]=useState<Dashboard|null>(null);
   const [selected,setSelected]=useState<{order:Order;items:OrderItem[]}|null>(null);
   const [vendorDetail,setVendorDetail]=useState<VendorDetail|null>(null);

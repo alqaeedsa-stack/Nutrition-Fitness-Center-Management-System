@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from './lib/api';
+import { useLanguage } from './i18n';
 
 type Customer = {
   id: string;
@@ -30,6 +31,8 @@ type MeasurementRow = {
 };
 
 export default function MeasurementsManagement() {
+  const { isArabic } = useLanguage();
+  const t = (ar: string, en: string) => isArabic ? ar : en;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [types, setTypes] = useState<MeasurementType[]>([]);
   const [rows, setRows] = useState<MeasurementRow[]>([]);
@@ -119,12 +122,10 @@ export default function MeasurementsManagement() {
     <main className="app-shell">
       <header className="app-header">
         <div>
-          <span className="eyebrow">القياسات</span>
+          <span className="eyebrow">{t('القياسات','Measurements')}</span>
           <h1>القياسات الصحية</h1>
         </div>
-        <Link className="secondary-button" to="/admin/dashboard">
-          لوحة الإدارة
-        </Link>
+        <Link className="secondary-button" to="/admin/dashboard">{t('لوحة الإدارة','Admin Dashboard')}</Link>
       </header>
 
       {error && <div className="info-strip warning">{error}</div>}
@@ -140,9 +141,7 @@ export default function MeasurementsManagement() {
 
         <form className="form-stack" onSubmit={save}>
           <div className="form-row">
-            <label>
-              العميل
-              <select
+            <label>{t('العميل','Customer')}<select
                 required
                 value={customerId}
                 onChange={(e) => setCustomerId(e.target.value)}
@@ -192,9 +191,7 @@ export default function MeasurementsManagement() {
             </label>
           </div>
 
-          <label>
-            ملاحظات
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <label>{t('ملاحظات','Notes')}<textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
           </label>
 
           <button className="primary-action button" disabled={saving}>
@@ -218,11 +215,11 @@ export default function MeasurementsManagement() {
           <table className="staff-table">
             <thead>
               <tr>
-                <th>العميل</th>
+                <th>{t('العميل','Customer')}</th>
                 <th>القياس</th>
                 <th>القيمة</th>
                 <th>الوحدة</th>
-                <th>التاريخ</th>
+                <th>{t('التاريخ','Date')}</th>
                 <th />
               </tr>
             </thead>
@@ -240,9 +237,7 @@ export default function MeasurementsManagement() {
                     <button
                       className="secondary-button"
                       onClick={() => void remove(row.id)}
-                    >
-                      حذف
-                    </button>
+                    >{t('حذف','Delete')}</button>
                   </td>
                 </tr>
               ))}

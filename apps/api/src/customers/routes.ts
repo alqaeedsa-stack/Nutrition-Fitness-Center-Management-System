@@ -184,7 +184,8 @@ customerRoutes.get('/:id/360', async (c) => {
         .orderBy(desc(customerSubscriptions.startDate)).limit(20),
     ]);
 
-    return { customer: customerRows[0], measurements, nutrition, fitness, appointments: appointmentsRows, sales: salesRows, followUps, subscriptions };
+    const today = new Date().toISOString().slice(0, 10);
+    return { customer: customerRows[0], measurements, nutrition, fitness, appointments: appointmentsRows, sales: salesRows, followUps, subscriptions: subscriptions.map(row => ({ ...row, status: row.status === 'cancelled' ? 'cancelled' : row.endDate < today ? 'expired' : row.startDate > today ? 'scheduled' : 'active' })) };
   });
 
   if ('notFound' in result) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);

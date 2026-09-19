@@ -41,7 +41,8 @@ export default function Vendors(){
         apiFetch<{products:Product[]}>('/staff/products'),
         apiFetch<{orders:Order[]}>('/purchases/orders'),
         apiFetch<Dashboard>('/purchases/dashboard'),
-        apiFetch<{returns:ReturnRow[]}>('/purchases/returns')
+        apiFetch<{returns:ReturnRow[]}>('/purchases/returns'),
+        apiFetch<{receipts:ReceiptRow[]}>('/purchases/receipts')
       ]);
       setVendors(v.vendors); setProducts(p.products); setOrders(o.orders); setDashboard(d); setReturnRows(r.returns); setReceiptRows(g.receipts);
       if(!order.vendorId && v.vendors[0]) setOrder(x=>({...x,vendorId:v.vendors[0].id}));

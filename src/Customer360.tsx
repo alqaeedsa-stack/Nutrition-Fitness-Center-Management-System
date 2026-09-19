@@ -17,7 +17,7 @@ type AuthMe = { user: { id: string } };
 type StoreProduct = { id: string; sku: string; name: string; sellingPrice: string; purchaseCost: string; taxCode?: string | null; stock: number; active: boolean };
 type SaleCartItem = StoreProduct & { quantity: number };
 
-const statusLabel: Record<string, string> = { active: 'نشطة', draft: 'مسودة', completed: 'مكتملة', cancelled: 'ملغاة', scheduled: 'مجدول', confirmed: 'مؤكد', no_show: 'لم يحضر', pending: 'قيد المعالجة', completed_sale: 'مكتمل', returned: 'مرتجع', refunded: 'مسترد' };
+const statusLabel: Record<string, string> = { active: 'نشطة', draft: 'مسودة', completed: 'مكتملة', cancelled: 'ملغاة', scheduled: 'مجدول', confirmed: 'مؤكد', no_show: 'لم يحضر', pending: 'قيد المعالجة', completed_sale: 'مكتمل', partially_returned: 'مرتجع جزئي', returned: 'مرتجع', refunded: 'مسترد' };
 function label(value: string) { return statusLabel[value] ?? value; }
 
 export default function Customer360() {

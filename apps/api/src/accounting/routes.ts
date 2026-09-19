@@ -28,6 +28,80 @@ accountingRoutes.get('/accounts',async c=>{
   const rows=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",a.parent_id as "parentId",p.code as "parentCode",p.name as "parentName",a.is_active as "isActive",a.is_system as "isSystem" from accounting_accounts a left join accounting_accounts p on p.id=a.parent_id where a.center_id=${auth.user.centerId!} order by a.code`));
   return c.json({accounts:rows.rows});
 });
+accountingRoutes.put('/accounts/:id',async c=>{
+  const auth=await access(c,'accounting.write'); if('error' in auth)return auth.error;
+  const accountId=c.req.param('id');
+  if(!z.string().uuid().safeParse(accountId).success)return c.json({error:{code:'INVALID_ACCOUNT_ID',message:'معرف الحساب غير صحيح'}},400);
+  const parsed=accountSchema.safeParse(await c.req.json().catch(()=>null)); if(!parsed.success)return c.json({error:{code:'VALIDATION_ERROR',message:'بيانات الحساب غير صحيحة',details:parsed.error.flatten()}},400);
+  const x=parsed.data;
+  try{
+    const current=await withDatabase(c.env,db=>db.execute(sql`select id,is_system as "isSystem" from accounting_accounts where id=${accountId} and center_id=${auth.user.centerId!} limit 1`));
+    if(!current.rows[0])return c.json({error:{code:'ACCOUNT_NOT_FOUND',message:'الحساب غير موجود'}},404);
+    if(current.rows[0].isSystem)return c.json({error:{code:'SYSTEM_ACCOUNT_LOCKED',message:'حسابات النظام لا يمكن تعديلها'}},409);
+    if(x.parentId===accountId)return c.json({error:{code:'INVALID_PARENT',message:'لا يمكن جعل الحساب أبًا لنفسه'}},400);
+    if(x.parentId){
+      const parent=await withDatabase(c.env,db=>db.execute(sql`select id,account_type as "accountType" from accounting_accounts where id=${x.parentId} and center_id=${auth.user.centerId!} limit 1`));
+      if(!parent.rows[0])return c.json({error:{code:'ACCOUNT_PARENT_INVALID',message:'الحساب الأب غير تابع للمركز'}},400);
+      if(parent.rows[0].accountType!==x.accountType)return c.json({error:{code:'ACCOUNT_TYPE_MISMATCH',message:'نوع الحساب يجب أن يطابق نوع الحساب الأب'}},400);
+    }
+    const r=await withDatabase(c.env,db=>db.execute(sql`update accounting_accounts set parent_id=${x.parentId??null},code=${x.code},name=${x.name},account_type=${x.accountType},updated_at=now() where id=${accountId} and center_id=${auth.user.centerId!} returning id,code,name,account_type as "accountType",parent_id as "parentId",is_active as "isActive",is_system as "isSystem"`));
+    return c.json({account:r.rows[0]});
+  }catch(e){return c.json({error:{code:'ACCOUNT_UPDATE_FAILED',message:'تعذر تعديل الحساب',detail:e instanceof Error?e.message:'unknown'}},400);}
+});
+
+accountingRoutes.post('/accounts/:id/duplicate',async c=>{
+  const auth=await access(c,'accounting.write'); if('error' in auth)return auth.error;
+  const accountId=c.req.param('id');
+  const parsed=z.object({code:z.string().trim().min(1).max(30),name:z.string().trim().min(1).max(200)}).safeParse(await c.req.json().catch(()=>null));
+  if(!parsed.success)return c.json({error:{code:'VALIDATION_ERROR',message:'رقم واسم الحساب الجديد مطلوبان'}},400);
+  try{
+    const source=await withDatabase(c.env,db=>db.execute(sql`select parent_id as "parentId",account_type as "accountType" from accounting_accounts where id=${accountId} and center_id=${auth.user.centerId!} limit 1`));
+    if(!source.rows[0])return c.json({error:{code:'ACCOUNT_NOT_FOUND',message:'الحساب غير موجود'}},404);
+    const r=await withDatabase(c.env,db=>db.execute(sql`insert into accounting_accounts(center_id,parent_id,code,name,account_type,created_by,is_active,is_system) values(${auth.user.centerId!},${source.rows[0].parentId},${parsed.data.code},${parsed.data.name},${source.rows[0].accountType},${auth.user.userId},true,false) returning id,code,name,account_type as "accountType",parent_id as "parentId",is_active as "isActive",is_system as "isSystem"`));
+    return c.json({account:r.rows[0]},201);
+  }catch(e){return c.json({error:{code:'ACCOUNT_DUPLICATE_FAILED',message:'تعذر تكرار الحساب — تأكد أن رقم الحساب غير مستخدم',detail:e instanceof Error?e.message:'unknown'}},400);}
+});
+
+accountingRoutes.patch('/accounts/:id/archive',async c=>{
+  const auth=await access(c,'accounting.write'); if('error' in auth)return auth.error;
+  const accountId=c.req.param('id');
+  try{
+    const r=await withDatabase(c.env,db=>db.execute(sql`update accounting_accounts set is_active=false,updated_at=now() where id=${accountId} and center_id=${auth.user.centerId!} and is_system=false returning id,code,name,is_active as "isActive"`));
+    if(!r.rows[0])return c.json({error:{code:'ACCOUNT_NOT_FOUND_OR_LOCKED',message:'الحساب غير موجود أو حساب نظام محمي'}},404);
+    return c.json({account:r.rows[0]});
+  }catch(e){return c.json({error:{code:'ACCOUNT_ARCHIVE_FAILED',message:'تعذر أرشفة الحساب',detail:e instanceof Error?e.message:'unknown'}},400);}
+});
+
+accountingRoutes.patch('/accounts/:id/restore',async c=>{
+  const auth=await access(c,'accounting.write'); if('error' in auth)return auth.error;
+  const accountId=c.req.param('id');
+  try{
+    const r=await withDatabase(c.env,db=>db.execute(sql`update accounting_accounts set is_active=true,updated_at=now() where id=${accountId} and center_id=${auth.user.centerId!} and is_system=false returning id,code,name,is_active as "isActive"`));
+    if(!r.rows[0])return c.json({error:{code:'ACCOUNT_NOT_FOUND_OR_LOCKED',message:'الحساب غير موجود أو حساب نظام محمي'}},404);
+    return c.json({account:r.rows[0]});
+  }catch(e){return c.json({error:{code:'ACCOUNT_RESTORE_FAILED',message:'تعذر استعادة الحساب',detail:e instanceof Error?e.message:'unknown'}},400);
+});
+
+accountingRoutes.delete('/accounts/:id',async c=>{
+  const auth=await access(c,'accounting.write'); if('error' in auth)return auth.error;
+  const accountId=c.req.param('id');
+  try{
+    const current=await withDatabase(c.env,db=>db.execute(sql`select id,is_system as "isSystem" from accounting_accounts where id=${accountId} and center_id=${auth.user.centerId!} limit 1`));
+    if(!current.rows[0])return c.json({error:{code:'ACCOUNT_NOT_FOUND',message:'الحساب غير موجود'}},404);
+    if(current.rows[0].isSystem)return c.json({error:{code:'SYSTEM_ACCOUNT_LOCKED',message:'حسابات النظام لا يمكن حذفها'}},409);
+    const refs=await withDatabase(c.env,db=>db.execute(sql`
+      select
+        (select count(*) from journal_entry_lines where account_id=${accountId}) as journal_lines,
+        (select count(*) from accounting_accounts where parent_id=${accountId}) as children,
+        (select count(*) from products where inventory_account_id=${accountId} or cost_of_sales_account_id=${accountId} or revenue_account_id=${accountId} or purchase_account_id=${accountId} or sales_return_account_id=${accountId} or purchase_return_account_id=${accountId} or deferred_revenue_account_id=${accountId} or subscription_revenue_account_id=${accountId}) as product_refs
+    `));
+    const ref=refs.rows[0] as any;
+    if(Number(ref.journal_lines)>0||Number(ref.children)>0||Number(ref.product_refs)>0)return c.json({error:{code:'ACCOUNT_IN_USE',message:'لا يمكن حذف الحساب لأنه مستخدم في قيود أو حسابات فرعية أو إعدادات منتجات. استخدم الأرشفة بدلًا من الحذف.'}},409);
+    await withDatabase(c.env,db=>db.execute(sql`delete from accounting_accounts where id=${accountId} and center_id=${auth.user.centerId!} and is_system=false`));
+    return c.json({ok:true});
+  }catch(e){return c.json({error:{code:'ACCOUNT_DELETE_FAILED',message:'تعذر حذف الحساب',detail:e instanceof Error?e.message:'unknown'}},400);}
+});
+
 accountingRoutes.post('/accounts',async c=>{
   const auth=await access(c,'accounting.write'); if('error' in auth)return auth.error;
   const parsed=accountSchema.safeParse(await c.req.json().catch(()=>null)); if(!parsed.success)return c.json({error:{code:'VALIDATION_ERROR',message:'بيانات الحساب غير صحيحة',details:parsed.error.flatten()}},400);

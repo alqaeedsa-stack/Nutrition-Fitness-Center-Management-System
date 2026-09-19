@@ -172,8 +172,9 @@ followUpRoutes.patch('/:id', async c => {
   }));
   if ('error' in result) {
     const messages:Record<string,[string,number]>={FOLLOW_UP_NOT_FOUND:['المتابعة غير موجودة',404],CUSTOMER_NOT_FOUND:['العميل غير موجود داخل هذا المركز',404],STAFF_NOT_FOUND:['الموظف غير موجود أو غير نشط',404],INVALID_DATE_RANGE:['موعد المتابعة التالية يجب ألا يسبق الموعد الحالي',400]};
-    const e=messages[result.error]??['تعذر تحديث المتابعة',409];
-    return c.json({error:{code:result.error,message:e[0]}},e[1] as any);
+    const errorCode=String(result.error);
+    const e=messages[errorCode]??['تعذر تحديث المتابعة',409];
+    return c.json({error:{code:errorCode,message:e[0]}},e[1] as any);
   }
   return c.json(result);
 });

@@ -4,12 +4,14 @@ import { z } from 'zod';
 import { getAuthenticatedUser } from '../auth/session';
 import { withDatabase } from '../db/client';
 import { customerAccounts } from '../db/customer-accounts';
-import { customers, products, sales, saleItems, stockMovements, taxRates } from '../db/schema';
+import { customers, products, sales, saleItems, stockMovements, taxRates, saleReturns, saleReturnItems } from '../db/schema';
 import { calculateTax } from '../tax/engine';
 import { requirePermission } from '../auth/permissions';
 import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
 import { postSale, postSaleWithProductAccounts, reverseSale } from '../accounting/service';
 import { createSubscriptionSchedule } from '../accounting/subscriptions';
+import { getOriginalSaleUnitCost, getProductCost } from '../inventory/costing';
+
 
 export type StoreBindings = {
   HYPERDRIVE?: { connectionString: string };
@@ -175,7 +177,9 @@ storeRoutes.post('/admin/sales', async c => {
     const productRows = await tx.select({
       id: products.id, sku: products.sku, name: products.name, productType: products.productType,
       sellingPrice: products.sellingPrice, purchaseCost: products.purchaseCost, taxCode: products.taxCode, active: products.active,
-      posAvailable: products.posAvailable, minimumSalesPrice: products.minimumSalesPrice,
+      posAvailable: products.posAvailable, minimumSalesPrice: products.minimumSalesPrice, allowNegativeStock: products.allowNegativeStock,
+      costMethod: products.costMethod, inventoryValuationMethod: products.inventoryValuationMethod,
+      salesReturnAccountId: products.salesReturnAccountId, purchaseAccountId: products.purchaseAccountId,
       subscriptionDeferredRevenueEnabled: products.subscriptionDeferredRevenueEnabled,
       subscriptionRecognitionMethod: products.subscriptionRecognitionMethod,
       subscriptionDurationMonths: products.subscriptionDurationMonths,
@@ -199,7 +203,7 @@ storeRoutes.post('/admin/sales', async c => {
     for (const [productId, quantity] of requested) {
       const product = productRows.find(row => row.id === productId)!;
       const available = onHand.get(productId) ?? 0;
-      if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) && quantity > available) {
+      if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) && !product.allowNegativeStock && quantity > available) {
         return { error: 'INSUFFICIENT_STOCK' as const, productId, available, requested: quantity };
       }
     }
@@ -254,6 +258,19 @@ storeRoutes.post('/admin/sales', async c => {
       const taxAmount = taxLines[index].taxAmount;
       return { item, product, taxableBase, taxAmount, lineTotal: Math.max(0, taxableBase + taxAmount) };
     });
+    const costByProduct = new Map<string, number>();
+    for (const line of lineCalculations) {
+      if (NON_STOCK_PRODUCT_TYPES.includes(line.product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number])) {
+        costByProduct.set(line.product.id, 0);
+        continue;
+      }
+      const cost = await getProductCost(tx, {
+        centerId: auth.user.centerId!, productId: line.product.id, quantity: line.item.quantity,
+        costMethod: line.product.costMethod, standardCost: Number(line.product.purchaseCost),
+      });
+      costByProduct.set(line.product.id, cost);
+    }
+
     const subtotal = lineCalculations.reduce((sum, line) => sum + line.taxableBase, 0);
     const taxTotal = lineCalculations.reduce((sum, line) => sum + line.taxAmount, 0);
     const grandTotal = subtotal + taxTotal;
@@ -276,7 +293,7 @@ storeRoutes.post('/admin/sales', async c => {
       if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number])) {
         await tx.insert(stockMovements).values({
           centerId: auth.user.centerId!, productId: product.id, movementType: 'sale', quantity: (-item.quantity).toString(),
-          unitCost: product.purchaseCost, referenceType: 'sale', referenceId: sale.id, occurredAt: new Date(),
+          unitCost: (costByProduct.get(product.id) ?? 0).toFixed(2), referenceType: 'sale', referenceId: sale.id, occurredAt: new Date(),
           createdBy: auth.user.userId, notes: 'صرف من نقطة البيع',
         });
       }
@@ -285,7 +302,7 @@ storeRoutes.post('/admin/sales', async c => {
     const accountingPaymentMethod = parsed.data.paymentStatus === 'unpaid' ? 'unpaid' : parsed.data.paymentMethod;
     const accountingLines = lineCalculations.map(line => ({
       productId: line.product.id, productType: line.product.productType, subtotal: line.taxableBase, tax: line.taxAmount,
-      cogs: NON_STOCK_PRODUCT_TYPES.includes(line.product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) ? 0 : Number(line.item.quantity) * Number(line.product.purchaseCost),
+      cogs: NON_STOCK_PRODUCT_TYPES.includes(line.product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) ? 0 : Number(line.item.quantity) * (costByProduct.get(line.product.id) ?? 0),
       revenueAccountId: line.product.revenueAccountId,
       subscriptionRevenueAccountId: line.product.subscriptionRevenueAccountId,
       deferredRevenueAccountId: line.product.deferredRevenueAccountId,

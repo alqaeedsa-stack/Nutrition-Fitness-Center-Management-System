@@ -51,11 +51,12 @@ accountingRoutes.get('/accounts',async c=>{
   left join balances b on b.root_id=a.id
   where a.center_id=${auth.user.centerId!} order by a.code`));
   const canManageAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.update');
+  const canUpdateAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.update');
   const canCreateAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.create');
   const canDuplicateAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.duplicate');
   const canArchiveAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.archive');
   const canDeleteAccounts = auth.profile.staffType === 'admin' || await hasPermission(c.env, auth.user.userId, 'accounting.accounts.delete');
-  return c.json({accounts:rows.rows,permissions:{canManageAccounts,canCreateAccounts,canDuplicateAccounts,canArchiveAccounts,canDeleteAccounts}});
+  return c.json({accounts:rows.rows,permissions:{canManageAccounts,canUpdateAccounts,canCreateAccounts,canDuplicateAccounts,canArchiveAccounts,canDeleteAccounts}});
 });
 accountingRoutes.get('/accounts/:id',async c=>{
   const auth=await access(c,'accounting.read'); if('error' in auth)return auth.error;

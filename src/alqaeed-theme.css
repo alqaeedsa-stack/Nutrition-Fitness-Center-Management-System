@@ -903,3 +903,79 @@ button:disabled,
     font-size:12px;
   }
 }
+
+
+/* Compact native controls and cards across ERP modules */
+.erp-route-chrome {
+  width: 100%;
+  margin: 0;
+  padding-inline: clamp(12px, 2vw, 32px);
+}
+
+.erp-route-chrome .erp-breadcrumbs {
+  margin-bottom: 4px;
+}
+
+.erp-module-nav {
+  margin-bottom: 5px;
+  padding: 2px;
+  border-radius: 7px;
+}
+
+.erp-module-nav a {
+  padding: 5px 9px;
+  font-size: 11px;
+  border-radius: 5px;
+}
+
+.app-shell .module-toolbar,
+.app-shell .toolbar-filters,
+.app-shell .erp-page-actions {
+  gap: 6px;
+}
+
+.app-shell .module-toolbar input,
+.app-shell .module-toolbar select,
+.app-shell .toolbar-filters input,
+.app-shell .toolbar-filters select,
+.app-shell .erp-search-input {
+  min-height: 34px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.app-shell .secondary-button,
+.app-shell .primary-action {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.app-shell .erp-kpi-strip {
+  gap: 6px;
+}
+
+.app-shell .erp-kpi span {
+  font-size: 11px;
+}
+
+.app-shell .erp-kpi strong {
+  font-size: 17px;
+}
+
+.app-shell .staff-table th,
+.app-shell .staff-table td {
+  padding: 7px 8px;
+}
+
+@media (max-width: 720px) {
+  .erp-route-chrome {
+    padding-inline: 10px;
+  }
+
+  .erp-module-nav {
+    margin-bottom: 4px;
+  }
+}

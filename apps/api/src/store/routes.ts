@@ -786,7 +786,6 @@ storeRoutes.post('/checkout', async c => {
 
     await tx.insert(storeOrderItems).values(cartItems.map(item => {
       const product = lockedProducts.find(p => p.id === item.productId)!;
-      const product = lockedProducts.find(p => p.id === item.productId)!;
       const config = product.taxCode ? taxMap.get(product.taxCode) : null;
       const base = Number(item.quantity) * Number(item.unitPrice);
       const lineTax = config?.categoryCode === 'S' ? base * Number(config.rate) / 100 : 0;

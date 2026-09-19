@@ -105,7 +105,7 @@ export default function FollowUpsManagement() {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div><span className="eyebrow">CUSTOMER FOLLOW-UP</span><h1>متابعة العملاء</h1><p>سجل متابعة دوري واضح داخل ملف العميل.</p></div>
+        <div><span className="eyebrow">متابعة العملاء</span><h1>متابعة العملاء</h1><p>سجل متابعة دوري واضح داخل ملف العميل.</p></div>
         <div className="header-actions">
           <Link className="secondary-button" to={selectedCustomer ? '/admin/customers/' + selectedCustomer.id : '/admin/customers'}>ملف العميل</Link>
           <Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link>
@@ -116,7 +116,7 @@ export default function FollowUpsManagement() {
       {message && <div className="info-strip">{message}</div>}
 
       <section className="panel">
-        <div className="panel-heading-row"><div><p className="eyebrow">FOLLOW-UP</p><h2>{editingId ? 'تعديل المتابعة' : 'تسجيل متابعة'}</h2></div>{editingId && <button type="button" className="secondary-button" onClick={()=>setEditingId(null)}>إلغاء التعديل</button>}</div>
+        <div className="panel-heading-row"><div><p className="eyebrow">المتابعة</p><h2>{editingId ? 'تعديل المتابعة' : 'تسجيل متابعة'}</h2></div>{editingId && <button type="button" className="secondary-button" onClick={()=>setEditingId(null)}>إلغاء التعديل</button>}</div>
         <form className="form-stack" onSubmit={save}>
           <div className="form-row">
             <label>العميل<select required value={customerId} onChange={e => { setCustomerId(e.target.value); void load(e.target.value); }}>
@@ -144,7 +144,7 @@ export default function FollowUpsManagement() {
       </section>
 
       <section className="panel">
-        <div className="panel-heading-row"><div><p className="eyebrow">HISTORY</p><h2>سجل المتابعة</h2></div><button className="secondary-button" onClick={() => void load(customerId)}>تحديث</button></div>
+        <div className="panel-heading-row"><div><p className="eyebrow">السجل</p><h2>سجل المتابعة</h2></div><button className="secondary-button" onClick={() => void load(customerId)}>تحديث</button></div>
         {loading ? <div className="empty-state">جارٍ التحميل...</div> : rows.length === 0 ? <div className="empty-state">لا توجد متابعات لهذا العميل.</div> :
           <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>التاريخ</th><th>العميل</th><th>المختص</th><th>الوزن</th><th>الطول</th><th>الالتزام</th><th>المتابعة القادمة</th><th>التفاصيل</th></tr></thead>
             <tbody>{rows.map(r => <tr key={r.id}>

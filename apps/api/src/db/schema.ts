@@ -29,6 +29,7 @@ export const centers = pgTable('centers', {
   locale: varchar('locale', { length: 20 }).notNull().default('ar-SA'),
   status: varchar('status', { length: 30 }).notNull().default('active'),
   inventoryValuationMethod: varchar('inventory_valuation_method', { length: 20 }).notNull().default('perpetual'),
+  inventoryCostMethod: varchar('inventory_cost_method', { length: 20 }).notNull().default('standard'),
   ...auditTimestamps,
 });
 

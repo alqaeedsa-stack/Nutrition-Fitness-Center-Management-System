@@ -979,3 +979,40 @@ button:disabled,
     margin-bottom: 4px;
   }
 }
+
+
+/* Smaller, denser Odoo-style kanban cards */
+.erp-kanban-grid {
+  gap: 7px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.erp-kanban-card {
+  padding: 11px;
+  border-radius: 8px;
+}
+
+.erp-kanban-card-head {
+  gap: 7px;
+  margin-bottom: 5px;
+}
+
+.erp-kanban-card-head strong {
+  font-size: 13px;
+}
+
+.erp-kanban-card > small {
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.erp-kanban-card-body {
+  margin-top: 7px;
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .erp-kanban-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -7,7 +7,7 @@ import { customerAccounts } from '../db/customer-accounts';
 import { customers, products, sales, saleItems, stockMovements, taxRates } from '../db/schema';
 import { requirePermission } from '../auth/permissions';
 import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
-import { postSale } from '../accounting/service';
+import { postSale, reverseSale } from '../accounting/service';
 
 export type StoreBindings = {
   HYPERDRIVE?: { connectionString: string };
@@ -264,6 +264,87 @@ storeRoutes.post('/admin/sales', async c => {
   }
 
   return c.json({ sale: result.sale }, 201);
+});
+
+storeRoutes.get('/admin/sales', async c => {
+  const auth = await staffContext(c, 'pos.read');
+  if ('error' in auth) return auth.error;
+  const parsedLimit = Number(c.req.query('limit') ?? 100);
+  const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 100;
+  const rows = await withDatabase(c.env, db => db.select({
+    id: sales.id,
+    saleNumber: sales.saleNumber,
+    status: sales.status,
+    subtotal: sales.subtotal,
+    discount: sales.discount,
+    tax: sales.tax,
+    total: sales.total,
+    paymentStatus: sales.paymentStatus,
+    paymentMethod: sales.paymentMethod,
+    createdAt: sales.createdAt,
+    customerName: customers.firstName,
+    customerLastName: customers.lastName,
+  }).from(sales)
+    .leftJoin(customers, eq(customers.id, sales.customerId))
+    .where(eq(sales.centerId, auth.user.centerId!))
+    .orderBy(desc(sales.createdAt))
+    .limit(limit));
+  return c.json({ sales: rows.map(row => ({ ...row, customerName: row.customerName ? row.customerName + ' ' + (row.customerLastName ?? '') : null })) });
+});
+
+storeRoutes.post('/admin/sales/:saleId/void', async c => {
+  const auth = await staffContext(c, 'pos.void');
+  if ('error' in auth) return auth.error;
+  const saleId = c.req.param('saleId');
+  if (!z.string().uuid().safeParse(saleId).success) return c.json({ error: { code: 'INVALID_SALE_ID', message: 'رقم عملية البيع غير صحيح' } }, 400);
+
+  const result = await withDatabase(c.env, db => db.transaction(async tx => {
+    const saleRows = await tx.select({ id:sales.id, status:sales.status, saleNumber:sales.saleNumber })
+      .from(sales).where(and(eq(sales.id,saleId),eq(sales.centerId,auth.user.centerId!))).limit(1);
+    if (!saleRows[0]) return { error:'SALE_NOT_FOUND' as const };
+    if (saleRows[0].status !== 'completed') return { error:'SALE_NOT_VOIDABLE' as const };
+
+    const lines = await tx.select({productId:saleItems.productId,quantity:saleItems.quantity})
+      .from(saleItems).where(eq(saleItems.saleId,saleId));
+    if (!lines.length) return { error:'SALE_ITEMS_NOT_FOUND' as const };
+
+    const returnedRows = await tx.select({productId:stockMovements.productId,quantity:stockMovements.quantity})
+      .from(stockMovements).where(and(eq(stockMovements.centerId,auth.user.centerId!),eq(stockMovements.referenceType,'sale_return'),eq(stockMovements.referenceId,saleId)));
+    const alreadyReturned = new Map<string,number>();
+    for(const row of returnedRows) alreadyReturned.set(row.productId,(alreadyReturned.get(row.productId)??0)+Number(row.quantity));
+
+    const productsRows = await tx.select({id:products.id,purchaseCost:products.purchaseCost})
+      .from(products).where(and(eq(products.centerId,auth.user.centerId!),inArray(products.id,[...new Set(lines.map(x=>x.productId))])));
+    const productMap = new Map(productsRows.map(x=>[x.id,x]));
+    for(const line of lines){
+      const remaining=Math.max(0,Number(line.quantity)-(alreadyReturned.get(line.productId)??0));
+      if(remaining<=0) continue;
+      const product=productMap.get(line.productId);
+      if(!product) return {error:'PRODUCT_NOT_FOUND' as const};
+      await tx.insert(stockMovements).values({
+        centerId:auth.user.centerId!,productId:line.productId,movementType:'return_in',quantity:remaining.toString(),
+        unitCost:product.purchaseCost,referenceType:'sale_return',referenceId:saleId,occurredAt:new Date(),createdBy:auth.user.userId,
+        notes:'عكس بيع وإرجاع المخزون '+saleRows[0].saleNumber,
+      });
+    }
+
+    const journalEntry=await reverseSale(tx,{centerId:auth.user.centerId!,saleId,saleNumber:saleRows[0].saleNumber,date:new Date().toISOString().slice(0,10),createdBy:auth.user.userId});
+    await tx.update(sales).set({status:'voided',paymentStatus:'refunded',updatedAt:new Date()})
+      .where(and(eq(sales.id,saleId),eq(sales.centerId,auth.user.centerId!)));
+    return {ok:true,journalEntry};
+  }));
+
+  if ('error' in result) {
+    const messages:Record<string,string>={
+      SALE_NOT_FOUND:'عملية البيع غير موجودة',
+      SALE_NOT_VOIDABLE:'لا يمكن إلغاء عملية البيع بعد تغيير حالتها',
+      SALE_ITEMS_NOT_FOUND:'لا توجد بنود مرتبطة بالبيع',
+      PRODUCT_NOT_FOUND:'أحد منتجات البيع غير موجود في المركز',
+    };
+    const code=String(result.error);
+    return c.json({error:{code,message:messages[code]??'تعذر إلغاء عملية البيع'}},code==='SALE_NOT_FOUND'?404:409);
+  }
+  return c.json(result);
 });
 
 const saleReturnSchema = z.object({

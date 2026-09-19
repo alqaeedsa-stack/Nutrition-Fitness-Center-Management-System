@@ -300,7 +300,7 @@ export default function Customer360() {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div><p className="eyebrow">CUSTOMER 360</p><h1>{customer.firstName} {customer.lastName}</h1><p>{customer.customerNumber} · {customer.status === 'active' ? 'عميل نشط' : label(customer.status)}</p></div>
+        <div><p className="eyebrow">ملف العميل الشامل</p><h1>{customer.firstName} {customer.lastName}</h1><p>{customer.customerNumber} · {customer.status === 'active' ? 'عميل نشط' : label(customer.status)}</p></div>
         <div className="header-actions"><span className="live-search-status">{refreshing ? 'جاري التحديث...' : 'تحديث تلقائي'}</span><button className="secondary-button" type="button" onClick={() => void load(true)}>تحديث الآن</button><Link className="secondary-button" to="/admin/customers">العملاء</Link><Link className="secondary-button" to="/admin/dashboard">لوحة التحكم</Link></div>
       </header>
 
@@ -319,7 +319,7 @@ export default function Customer360() {
 
       {action && (
         <section className="customer-action-panel panel">
-          <div className="panel-heading-row"><div><span className="eyebrow">{action === 'measurement' ? 'NEW MEASUREMENT' : action === 'followUp' ? 'NEW FOLLOW-UP' : action === 'appointment' ? 'NEW APPOINTMENT' : action === 'nutrition' ? 'NEW NUTRITION PLAN' : action === 'fitness' ? 'NEW FITNESS PLAN' : action === 'sale' ? 'CUSTOMER SALE' : action === 'returnSale' ? 'PARTIAL RETURN' : detailPlan?.kind === 'nutrition' ? 'NUTRITION ITEMS' : 'FITNESS EXERCISES'}</span><h2>{action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : action === 'sale' ? 'إنشاء بيع للعميل' : action === 'returnSale' ? 'مرتجع جزئي من عملية بيع' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}</h2></div><button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button></div>
+          <div className="panel-heading-row"><div><span className="eyebrow">{action === 'measurement' ? 'قياس جديد' : action === 'followUp' ? 'متابعة جديدة' : action === 'appointment' ? 'موعد جديد' : action === 'nutrition' ? 'خطة غذائية جديدة' : action === 'fitness' ? 'خطة لياقة جديدة' : action === 'sale' ? 'بيع للعميل' : action === 'returnSale' ? 'مرتجع جزئي' : detailPlan?.kind === 'nutrition' ? 'عناصر الخطة الغذائية' : 'تمارين الخطة الرياضية'}</span><h2>{action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : action === 'sale' ? 'إنشاء بيع للعميل' : action === 'returnSale' ? 'مرتجع جزئي من عملية بيع' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}</h2></div><button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button></div>
           {actionError && <div className="info-strip warning">{actionError}</div>}
           {actionMessage && <div className="info-strip">{actionMessage}</div>}
 
@@ -429,7 +429,7 @@ export default function Customer360() {
         <div className="customer-kpi"><span>إجمالي المشتريات</span><strong>{totalSales.toFixed(2)} ر.س</strong></div>
       </section>
 
-      <section className="customer-next-appointment"><div><span className="eyebrow">NEXT APPOINTMENT</span><strong>{nextAppointment ? nextAppointment.appointmentType : 'لا يوجد موعد قادم'}</strong></div><span>{nextAppointment ? new Date(nextAppointment.startsAt).toLocaleString('ar-SA') : 'يمكن إنشاء موعد من الإجراءات السريعة'}</span></section>
+      <section className="customer-next-appointment"><div><span className="eyebrow">الموعد القادم</span><strong>{nextAppointment ? nextAppointment.appointmentType : 'لا يوجد موعد قادم'}</strong></div><span>{nextAppointment ? new Date(nextAppointment.startsAt).toLocaleString('ar-SA') : 'يمكن إنشاء موعد من الإجراءات السريعة'}</span></section>
 
       <section className="customer-summary">
         <div><span className="eyebrow">رقم العميل</span><strong>{customer.customerNumber}</strong></div><div><span className="eyebrow">الجوال</span><span dir="ltr">{customer.phone || '—'}</span></div><div><span className="eyebrow">البريد الإلكتروني</span><span dir="ltr">{customer.email || '—'}</span></div><div><span className="eyebrow">تاريخ الميلاد</span><span>{customer.dateOfBirth || '—'}</span></div><div><span className="eyebrow">الجنس</span><span>{customer.gender === 'male' ? 'ذكر' : customer.gender === 'female' ? 'أنثى' : '—'}</span></div><div><span className="eyebrow">مصدر العميل</span><span>{customer.source || '—'}</span></div>

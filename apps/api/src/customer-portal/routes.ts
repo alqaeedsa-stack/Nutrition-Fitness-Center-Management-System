@@ -365,7 +365,7 @@ customerPortalRoutes.get('/store/products', async c => {
     taxCode: products.taxCode,
   })
     .from(products)
-    .where(and(eq(products.centerId, auth.user.centerId!), eq(products.active, true), ne(products.productType, 'subscription')))
+    .where(and(eq(products.centerId, auth.user.centerId!), eq(products.active, true), ne(products.productType, 'subscription'), ne(products.productType, 'service')))
     .orderBy(asc(products.name)));
 
   return c.json({ products: rows });

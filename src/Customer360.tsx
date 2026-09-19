@@ -333,7 +333,7 @@ export default function Customer360() {
         <OdooWizard
           open={true}
           onClose={() => setAction(null)}
-          title={action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : action === 'sale' ? 'إنشاء بيع للعميل' : action === 'returnSale' ? 'مرتجع جزئي من عملية بيع' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}}
+          title={action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : action === 'sale' ? 'إنشاء بيع للعميل' : action === 'returnSale' ? 'مرتجع جزئي من عملية بيع' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}
           footer={<button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button>}
         >
           {actionError && <div className="info-strip warning">{actionError}</div>}

@@ -15,6 +15,7 @@ import { fitnessRoutes } from './fitness/routes';
 import { measurementRoutes } from './measurements/routes';
 import followUpRoutes from './follow-ups/routes';
 import { purchaseRoutes } from './purchases/routes';
+import { purchaseBillingRoutes } from './purchases/billing-routes';
 
 type DatabaseBinding = {
   connectionString: string;
@@ -53,6 +54,7 @@ app.route('/api/v1/fitness', fitnessRoutes);
 app.route('/api/v1/measurements', measurementRoutes);
 app.route('/api/v1/follow-ups', followUpRoutes);
 app.route('/api/v1/purchases', purchaseRoutes);
+app.route('/api/v1/purchases', purchaseBillingRoutes);
 
 app.get('/api/v1/health', (c) => {
   return c.json({

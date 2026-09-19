@@ -89,7 +89,7 @@ customerRoutes.get('/:id/360', async (c) => {
       .where(and(eq(customers.id, customerId), eq(customers.centerId, auth.user.centerId!))).limit(1);
     if (!customerRows[0]) return { notFound: true as const };
 
-    const [measurements, nutrition, fitness, appointmentsRows, salesRows, followUps] = await Promise.all([
+    const [measurements, nutrition, fitness, appointmentsRows, salesRows, followUps, subscriptions] = await Promise.all([
       db.select({
         id: measurementRecords.id,
         value: measurementRecords.value,
@@ -168,9 +168,23 @@ customerRoutes.get('/:id/360', async (c) => {
         .leftJoin(staffProfiles, eq(staffProfiles.userId, customerFollowUps.staffId))
         .where(and(eq(customerFollowUps.customerId, customerId), eq(customerFollowUps.centerId, auth.user.centerId!)))
         .orderBy(desc(customerFollowUps.followUpAt)).limit(20),
+      db.select({
+        id: customerSubscriptions.id,
+        productId: customerSubscriptions.productId,
+        productName: products.name,
+        sku: products.sku,
+        startDate: customerSubscriptions.startDate,
+        endDate: customerSubscriptions.endDate,
+        status: customerSubscriptions.status,
+        unitPrice: customerSubscriptions.unitPrice,
+        notes: customerSubscriptions.notes,
+      }).from(customerSubscriptions)
+        .innerJoin(products, eq(products.id, customerSubscriptions.productId))
+        .where(and(eq(customerSubscriptions.customerId, customerId), eq(customerSubscriptions.centerId, auth.user.centerId!)))
+        .orderBy(desc(customerSubscriptions.startDate)).limit(20),
     ]);
 
-    return { customer: customerRows[0], measurements, nutrition, fitness, appointments: appointmentsRows, sales: salesRows, followUps };
+    return { customer: customerRows[0], measurements, nutrition, fitness, appointments: appointmentsRows, sales: salesRows, followUps, subscriptions };
   });
 
   if ('notFound' in result) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);

@@ -106,11 +106,6 @@ export default function Customers({ user }: { user: { staffType?: string | null;
         </div>
       </header>
 
-      <section className="dashboard-intro compact">
-        <h2>ملف العملاء</h2>
-        <p>ابحث عن العملاء وأدر بياناتهم الأساسية من داخل المركز.</p>
-      </section>
-
       {showForm && (
         <section className="panel customer-form-panel">
           <div className="section-heading left"><span className="eyebrow">{editing ? 'تعديل العميل' : 'إضافة عميل'}</span><h2>{editing ? 'تعديل بيانات العميل' : 'بيانات العميل الأساسية'}</h2></div>

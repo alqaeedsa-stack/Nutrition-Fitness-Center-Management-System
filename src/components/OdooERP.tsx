@@ -100,6 +100,43 @@ export function ERPModuleNav({ title }: { title: string }) {
       { label: 'الموردون والمشتريات', to: '/admin/purchases' },
       { label: 'فواتير الموردين', to: '/admin/purchase-billing' },
     ],
+    'نقطة البيع': [
+      { label: 'نقطة البيع', to: '/admin/pos' },
+      { label: 'المنتجات والمخزون', to: '/admin/operations' },
+      { label: 'الموردون والمشتريات', to: '/admin/purchases' },
+      { label: 'فواتير الموردين', to: '/admin/purchase-billing' },
+    ],
+    'ملف العميل': [
+      { label: 'العملاء', to: '/admin/customers' },
+      { label: 'المواعيد', to: '/admin/appointments' },
+      { label: 'المتابعات', to: '/admin/follow-ups' },
+      { label: 'القياسات', to: '/admin/measurements' },
+      { label: 'الخطط الغذائية', to: '/admin/nutrition' },
+      { label: 'الخطط الرياضية', to: '/admin/fitness' },
+    ],
+    'الموظفون': [
+      { label: 'الموظفون', to: '/admin/staff' },
+      { label: 'العملاء', to: '/admin/customers' },
+      { label: 'المواعيد', to: '/admin/appointments' },
+    ],
+    'المحاسبة': [
+      { label: 'المحاسبة', to: '/admin/accounting' },
+      { label: 'فواتير الموردين', to: '/admin/purchase-billing' },
+      { label: 'التقارير', to: '/admin/reports' },
+      { label: 'الضرائب والفوترة الإلكترونية', to: '/admin/zatca' },
+    ],
+    'التقارير': [
+      { label: 'التقارير', to: '/admin/reports' },
+      { label: 'المحاسبة', to: '/admin/accounting' },
+      { label: 'فواتير الموردين', to: '/admin/purchase-billing' },
+      { label: 'الضرائب والفوترة الإلكترونية', to: '/admin/zatca' },
+    ],
+    'الضرائب والفوترة الإلكترونية': [
+      { label: 'الضرائب والفوترة الإلكترونية', to: '/admin/zatca' },
+      { label: 'المحاسبة', to: '/admin/accounting' },
+      { label: 'التقارير', to: '/admin/reports' },
+      { label: 'فواتير الموردين', to: '/admin/purchase-billing' },
+    ],
   };
   const items = groups[title] ?? [];
   if (!items.length) return null;

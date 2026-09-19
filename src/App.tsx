@@ -27,6 +27,14 @@ type AuthUser = {
 
 type LoginPortal = 'customer' | 'staff';
 
+function PasswordEyeIcon({ open }: { open: boolean }) {
+  return open ? (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A11.8 11.8 0 0 1 12 5c5.2 0 9.4 3.3 10.5 7-.4 1.3-1.2 2.5-2.2 3.5M6.2 6.2C3.9 7.5 2.3 9.5 1.5 12c1.1 3.7 5.3 7 10.5 7 1.2 0 2.4-.2 3.5-.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.8-7 10-7 10 7 10 7-3.8 7-10 7S2 12 2 12Z" fill="none" stroke="currentColor" strokeWidth="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8"/></svg>
+  );
+}
+
 const countryCodes = [
   ['966', 'السعودية'], ['971', 'الإمارات'], ['965', 'الكويت'], ['974', 'قطر'], ['973', 'البحرين'], ['968', 'عُمان'],
   ['20', 'مصر'], ['962', 'الأردن'], ['961', 'لبنان'], ['964', 'العراق'], ['212', 'المغرب'], ['213', 'الجزائر'],
@@ -93,7 +101,7 @@ function Login({ onLogin, portal }: { onLogin: (user: AuthUser) => void; portal:
                 aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                 title={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
               >
-                {showPassword ? 'إخفاء' : 'عرض'}
+                <PasswordEyeIcon open={showPassword} />
               </button>
             </div>
           </label>
@@ -121,6 +129,8 @@ function Login({ onLogin, portal }: { onLogin: (user: AuthUser) => void; portal:
 function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
   const navigate = useNavigate();
   const [form, setForm] = useState({ firstName: '', lastName: '', countryCode: '966', phone: '', email: '', password: '', confirmPassword: '' });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -200,8 +210,8 @@ function Register({ onLogin }: { onLogin: (user: AuthUser) => void }) {
             </div>
             <small>اختر رمز الدولة ثم اكتب الرقم بدون رمز الدولة. السعودية هي الاختيار الافتراضي.</small>
           </label>
-          <label>كلمة المرور<input type="password" value={form.password} onChange={e => update('password', e.target.value)} autoComplete="new-password" minLength={10} required /><small>10 أحرف على الأقل</small></label>
-          <label>تأكيد كلمة المرور<input type="password" value={form.confirmPassword} onChange={e => update('confirmPassword', e.target.value)} autoComplete="new-password" minLength={10} required /></label>
+          <label className="password-field">كلمة المرور<div className="password-input-wrap"><input type={showPassword ? 'text' : 'password'} value={form.password} onChange={e => update('password', e.target.value)} autoComplete="new-password" minLength={10} required /><button className="password-toggle" type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} title={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}><PasswordEyeIcon open={showPassword} /></button></div><small>10 أحرف على الأقل</small></label>
+          <label className="password-field">تأكيد كلمة المرور<div className="password-input-wrap"><input type={showConfirmPassword ? 'text' : 'password'} value={form.confirmPassword} onChange={e => update('confirmPassword', e.target.value)} autoComplete="new-password" minLength={10} required /><button className="password-toggle" type="button" onClick={() => setShowConfirmPassword(v => !v)} aria-label={showConfirmPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} title={showConfirmPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}><PasswordEyeIcon open={showConfirmPassword} /></button></div></label>
           {error && <div className="form-error" role="alert">{error}</div>}
           <button className="primary-action button" type="submit" disabled={loading}>{loading ? 'جارٍ إنشاء الحساب...' : 'إنشاء حساب العميل'}</button>
         </form>

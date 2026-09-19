@@ -15,6 +15,7 @@ import ZatcaSettings from './ZatcaSettings';
 import Reports from './Reports';
 import Vendors from './Vendors';
 import VendorBilling from './VendorBilling';
+import Accounting from './Accounting';
 
 type AuthUser = {
   id: string;
@@ -871,6 +872,7 @@ export default function App() {
       <Route path="/admin/operations" element={staffGuard && (user?.staffType === 'admin' || ['catalog.read','inventory.read','orders.read'].some(p => (user?.permissions ?? []).includes(p))) ? <StaffOperations user={user} /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/purchases" element={permissionGuard('inventory.read') ? <Vendors /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/purchase-billing" element={permissionGuard('purchases.read') ? <VendorBilling /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/accounting" element={permissionGuard('purchases.read') ? <Accounting /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/reports" element={permissionGuard('reports.read') ? <Reports user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/zatca" element={permissionGuard('zatca.manage') ? <ZatcaSettings /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />

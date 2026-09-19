@@ -9,7 +9,7 @@ import { calculateTax } from '../tax/engine';
 import { requirePermission } from '../auth/permissions';
 import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
 import { postSale, postSaleWithProductAccounts, postSaleReturn, reverseSale } from '../accounting/service';
-import { createSubscriptionSchedule } from '../accounting/subscriptions';
+import { createSubscriptionSchedule, cancelPendingSubscriptionSchedulesForSale } from '../accounting/subscriptions';
 import { getOriginalSaleUnitCost, getProductCost } from '../inventory/costing';
 
 
@@ -406,9 +406,16 @@ storeRoutes.post('/admin/sales/:saleId/void', async c => {
     const alreadyReturned = new Map<string,number>();
     for(const row of returnedRows) alreadyReturned.set(row.productId,(alreadyReturned.get(row.productId)??0)+Number(row.quantity));
 
-    const productsRows = await tx.select({id:products.id,purchaseCost:products.purchaseCost,productType:products.productType})
+    const productsRows = await tx.select({id:products.id,purchaseCost:products.purchaseCost,costMethod:products.costMethod,productType:products.productType})
       .from(products).where(and(eq(products.centerId,auth.user.centerId!),inArray(products.id,[...new Set(lines.map(x=>x.productId))])));
     const productMap = new Map(productsRows.map(x=>[x.id,x]));
+    const originalCostByProduct = new Map<string, number>();
+    for (const line of lines) {
+      const product = productMap.get(line.productId);
+      if (product) originalCostByProduct.set(line.productId, await getOriginalSaleUnitCost(tx, {
+        centerId: auth.user.centerId!, saleId, productId: line.productId, fallbackCost: Number(product.purchaseCost),
+      }));
+    }
     for(const line of lines){
       const remaining=Math.max(0,Number(line.quantity)-(alreadyReturned.get(line.productId)??0));
       if(remaining<=0) continue;
@@ -417,13 +424,15 @@ storeRoutes.post('/admin/sales/:saleId/void', async c => {
       if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number])) {
         await tx.insert(stockMovements).values({
           centerId:auth.user.centerId!,productId:line.productId,movementType:'return_in',quantity:remaining.toString(),
-          unitCost:product.purchaseCost,referenceType:'sale_return',referenceId:saleId,occurredAt:new Date(),createdBy:auth.user.userId,
+          unitCost:(originalCostByProduct.get(line.productId) ?? Number(product.purchaseCost)).toFixed(2),referenceType:'sale_return',referenceId:saleId,occurredAt:new Date(),createdBy:auth.user.userId,
           notes:'عكس بيع وإرجاع المخزون '+saleRows[0].saleNumber,
         });
       }
     }
 
     const journalEntry=await reverseSale(tx,{centerId:auth.user.centerId!,saleId,saleNumber:saleRows[0].saleNumber,date:new Date().toISOString().slice(0,10),createdBy:auth.user.userId});
+    await cancelPendingSubscriptionSchedulesForSale(tx,{centerId:auth.user.centerId!,saleId,updatedBy:auth.user.userId});
+    await tx.execute(sql`update product_serials set status='available', sale_id=null, updated_at=now() where center_id=${auth.user.centerId!} and sale_id=${saleId}`);
     await tx.update(sales).set({status:'voided',paymentStatus:'refunded',updatedAt:new Date()})
       .where(and(eq(sales.id,saleId),eq(sales.centerId,auth.user.centerId!)));
     return {ok:true,journalEntry};

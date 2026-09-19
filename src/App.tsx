@@ -273,7 +273,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
       title: en ? 'Accounting & Reports' : 'المحاسبة والتقارير',
       code: 'ACCOUNTING',
       items: [
-        ...(can('purchases.read') ? [[en ? 'Accounting' : 'المحاسبة', 'ACCOUNTING', en ? 'Chart of accounts, journals, posting and financial reports.' : 'دليل الحسابات والقيود والترحيل والتقارير المالية.', '/admin/accounting']] : []),
+        ...(can('accounting.read') ? [[en ? 'Accounting' : 'المحاسبة', 'ACCOUNTING', en ? 'Chart of accounts, journals, posting and financial reports.' : 'دليل الحسابات والقيود والترحيل والتقارير المالية.', '/admin/accounting']] : []),
         ...(can('reports.read') ? [[en ? 'Reports' : 'التقارير', 'REPORTS', en ? 'Operational, sales and inventory reports.' : 'تقارير التشغيل والمبيعات والمخزون.', '/admin/reports']] : []),
         ...(can('zatca.manage') ? [[en ? 'Tax & E-Invoicing' : 'الضرائب والفوترة الإلكترونية', 'ZATCA', en ? 'Tax settings and electronic invoicing.' : 'إعداد الضرائب ومتابعة الفوترة الإلكترونية.', '/admin/zatca']] : []),
       ] as string[][],

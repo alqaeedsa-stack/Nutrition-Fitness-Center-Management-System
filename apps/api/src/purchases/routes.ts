@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { withDatabase } from '../db/client';
 import { products, purchaseOrderItems, purchaseOrders, purchaseReturnItems, purchaseReturns, purchaseReceipts, purchaseReceiptItems, stockMovements, vendors } from '../db/schema';
 import { requirePermission } from '../auth/permissions';
+import { postPurchaseReturn } from '../accounting/service';
+import { getProductCost } from '../inventory/costing';
 
 export type PurchaseBindings = {
   HYPERDRIVE?: { connectionString: string };
@@ -143,7 +145,7 @@ purchaseRoutes.post('/orders', async c => {
     if (!vendor[0]) return { error: 'VENDOR_NOT_FOUND' as const };
 
     const productIds = [...new Set(parsed.data.items.map(item => item.productId))];
-    const productRows = await tx.select({ id: products.id }).from(products)
+    const productRows = await tx.select({ id: products.id, costMethod: products.costMethod, purchaseCost: products.purchaseCost }).from(products)
       .where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds), eq(products.active, true)));
     if (productRows.length !== productIds.length) return { error: 'PRODUCT_NOT_FOUND' as const };
 
@@ -271,7 +273,8 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
   if ('error' in result) {
     const messages: Record<string,string> = {
       PO_NOT_FOUND: 'أمر الشراء غير موجود', PO_NOT_RECEIVABLE: 'أمر الشراء يجب أن يكون مؤكدًا قبل الاستلام',
-      PO_ITEM_NOT_FOUND: 'أحد بنود أمر الشراء غير موجود', RECEIPT_QTY_EXCEEDED: 'كمية الاستلام أكبر من الكمية المتبقية',
+      PO_ITEM_NOT_FOUND: 'أحد بنود أمر الشراء غير موجود',
+      PRODUCT_NOT_FOUND: 'أحد منتجات المرتجع غير موجود في المركز', RECEIPT_QTY_EXCEEDED: 'كمية الاستلام أكبر من الكمية المتبقية',
     };
     const errorCode = String(result.error ?? 'UNKNOWN');
     const message = messages[errorCode] ?? 'تعذر تسجيل الاستلام';
@@ -458,6 +461,11 @@ purchaseRoutes.post('/returns', async c => {
     const vendorId = lines[0]?.vendorId;
     if (!vendorId || lines.some(x => x.vendorId !== vendorId)) return { error: 'MULTI_VENDOR_NOT_ALLOWED' as const };
 
+    const productIds = [...new Set(lines.map(x => x.productId))];
+    const productRows = await tx.select({
+      id: products.id, costMethod: products.costMethod, purchaseCost: products.purchaseCost, purchaseReturnAccountId: products.purchaseReturnAccountId, purchaseAccountId: products.purchaseAccountId,
+    }).from(products).where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds)));
+    const productMap = new Map(productRows.map(x => [x.id, x]));
     const calculations: { line: typeof lines[number]; quantity: number; unitCost: number; lineTotal: number }[] = [];
     for (const req of parsed.data.items) {
       const line = lines.find(x => x.id === req.purchaseOrderItemId)!;
@@ -465,7 +473,13 @@ purchaseRoutes.post('/returns', async c => {
       if (req.quantity > available + 0.000001) {
         return { error: 'RETURN_QTY_EXCEEDED' as const, itemId: req.purchaseOrderItemId, remaining: available, requested: req.quantity };
       }
-      calculations.push({ line, quantity: req.quantity, unitCost: Number(line.unitCost), lineTotal: req.quantity * Number(line.unitCost) });
+      const product = productMap.get(line.productId);
+      if (!product) return { error: 'PRODUCT_NOT_FOUND' as const };
+      const unitCost = await getProductCost(tx, {
+        centerId: auth.user.centerId!, productId: line.productId, quantity: req.quantity,
+        costMethod: product.costMethod, standardCost: Number(product.purchaseCost),
+      });
+      calculations.push({ line, quantity: req.quantity, unitCost, lineTotal: req.quantity * unitCost });
     }
 
     const total = calculations.reduce((sum, x) => sum + x.lineTotal, 0);
@@ -492,7 +506,17 @@ purchaseRoutes.post('/returns', async c => {
         createdBy: auth.user.userId, notes: parsed.data.notes || ('مرتجع شراء ' + created[0].returnNumber),
       });
     }
-    return { returnNumber: created[0].returnNumber, total: created[0].total };
+    const entry = await postPurchaseReturn(tx, {
+      centerId: auth.user.centerId!, returnId: created[0].id, returnNumber: created[0].returnNumber,
+      date: parsed.data.returnDate, total, createdBy: auth.user.userId,
+      lines: calculations.map(item => ({
+        amount: item.lineTotal,
+        purchaseReturnAccountId: productMap.get(item.line.productId)?.purchaseReturnAccountId ?? null,
+        purchaseAccountId: productMap.get(item.line.productId)?.purchaseAccountId ?? null,
+        inventoryAccountId: null,
+      })),
+    });
+    return { returnNumber: created[0].returnNumber, total: created[0].total, journalEntryId: entry.id };
   }));
 
   if ('error' in result) {

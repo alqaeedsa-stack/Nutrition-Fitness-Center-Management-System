@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { apiFetch } from './lib/api';
 import { useLanguage } from './i18n';
 import { OdooKanban, OdooKanbanCard, OdooStatusbar, OdooViewSwitcher, ERPView } from './components/OdooERP';
@@ -91,7 +90,7 @@ export default function Appointments({ user }: { user: User }) {
     [t('مكتملة','Completed'),appointments.filter(x=>x.status==='completed').length],
   ] as const;
   return <main className="app-shell">
-    <header className="app-header"><div><span className="eyebrow">{t('المواعيد','Appointments')}</span><h1>{t('المواعيد','Appointments')}</h1></div><Link className="secondary-button" to="/admin/dashboard">{t('لوحة الإدارة','Admin Dashboard')}</Link></header>
+    <header className="app-header"><div><span className="eyebrow">{t('المواعيد','Appointments')}</span><h1>{t('المواعيد','Appointments')}</h1></div></header>
     {canManage && <section className="staff-management-grid">
       <section className="panel">
         <div className="panel-heading-row"><div><p className="eyebrow">{t('الجدول','Schedule')}</p><h2>{editingId?'تعديل موعد':'موعد جديد'}</h2></div>{editingId&&<button className="secondary-button" type="button" onClick={reset}>{t('إلغاء التعديل','Cancel Edit')}</button>}</div>

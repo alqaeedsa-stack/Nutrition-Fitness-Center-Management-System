@@ -16,6 +16,7 @@ type Customer = {
 type Measurement = { id: string; value: string; measuredAt: string; notes?: string | null; typeName: string; unit?: string | null };
 type Plan = { id: string; title: string; goals?: string | null; startDate: string; endDate?: string | null; status: string; version: number; items?: any[]; exercises?: any[] };
 type Appointment = { id: string; startsAt: string; endsAt: string; appointmentType: string; status: string; notes?: string | null };
+type Subscription = { id:string; productId:string; productName:string; sku:string; startDate:string; endDate:string; status:string; unitPrice:string; notes?:string|null };
 type Product = { id: string; sku: string; name: string; sellingPrice: string; taxCode?: string | null };
 type StaffOption = { id: string; name: string; staffType: string };
 
@@ -35,6 +36,7 @@ export default function CustomerPortal({ onLogout }: Props) {
   const [nutritionPlans, setNutritionPlans] = useState<Plan[]>([]);
   const [fitnessPlans, setFitnessPlans] = useState<Plan[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
@@ -55,12 +57,13 @@ export default function CustomerPortal({ onLogout }: Props) {
     setLoading(true);
     setError('');
     try {
-      const [account, measurementsResult, nutrition, fitness, appointmentsResult, ordersResult, productsResult, options] = await Promise.all([
+      const [account, measurementsResult, nutrition, fitness, appointmentsResult, subscriptionsResult, ordersResult, productsResult, options] = await Promise.all([
         apiFetch<{ customer: Customer }>('/customer-account/me'),
         apiFetch<{ measurements: Measurement[] }>('/customer-portal/measurements'),
         apiFetch<{ plans: Plan[] }>('/customer-portal/nutrition'),
         apiFetch<{ plans: Plan[] }>('/customer-portal/fitness'),
         apiFetch<{ appointments: Appointment[] }>('/customer-portal/appointments'),
+        apiFetch<{ subscriptions: Subscription[] }>('/customer-portal/subscriptions'),
         apiFetch<{ orders: any[] }>('/customer-portal/orders'),
         apiFetch<{ products: Product[] }>('/customer-portal/store/products'),
         apiFetch<{ staff: StaffOption[] }>('/customer-portal/appointment-options'),
@@ -70,6 +73,7 @@ export default function CustomerPortal({ onLogout }: Props) {
       setNutritionPlans(nutrition.plans);
       setFitnessPlans(fitness.plans);
       setAppointments(appointmentsResult.appointments);
+      setSubscriptions(subscriptionsResult.subscriptions);
       setOrders(ordersResult.orders);
       setProducts(productsResult.products);
       setStaffOptions(options.staff);
@@ -268,6 +272,11 @@ export default function CustomerPortal({ onLogout }: Props) {
         <article className="module-card">
           <span className="module-code">FITNESS</span><h3>{t('خطة اللياقة', 'Fitness plan')}</h3>
           {fitnessPlans.length ? <div className="portal-data-list">{fitnessPlans.slice(0, 3).map(plan => <div className="portal-data-row" key={plan.id}><strong>{plan.title}</strong><span>{statusLabel[plan.status] ?? plan.status}</span><small>{plan.startDate}{plan.endDate ? ` — ${plan.endDate}` : ''}</small></div>)}</div> : <EmptyModule text={t('لا توجد خطة لياقة منشورة لك حتى الآن.', 'No fitness plan has been published for you yet.')} />}
+        </article>
+
+        <article className="module-card">
+          <span className="module-code">SUBSCRIPTIONS</span><h3>{t('اشتراكاتي', 'My subscriptions')}</h3>
+          {subscriptions.length ? <div className="portal-data-list">{subscriptions.slice(0, 5).map(s => <div className="portal-data-row" key={s.id}><strong>{s.productName}</strong><span>{s.startDate} — {s.endDate}</span><small>{Number(s.unitPrice).toFixed(2)} {t('ر.س','SAR')} · {s.status === 'active' ? t('نشط','Active') : s.status}</small></div>)}</div> : <EmptyModule text={t('لا توجد اشتراكات مسجلة لك.', 'No subscriptions are assigned to you.')} />}
         </article>
 
         <article className="module-card">

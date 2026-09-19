@@ -19,3 +19,6 @@ run_worker_first = ["/api/*"]
 
 # Hyperdrive is intentionally configured in Cloudflare for the deployment environment.
 # Add the binding named HYPERDRIVE when the Neon database connection is ready.
+
+[triggers]
+crons = ["15 * * * *"]

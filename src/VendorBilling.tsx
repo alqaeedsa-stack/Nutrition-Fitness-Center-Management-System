@@ -6,7 +6,7 @@ type BillingOrder={id:string;poNumber:string;vendorId:string;vendorName:string;o
 type Candidate={id:string;productId:string;productName:string;description:string|null;ordered:string;received:string;returned:string;unitCost:string;alreadyBilled:number;availableToBill:number};
 type Bill={id:string;billNumber:string;vendorInvoiceNumber:string|null;billDate:string;dueDate:string|null;status:string;vendorId:string;vendorName:string;poNumber:string|null;subtotal:string;tax:string;total:string;paidAmount:string;balanceDue:string};
 type Payment={id:string;paymentNumber:string;paymentDate:string;amount:string;paymentMethod:string;reference:string|null;vendorName:string;billNumber:string|null};
-type BillingSummary={draft:number;posted:number;partiallyPaid:number;paid:number;overdue:number;totalDue:string};
+type BillingSummary={draft:number;posted:number;partiallyPaid:number;paid:number;overdue:number;totalDue:string;overdueAmount:string};
 type Statement={vendor:{id:string;code:string;name:string};summary:{totalBills:string;totalPaid:string;balanceDue:string};ledger:Array<{type:string;id:string;number:string;date:string;description:string;debit:number;credit:number;balance:string;billNumber?:string|null}>};
 type LineState={quantity:string;unitCost:string;taxRate:string};
 

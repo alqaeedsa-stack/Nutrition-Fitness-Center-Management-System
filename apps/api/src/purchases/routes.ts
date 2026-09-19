@@ -179,7 +179,9 @@ purchaseRoutes.patch('/orders/:id/status', async c => {
   const order = await withDatabase(c.env, db => db.select({ id: purchaseOrders.id, status: purchaseOrders.status })
     .from(purchaseOrders).where(and(eq(purchaseOrders.id, c.req.param('id')), eq(purchaseOrders.centerId, auth.user.centerId!))).limit(1));
   if (!order[0]) return c.json({ error: { code: 'PO_NOT_FOUND', message: 'أمر الشراء غير موجود' } }, 404);
-  if (order[0].status === 'cancelled' || order[0].status === 'received') return c.json({ error: { code: 'PO_LOCKED', message: 'لا يمكن تعديل أمر الشراء بعد الإلغاء أو الإغلاق' } }, 409);
+  if (order[0].status === 'cancelled' || order[0].status === 'received' || order[0].status === 'partially_received') return c.json({ error: { code: 'PO_LOCKED', message: 'لا يمكن تعديل أمر الشراء بعد الإلغاء أو بدء الاستلام' } }, 409);
+  const allowed: Record<string,string[]> = { draft: ['sent','cancelled'], sent: ['confirmed','cancelled'], confirmed: ['cancelled'] };
+  if (!(allowed[order[0].status] ?? []).includes(parsed.data.status)) return c.json({ error: { code: 'INVALID_TRANSITION', message: 'لا يمكن الانتقال من '+order[0].status+' إلى '+parsed.data.status } }, 409);
   const rows = await withDatabase(c.env, db => db.update(purchaseOrders).set({ status: parsed.data.status, updatedAt: new Date() })
     .where(and(eq(purchaseOrders.id, order[0].id), eq(purchaseOrders.centerId, auth.user.centerId!))).returning());
   return c.json({ order: rows[0] });

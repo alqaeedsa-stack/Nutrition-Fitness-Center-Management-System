@@ -71,7 +71,7 @@ export async function recognizeDueSubscriptionSchedules(tx:any,asOfDate:string,c
   let recognized=0;
   for(const row of rows){
     if(!row.deferredRevenueAccountId || !row.revenueAccountId) throw new Error('ACCOUNTING_SETUP_REQUIRED: حسابات الإيراد المؤجل وإيراد الاشتراك غير مُهيأة');
-    const entry=await recognizeSubscriptionRevenue(tx,{centerId:row.centerId,scheduleId:row.id,subscriptionId:row.subscriptionId,date:row.recognitionDate,amount:Number(row.amount),deferredAccountId:row.deferredRevenueAccountId,revenueAccountId:row.revenueAccountId,createdBy:createdBy??undefined as any,description:`اعتراف إيراد اشتراك ${row.saleNumber??row.subscriptionId} — ${row.productName}`});
+    const entry=await recognizeSubscriptionRevenue(tx,{centerId:row.centerId,scheduleId:row.id,subscriptionId:row.subscriptionId,date:row.recognitionDate,amount:Number(row.amount),deferredAccountId:row.deferredRevenueAccountId,revenueAccountId:row.revenueAccountId,createdBy:createdBy,description:`اعتراف إيراد اشتراك ${row.saleNumber??row.subscriptionId} — ${row.productName}`});
     await tx.execute(sql`update subscription_revenue_schedules set status='posted',journal_entry_id=${entry.id},updated_at=now() where id=${row.id} and status='pending'`);
     await tx.execute(sql`update customer_subscriptions set recognized_amount=coalesce(recognized_amount,0)+${row.amount},updated_at=now() where id=${row.subscriptionId}`);
     recognized++;

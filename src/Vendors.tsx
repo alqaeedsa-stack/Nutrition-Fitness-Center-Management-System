@@ -8,7 +8,7 @@ type Order = { id:string; poNumber:string; status:string; orderDate:string; expe
 type OrderItem = { id:string; productId:string; productName:string; sku:string; quantity:string; receivedQuantity:string; returnedQuantity:string; unitCost:string; tax:string; lineTotal:string };
 type ReturnRow = { id:string; returnNumber:string; status:string; returnDate:string; total:string; notes?:string|null; vendorId:string; vendorName:string; poNumber?:string|null };
 type VendorDetail = { vendor:Vendor; orders:Pick<Order,'id'|'poNumber'|'status'|'orderDate'|'total'>[]; returns:Pick<ReturnRow,'id'|'returnNumber'|'returnDate'|'total'|'poNumber'>[]; totals:{orders:string;returns:string} };
-type Dashboard = { activeVendors:number; openOrders:number; purchaseTotal:string; returnTotal:string; orderCounts:{received:number;partial:number;cancelled:number;total:number} };
+type Dashboard = { activeVendors:number; openOrders:number; purchaseTotal:string; returnTotal:string; orderCounts:{draft:number;sent:number;confirmed:number;received:number;partial:number;cancelled:number;total:number} };
 
 const statusLabel:Record<string,string>={draft:'مسودة',sent:'مرسل',confirmed:'مؤكد',partially_received:'استلام جزئي',received:'مستلم بالكامل',cancelled:'ملغي',posted:'مسجل'};
 const statusClass:Record<string,string>={draft:'inactive',sent:'inactive',confirmed:'active',partially_received:'active',received:'active',cancelled:'inactive',posted:'active'};
@@ -119,7 +119,7 @@ export default function Vendors(){
         </div>
       </section>
       <section className="panel"><p className="eyebrow">WORKFLOW</p><h2>حالات دورة الشراء</h2>
-        <div className="portal-choice-actions"><button className="secondary-button" onClick={()=>{setTab('orders');setOrderFilter('draft')}}>المسودات {dashboard?.orderCounts.total??0}</button><button className="secondary-button" onClick={()=>{setTab('orders');setOrderFilter('confirmed')}}>مؤكد {dashboard?.openOrders??0}</button><button className="secondary-button" onClick={()=>{setTab('orders');setOrderFilter('partially_received')}}>استلام جزئي {dashboard?.orderCounts.partial??0}</button><button className="secondary-button" onClick={()=>{setTab('orders');setOrderFilter('received')}}>مكتمل {dashboard?.orderCounts.received??0}</button></div>
+        <div className="portal-choice-actions"><button className="secondary-button" onClick={()=>{setTab('orders');setOrderFilter('draft')}}>المسودات {dashboard?.orderCounts.draft??0}</button><button className="secondary-button" onClick={()=>{setTab('orders');setOrderFilter('confirmed')}}>مؤكد {dashboard?.orderCounts.confirmed??0}</button><button className="secondary-button" onClick={()=>{setTab('orders');setOrderFilter('partially_received')}}>استلام جزئي {dashboard?.orderCounts.partial??0}</button><button className="secondary-button" onClick={()=>{setTab('orders');setOrderFilter('received')}}>مكتمل {dashboard?.orderCounts.received??0}</button></div>
       </section>
       <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">QUICK ACTIONS</p><h2>إجراءات سريعة</h2></div></div>
         <div className="portal-choice-actions"><button className="primary-action button" onClick={()=>setTab('vendors')}>إدارة الموردين</button><button className="secondary-button" onClick={()=>setTab('orders')}>إنشاء أمر شراء</button><button className="secondary-button" onClick={()=>setTab('returns')}>مراجعة المرتجعات</button></div>

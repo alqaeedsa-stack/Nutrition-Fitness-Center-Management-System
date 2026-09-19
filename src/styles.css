@@ -520,3 +520,75 @@ h2 { font-size: clamp(25px, 5vw, 42px); line-height: 1.25; }
     padding: 8px 0 10px;
   }
 }
+
+
+/* Fluid ERP workspace: use the available viewport instead of a fixed page width */
+.app-shell,
+.shell {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+  padding-inline: clamp(12px, 2vw, 32px);
+}
+
+.app-shell .panel,
+.shell .panel {
+  border-radius: 9px;
+  padding: clamp(16px, 1.5vw, 22px);
+}
+
+.app-shell .module-card,
+.app-shell .workspace-card {
+  min-height: 0;
+  padding: 15px;
+  border-radius: 9px;
+}
+
+.app-shell .module-card h3,
+.app-shell .workspace-card h3 {
+  margin: 6px 0 7px;
+  font-size: 16px;
+}
+
+.app-shell .module-card p,
+.app-shell .workspace-card p {
+  min-height: 0;
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.app-shell .erp-kpi,
+.shell .erp-kpi {
+  min-height: 0;
+  padding: 9px 11px;
+  border-radius: 7px;
+}
+
+.app-shell .form-stack input,
+.app-shell .form-stack select,
+.app-shell .form-stack textarea,
+.app-shell select,
+.app-shell input,
+.app-shell textarea {
+  min-height: 36px;
+  padding: 6px 9px;
+  border-radius: 7px;
+}
+
+.app-shell .form-stack textarea,
+.app-shell textarea {
+  min-height: 72px;
+}
+
+@media (max-width: 720px) {
+  .app-shell,
+  .shell {
+    width: 100%;
+    padding-inline: 10px;
+  }
+  .app-shell .panel,
+  .shell .panel {
+    padding: 14px 12px;
+  }
+}

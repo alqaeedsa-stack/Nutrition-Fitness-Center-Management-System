@@ -246,7 +246,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
       title: en ? 'Customers & Services' : 'العملاء والخدمات',
       code: 'الواجهة الأمامية',
       items: [
-        ...(canCustomers ? [[en ? 'Customers' : 'العملاء', 'العميلS', en ? 'Customer files and basic information.' : 'ملفات العملاء والبيانات الأساسية.', '/admin/customers']] : []),
+        ...(canCustomers ? [[en ? 'Customers' : 'العملاء', 'CUSTOMERS', en ? 'Customer files and basic information.' : 'ملفات العملاء والبيانات الأساسية.', '/admin/customers']] : []),
         ...(can('appointments.read') ? [[en ? 'Appointments' : 'المواعيد', 'APPOINTMENTS', en ? 'Bookings and appointments for doctors and specialists.' : 'الحجوزات ومواعيد الأطباء والأخصائيين.', '/admin/appointments']] : []),
         ...(can('followups.write') || canCustomers ? [[en ? 'Customer Follow-up' : 'متابعة العملاء', 'FOLLOW-UP', en ? 'Visits, periodic follow-ups and recommendations.' : 'الزيارات والمتابعات الدورية والتوصيات.', '/admin/follow-ups']] : []),
         ...(can('measurements.read') ? [[en ? 'Measurements' : 'القياسات', 'MEASUREMENTS', en ? 'Customer measurements and progress history.' : 'قياسات العملاء وسجل التقدم.', '/admin/measurements']] : []),

@@ -29,7 +29,7 @@ export default function Customer360() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [action, setAction] = useState<'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness' | 'nutritionItems' | 'fitnessExercises' | 'sale' | 'returnSale' | null>(null);
+  const [action, setAction] = useState<'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness' | 'nutritionItems' | 'fitnessExercises' | 'sale' | 'subscription' | 'returnSale' | null>(null);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionMessage, setActionMessage] = useState('');

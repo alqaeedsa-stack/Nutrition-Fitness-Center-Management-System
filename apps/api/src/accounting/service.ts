@@ -6,7 +6,7 @@ function journalNumber(prefix: string) {
 }
 
 async function settings(tx: any, centerId: string) {
-  const result = await tx.execute(sql`select inventory_account_id, input_vat_account_id, accounts_payable_account_id, cash_bank_account_id, accounts_receivable_account_id, revenue_account_id, output_vat_account_id, cost_of_sales_account_id from accounting_settings where center_id=${centerId} limit 1`);
+  const result = await tx.execute(sql`select inventory_account_id, input_vat_account_id, accounts_payable_account_id, cash_bank_account_id, accounts_receivable_account_id, revenue_account_id, output_vat_account_id, cost_of_sales_account_id, deferred_revenue_account_id, subscription_revenue_account_id from accounting_settings where center_id=${centerId} limit 1`);
   return result.rows[0] as any;
 }
 
@@ -107,4 +107,27 @@ export async function reverseSale(tx:any,args:{centerId:string;saleId:string;sal
       credit:Number(line.debit),
     })),
   });
+}
+
+export async function postSubscriptionSale(tx:any,args:{centerId:string;saleId:string;saleNumber:string;saleDate:string;subtotal:number;tax:number;total:number;paymentMethod:string;createdBy:string;deferredAccountId?:string|null;revenueAccountId?:string|null}){
+  const s=await settings(tx,args.centerId);
+  const deferred=args.deferredAccountId ?? s.deferred_revenue_account_id;
+  if(!deferred) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب الإيراد المؤجل غير مُهيأ');
+  if(args.tax>0) requireAccounts(s,['output_vat_account_id']);
+  const debitAccount=args.paymentMethod==='unpaid'?s.accounts_receivable_account_id:s.cash_bank_account_id;
+  if(args.paymentMethod==='unpaid' && !debitAccount) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب العملاء/الذمم المدينة');
+  const lines=[
+    {accountId:debitAccount,description:`اشتراك ${args.saleNumber} - تحصيل/ذمم`,debit:args.total,credit:0},
+    {accountId:deferred,description:`إيراد مؤجل - ${args.saleNumber}`,debit:0,credit:args.subtotal},
+    ...(args.tax>0?[{accountId:s.output_vat_account_id,description:`اشتراك ${args.saleNumber} - ضريبة مخرجات`,debit:0,credit:args.tax}]:[])
+  ];
+  return createEntry(tx,{centerId:args.centerId,date:args.saleDate,sourceType:'subscription_sale',sourceId:args.saleId,description:`ترحيل اشتراك ${args.saleNumber} إلى الإيراد المؤجل`,createdBy:args.createdBy,lines});
+}
+
+export async function recognizeSubscriptionRevenue(tx:any,args:{centerId:string;scheduleId:string;subscriptionId:string;date:string;amount:number;deferredAccountId:string;revenueAccountId:string;createdBy:string;description:string}){
+  const lines=[
+    {accountId:args.deferredAccountId,description:args.description,debit:args.amount,credit:0},
+    {accountId:args.revenueAccountId,description:args.description,debit:0,credit:args.amount},
+  ];
+  return createEntry(tx,{centerId:args.centerId,date:args.date,sourceType:'subscription_revenue',sourceId:args.scheduleId,description:args.description,createdBy:args.createdBy,lines});
 }

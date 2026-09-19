@@ -616,3 +616,16 @@ h2 { font-size: clamp(25px, 5vw, 42px); line-height: 1.25; }
   font-size: 12px;
   padding: 4px 8px;
 }
+
+
+/* Account tree row actions: always visible and touch-friendly */
+.account-actions-cell { position: sticky; inset-inline-end: 0; z-index: 2; background: #fff; box-shadow: -6px 0 10px rgba(23,32,51,.04); }
+.account-row-actions .secondary-button { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 6px 11px; border: 1px solid #cbd5e1; background: #fff; color: var(--navy); font-weight: 800; cursor: pointer; opacity: 1; visibility: visible; }
+.account-row-actions .account-action-edit { border-color: #94a3b8; }
+.account-row-actions .account-action-delete { border-color: #cbd5e1; color: #991b1b; }
+.account-row-actions .secondary-button:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 760px) {
+  .account-actions-cell { position: static; }
+  .account-row-actions { flex-wrap: wrap !important; }
+  .account-row-actions .secondary-button { min-height: 36px; }
+}

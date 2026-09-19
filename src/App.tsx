@@ -17,7 +17,7 @@ import Vendors from './Vendors';
 import VendorBilling from './VendorBilling';
 import Accounting from './Accounting';
 import { LanguageProvider, LanguageSwitcher, useLanguage } from './i18n';
-import { OdooBreadcrumbs, OdooActionMenu, OdooSearchToolbar, OdooViewSwitcher, ERPView, ERPModuleNav } from './components/OdooERP';
+import { OdooBreadcrumbs, ERPModuleNav } from './components/OdooERP';
 
 type AuthUser = {
   id: string;
@@ -930,24 +930,9 @@ function StaffOperations({ user }: { user: AuthUser }) {
 }
 
 function ERPRouteChrome({ title, children }: { title: string; children: ReactNode }) {
-  const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [view, setView] = useState<ERPView>('list');
-  const [filter, setFilter] = useState('');
-  const actions = [
-    { label: 'تحديث الصفحة', onClick: () => window.location.reload() },
-    { label: 'العودة للوحة الإدارة', onClick: () => navigate('/admin/dashboard') },
-  ];
   return <div className="erp-route-chrome">
     <OdooBreadcrumbs items={[{ label: 'الإدارة', to: '/admin/dashboard' }, { label: title }]} />
     <ERPModuleNav title={title} />
-    <div className="erp-page-tools">
-      <OdooSearchToolbar value={search} onChange={setSearch} placeholder={'بحث داخل ' + title + '...'} filters={filter ? [filter] : []} onFilter={setFilter} />
-      <div className="erp-page-actions">
-        <OdooViewSwitcher value={view} onChange={setView} />
-        <OdooActionMenu actions={actions} />
-      </div>
-    </div>
     {children}
   </div>;
 }

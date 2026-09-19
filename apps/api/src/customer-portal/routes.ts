@@ -22,6 +22,7 @@ export type CustomerPortalBindings = {
 
 export const customerPortalRoutes = new Hono<{ Bindings: CustomerPortalBindings }>();
 
+
 async function getCustomerContext(c: any) {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) {
     return { error: c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503) };
@@ -49,6 +50,166 @@ async function getCustomerContext(c: any) {
 
   return { user, customerId: account.customerId };
 }
+
+
+customerPortalRoutes.get('/appointment-options', async c => {
+  const auth = await getCustomerContext(c);
+  if ('error' in auth) return auth.error;
+
+  const staffRows = await withDatabase(c.env, db => db.select({
+    id: users.id,
+    name: staffProfiles.displayName,
+    staffType: staffProfiles.staffType,
+  }).from(users)
+    .innerJoin(staffProfiles, eq(staffProfiles.userId, users.id))
+    .where(and(
+      eq(users.centerId, auth.user.centerId!),
+      eq(users.status, 'active'),
+      eq(staffProfiles.active, true),
+    ))
+    .orderBy(asc(staffProfiles.displayName)));
+
+  return c.json({ staff: staffRows });
+});
+
+const customerAppointmentSchema = z.object({
+  staffId: z.string().uuid(),
+  startsAt: z.string().datetime({ offset: true }),
+  endsAt: z.string().datetime({ offset: true }),
+  appointmentType: z.string().trim().min(2).max(80),
+  notes: z.string().trim().max(2000).optional().nullable(),
+});
+
+customerPortalRoutes.post('/appointments', async c => {
+  const auth = await getCustomerContext(c);
+  if ('error' in auth) return auth.error;
+
+  const body = customerAppointmentSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) {
+    return c.json({ error: { code: 'INVALID_INPUT', message: body.error.issues[0]?.message ?? 'بيانات الموعد غير صحيحة' } }, 400);
+  }
+
+  const data = body.data;
+  const startsAt = new Date(data.startsAt);
+  const endsAt = new Date(data.endsAt);
+  if (endsAt <= startsAt) {
+    return c.json({ error: { code: 'INVALID_TIME_RANGE', message: 'وقت نهاية الموعد يجب أن يكون بعد وقت البداية' } }, 400);
+  }
+  if (startsAt.getTime() <= Date.now()) {
+    return c.json({ error: { code: 'PAST_APPOINTMENT', message: 'لا يمكن حجز موعد في وقت سابق' } }, 400);
+  }
+
+  const created = await withDatabase(c.env, async db => db.transaction(async tx => {
+    const [staff] = await tx.select({ id: users.id }).from(users)
+      .innerJoin(staffProfiles, eq(staffProfiles.userId, users.id))
+      .where(and(
+        eq(users.id, data.staffId),
+        eq(users.centerId, auth.user.centerId!),
+        eq(users.status, 'active'),
+        eq(staffProfiles.active, true),
+      )).limit(1);
+
+    if (!staff) return { error: 'STAFF_NOT_FOUND' as const };
+
+    const [customer] = await tx.select({ id: customers.id }).from(customers)
+      .where(and(
+        eq(customers.id, auth.customerId),
+        eq(customers.centerId, auth.user.centerId!),
+        eq(customers.status, 'active'),
+      )).limit(1);
+
+    if (!customer) return { error: 'CUSTOMER_NOT_FOUND' as const };
+
+    const staffOverlap = await tx.select({ id: appointments.id }).from(appointments)
+      .where(and(
+        eq(appointments.centerId, auth.user.centerId!),
+        eq(appointments.staffId, data.staffId),
+        ne(appointments.status, 'cancelled'),
+        lt(appointments.startsAt, endsAt),
+        gt(appointments.endsAt, startsAt),
+      )).limit(1);
+
+    if (staffOverlap[0]) return { error: 'STAFF_TIME_CONFLICT' as const };
+
+    const customerOverlap = await tx.select({ id: appointments.id }).from(appointments)
+      .where(and(
+        eq(appointments.centerId, auth.user.centerId!),
+        eq(appointments.customerId, auth.customerId),
+        ne(appointments.status, 'cancelled'),
+        lt(appointments.startsAt, endsAt),
+        gt(appointments.endsAt, startsAt),
+      )).limit(1);
+
+    if (customerOverlap[0]) return { error: 'CUSTOMER_TIME_CONFLICT' as const };
+
+    const [row] = await tx.insert(appointments).values({
+      centerId: auth.user.centerId!,
+      customerId: auth.customerId,
+      staffId: data.staffId,
+      startsAt,
+      endsAt,
+      appointmentType: data.appointmentType,
+      status: 'scheduled',
+      notes: data.notes || null,
+    }).returning();
+
+    return { appointment: row };
+  }));
+
+  if ('error' in created) {
+    const messages: Record<string, [string, number]> = {
+      STAFF_NOT_FOUND: ['الموظف المختص غير موجود أو غير نشط', 404],
+      CUSTOMER_NOT_FOUND: ['حساب العميل غير صالح للحجز', 403],
+      STAFF_TIME_CONFLICT: ['هذا الوقت غير متاح مع الموظف المختص', 409],
+      CUSTOMER_TIME_CONFLICT: ['لديك موعد آخر في نفس الفترة', 409],
+    };
+    const entry = messages[String(created.error)];
+    if (!entry) return c.json({ error: { code: String(created.error), message: 'تعذر معالجة طلب الحجز' } }, 500);
+    return c.json({ error: { code: created.error, message: entry[0] } }, entry[1] as any);
+  }
+
+  return c.json(created, 201);
+});
+
+customerPortalRoutes.patch('/appointments/:id/cancel', async c => {
+  const auth = await getCustomerContext(c);
+  if ('error' in auth) return auth.error;
+
+  const result = await withDatabase(c.env, async db => db.transaction(async tx => {
+    const [existing] = await tx.select().from(appointments)
+      .where(and(
+        eq(appointments.id, c.req.param('id')),
+        eq(appointments.customerId, auth.customerId),
+        eq(appointments.centerId, auth.user.centerId!),
+      )).limit(1);
+
+    if (!existing) return { error: 'APPOINTMENT_NOT_FOUND' as const };
+    if (['completed', 'cancelled', 'no_show'].includes(existing.status)) {
+      return { error: 'APPOINTMENT_LOCKED' as const };
+    }
+
+    const [updated] = await tx.update(appointments)
+      .set({ status: 'cancelled', updatedAt: new Date() })
+      .where(and(
+        eq(appointments.id, existing.id),
+        eq(appointments.customerId, auth.customerId),
+        eq(appointments.centerId, auth.user.centerId!),
+      )).returning();
+
+    return { appointment: updated };
+  }));
+
+  if ('error' in result) {
+    const messages: Record<string, [string, number]> = {
+      APPOINTMENT_NOT_FOUND: ['الموعد غير موجود', 404],
+      APPOINTMENT_LOCKED: ['لا يمكن إلغاء هذا الموعد بعد إغلاقه', 409],
+    };
+    const entry = messages[String(result.error)];
+    return c.json({ error: { code: result.error, message: entry?.[0] ?? 'تعذر إلغاء الموعد' } }, entry?.[1] as any ?? 500);
+  }
+
+  return c.json(result);
+});
 
 customerPortalRoutes.get('/measurements', async c => {
   const auth = await getCustomerContext(c);

@@ -49,7 +49,7 @@ followUpRoutes.get('/options', async c => {
 });
 
 followUpRoutes.get('/', async c => {
-  const a = await auth(c, 'customers.read');
+  const a = await auth(c, 'followups.read');
   if ('error' in a) return a.error;
   const customerId = c.req.query('customerId');
   const where = customerId

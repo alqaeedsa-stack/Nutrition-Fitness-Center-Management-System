@@ -13,6 +13,7 @@ import { apiFetch } from './lib/api';
 import StaffManagement from './StaffManagement';
 import ZatcaSettings from './ZatcaSettings';
 import Reports from './Reports';
+import Vendors from './Vendors';
 
 type AuthUser = {
   id: string;
@@ -247,6 +248,7 @@ function StaffDashboard({ user, onLogout }: { user: AuthUser; onLogout: () => vo
     ...(canCustomers ? [['متابعة العملاء', 'FOLLOW-UP', 'سجل الزيارات والمتابعات الدورية والتوصيات لكل عميل.', '/admin/follow-ups']] : []),
     ...(canPos ? [['نقطة البيع', 'POS', 'المبيعات والفواتير والمرتجعات.', '/admin/pos']] : []),
     ...(canOperations ? [['المخزون والمنتجات والطلبات', 'OPERATIONS', 'المنتجات والأرصدة وحركات المخزون وطلبات المتجر.', '/admin/operations']] : []),
+    ...(can('inventory.read') ? [['الموردون والمشتريات', 'PURCHASE', 'الموردون وأوامر الشراء والاستلام الجزئي والكامل وربطها بحركات المخزون.', '/admin/purchases']] : []),
     ...(can('nutrition.read') ? [['الخطط الغذائية', 'NUTRITION', 'إعداد ومتابعة الخطط الغذائية.', '/admin/nutrition']] : []),
     ...(can('fitness.read') ? [['الخطط الرياضية', 'FITNESS', 'إعداد ومتابعة خطط اللياقة.', '/admin/fitness']] : []),
     ...(can('reports.read') ? [['التقارير', 'REPORTS', 'تقارير التشغيل والمبيعات والمخزون.', '/admin/reports']] : []),
@@ -865,6 +867,7 @@ export default function App() {
       <Route path="/admin/measurements" element={permissionGuard('customers.read') ? <MeasurementsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/follow-ups" element={permissionGuard('customers.read') ? <FollowUpsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/operations" element={staffGuard && (user?.staffType === 'admin' || ['catalog.read','inventory.read','orders.read'].some(p => (user?.permissions ?? []).includes(p))) ? <StaffOperations user={user} /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/purchases" element={permissionGuard('inventory.read') ? <Vendors /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/reports" element={permissionGuard('reports.read') ? <Reports user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/zatca" element={permissionGuard('zatca.manage') ? <ZatcaSettings /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />

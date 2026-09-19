@@ -959,12 +959,12 @@ function AppContent() {
       <Route path="/admin/fitness" element={permissionGuard('fitness.read') ? <FitnessManagement user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/customers" element={permissionGuard('customers.read') ? <Customers user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/customers/:id" element={permissionGuard('customers.read') ? <Customer360 /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/measurements" element={permissionGuard('customers.read') ? <MeasurementsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/follow-ups" element={permissionGuard('customers.read') ? <FollowUpsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/measurements" element={permissionGuard('measurements.read') ? <MeasurementsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/follow-ups" element={permissionGuard('followups.read') ? <FollowUpsManagement /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/operations" element={staffGuard && (user?.staffType === 'admin' || ['catalog.read','inventory.read','orders.read'].some(p => (user?.permissions ?? []).includes(p))) ? <StaffOperations user={user} /> : staffGuard ? <Navigate to="/admin/dashboard" replace /> : user ? <Navigate to="/customer/home" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/purchases" element={permissionGuard('inventory.read') ? <Vendors /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/purchases" element={permissionGuard('purchases.read') ? <Vendors /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/purchase-billing" element={permissionGuard('purchases.read') ? <VendorBilling /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
-      <Route path="/admin/accounting" element={permissionGuard('purchases.read') ? <Accounting /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
+      <Route path="/admin/accounting" element={permissionGuard('accounting.read') ? <Accounting /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/reports" element={permissionGuard('reports.read') ? <Reports user={user!} /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/admin/zatca" element={permissionGuard('zatca.manage') ? <ZatcaSettings /> : user ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />

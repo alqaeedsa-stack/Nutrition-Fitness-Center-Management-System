@@ -647,6 +647,8 @@ staffRoutes.post('/pos/sales', async c => {
       referenceType: 'pos_sale', referenceId: sale.id, occurredAt: new Date(), createdBy: auth.user.userId,
       notes: `صرف من نقطة البيع ${saleNumber}`,
     })));
+    const cogs = data.items.reduce((sum, item) => sum + item.quantity * Number(productMap.get(item.productId)!.purchaseCost), 0);
+    await postSale(tx, { centerId: auth.user.centerId!, saleId: sale.id, saleNumber, saleDate: new Date().toISOString().slice(0,10), subtotal, tax, total, cogs, paymentMethod: data.paymentMethod, createdBy: auth.user.userId });
     return { sale };
   }));
 
@@ -702,7 +704,8 @@ staffRoutes.post('/pos/sales/:id/void', async c => {
       referenceType: 'pos_void', referenceId: sale.id, occurredAt: new Date(), createdBy: auth.user.userId,
       notes: `عكس صرف عملية البيع ${sale.saleNumber}`,
     })));
-    const updated = await tx.update(sales).set({ status: 'voided', updatedAt: new Date() }).where(eq(sales.id, sale.id)).returning();
+    await reverseSale(tx, { centerId: auth.user.centerId!, saleId: sale.id, saleNumber: sale.saleNumber, date: new Date().toISOString().slice(0,10), createdBy: auth.user.userId });
+    const updated = await tx.update(sales).set({ status: 'voided', paymentStatus: 'refunded', updatedAt: new Date() }).where(eq(sales.id, sale.id)).returning();
     return { sale: updated[0] };
   }));
   if ('error' in result) {

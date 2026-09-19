@@ -11,7 +11,9 @@ type Appointment = { id: string; startsAt: string; endsAt: string; appointmentTy
 type Sale = { id: string; saleNumber: string; status: string; subtotal: string; discount: string; tax: string; total: string; paymentStatus: string; createdAt: string };
 type ReturnLine = { id: string; productId: string; productName: string; sku: string; quantity: string; unitPrice: string; tax: string; lineTotal: string; returnedQuantity: number; returnableQuantity: number };
 type ReturnSaleData = { sale: Sale & { paymentMethod?: string | null }; items: ReturnLine[] };
-type Data = { customer: Customer; measurements: Measurement[]; nutrition: Plan[]; fitness: Plan[]; appointments: Appointment[]; sales: Sale[]; followUps: FollowUp[] };
+type Subscription = { id:string; productId:string; productName:string; sku:string; startDate:string; endDate:string; status:string; unitPrice:string; notes?:string|null };
+type SubscriptionProduct = { id:string; sku:string; name:string; sellingPrice:string };
+type Data = { customer: Customer; measurements: Measurement[]; nutrition: Plan[]; fitness: Plan[]; appointments: Appointment[]; sales: Sale[]; followUps: FollowUp[]; subscriptions: Subscription[] };
 type Staff = { id: string; name: string; staffType: string };
 type MeasurementType = { id: string; code: string; name: string; unit?: string | null };
 type AuthMe = { user: { id: string } };
@@ -48,6 +50,8 @@ export default function Customer360() {
   const [salePaymentMethod, setSalePaymentMethod] = useState('cash');
   const [salePaymentStatus, setSalePaymentStatus] = useState('paid');
   const [returnSaleData, setReturnSaleData] = useState<ReturnSaleData | null>(null);
+  const [subscriptionProducts, setSubscriptionProducts] = useState<SubscriptionProduct[]>([]);
+  const [subscriptionForm, setSubscriptionForm] = useState({ productId:'', startDate:new Date().toISOString().slice(0,10), endDate:new Date(Date.now()+30*86400000).toISOString().slice(0,10), notes:'' });
   const [returnQuantities, setReturnQuantities] = useState<Record<string, string>>({});
 
   const load = useCallback(async (silent = false) => {
@@ -69,13 +73,19 @@ export default function Customer360() {
     return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, [load]);
 
-  const openAction = async (next: 'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness' | 'sale') => {
+  const openAction = async (next: 'measurement' | 'followUp' | 'appointment' | 'nutrition' | 'fitness' | 'sale' | 'subscription') => {
     setAction(next); setActionError(''); setActionMessage('');
     try {
       if (next === 'sale') {
         const result = await apiFetch<{ products: StoreProduct[] }>('/store/admin/products');
         setStoreProducts(result.products.filter(product => product.active));
         setSaleCart([]);
+        return;
+      }
+      if (next === 'subscription') {
+        const result = await apiFetch<{ products: SubscriptionProduct[] }>(`/customers/${id}/subscriptions/options`);
+        setSubscriptionProducts(result.products);
+        setSubscriptionForm(v => ({ ...v, productId: v.productId || result.products[0]?.id || '' }));
         return;
       }
       if (next === 'nutrition' || next === 'fitness') {
@@ -121,6 +131,28 @@ export default function Customer360() {
       if (quantity > item.stock) return [item];
       return [{ ...item, quantity }];
     }));
+  }
+
+  async function saveSubscription(e: FormEvent) {
+    e.preventDefault();
+    if (!subscriptionForm.productId) { setActionError('اختر منتج الاشتراك.'); return; }
+    if (subscriptionForm.endDate < subscriptionForm.startDate) { setActionError('تاريخ النهاية يجب أن يكون بعد أو مساويًا لتاريخ البداية.'); return; }
+    setSaving(true); setActionError(''); setActionMessage('');
+    try {
+      await apiFetch(`/customers/${id}/subscriptions`, {
+        method:'POST',
+        body:JSON.stringify({
+          productId: subscriptionForm.productId,
+          startDate: subscriptionForm.startDate,
+          endDate: subscriptionForm.endDate,
+          notes: subscriptionForm.notes || null,
+        }),
+      });
+      setActionMessage('تم تفعيل الاشتراك للعميل بالفترة المحددة.');
+      await load(true);
+      setSubscriptionForm(v => ({ ...v, productId: subscriptionProducts[0]?.id || '', notes:'' }));
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر إنشاء الاشتراك.'); }
+    finally { setSaving(false); }
   }
 
   async function saveSale(e: FormEvent) {
@@ -314,6 +346,7 @@ export default function Customer360() {
         { label: 'الخطط الغذائية', value: nutrition.length, onClick: () => void openAction('nutrition') },
         { label: 'خطط اللياقة', value: fitness.length, onClick: () => void openAction('fitness') },
         { label: 'المبيعات', value: sales.length, onClick: () => void openAction('sale') },
+        { label: 'الاشتراكات', value: data.subscriptions.length, onClick: () => void openAction('subscription') },
       ]} />
 
       <section className="customer-action-bar">
@@ -325,7 +358,7 @@ export default function Customer360() {
           <button className="secondary-button" type="button" onClick={() => void openAction('measurement')}>إضافة قياس</button>
           <button className="secondary-button" type="button" onClick={() => void openAction('nutrition')}>خطة غذائية</button>
           <button className="secondary-button" type="button" onClick={() => void openAction('fitness')}>خطة لياقة</button>
-          <button className="secondary-button" type="button" onClick={() => void openAction('appointment')}>موعد</button><button className="primary-action" type="button" onClick={() => void openAction('sale')}>بيع للعميل</button>
+          <button className="secondary-button" type="button" onClick={() => void openAction('appointment')}>موعد</button><button className="secondary-button" type="button" onClick={() => void openAction('subscription')}>اشتراك</button><button className="primary-action" type="button" onClick={() => void openAction('sale')}>بيع للعميل</button>
         </div>
       </section>
 
@@ -333,7 +366,7 @@ export default function Customer360() {
         <OdooWizard
           open={true}
           onClose={() => setAction(null)}
-          title={action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : action === 'sale' ? 'إنشاء بيع للعميل' : action === 'returnSale' ? 'مرتجع جزئي من عملية بيع' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}
+          title={action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : action === 'subscription' ? 'تفعيل اشتراك للعميل' : action === 'sale' ? 'إنشاء بيع للعميل' : action === 'returnSale' ? 'مرتجع جزئي من عملية بيع' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}
           footer={<button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button>}
         >
           {actionError && <div className="info-strip warning">{actionError}</div>}
@@ -345,6 +378,20 @@ export default function Customer360() {
               {returnSaleData.items.map(item => <tr key={item.id}><td>{item.productName}<small>{item.sku}</small></td><td>{Number(item.quantity).toFixed(3)}</td><td>{item.returnedQuantity.toFixed(3)}</td><td>{item.returnableQuantity.toFixed(3)}</td><td><input type="number" min="0" max={item.returnableQuantity} step="0.001" disabled={item.returnableQuantity <= 0} value={returnQuantities[item.productId] ?? ''} onChange={e => setReturnQuantities(v => ({ ...v, [item.productId]: e.target.value }))} /></td></tr>)}
             </tbody></table></div>
             <button className="primary-action button" disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'تسجيل المرتجع'}</button>
+          </form>}
+          {action === 'subscription' && <form className="form-stack" onSubmit={saveSubscription}>
+            <div className="panel-description">حدد منتج الاشتراك وفترة الاستحقاق للعميل. الاشتراك خدمة غير مخزنية ولا يُخصم من رصيد المخزون.</div>
+            <div className="form-row">
+              <label>منتج الاشتراك<select required value={subscriptionForm.productId} onChange={e => setSubscriptionForm(v => ({ ...v, productId:e.target.value }))}>
+                <option value="">اختر الاشتراك</option>
+                {subscriptionProducts.map(product => <option key={product.id} value={product.id}>{product.name} — {product.sku} · {Number(product.sellingPrice).toFixed(2)} ر.س</option>)}
+              </select></label>
+              <label>من<input required type="date" value={subscriptionForm.startDate} onChange={e => setSubscriptionForm(v => ({ ...v, startDate:e.target.value }))} /></label>
+              <label>إلى<input required type="date" min={subscriptionForm.startDate} value={subscriptionForm.endDate} onChange={e => setSubscriptionForm(v => ({ ...v, endDate:e.target.value }))} /></label>
+            </div>
+            <label>ملاحظات<textarea value={subscriptionForm.notes} onChange={e => setSubscriptionForm(v => ({ ...v, notes:e.target.value }))} maxLength={2000} /></label>
+            {!subscriptionProducts.length && <div className="empty-state">لا توجد منتجات اشتراك نشطة. أنشئ منتجًا بنوع «اشتراك» من المنتجات أولًا.</div>}
+            <button className="primary-action button" disabled={saving || !subscriptionProducts.length}>{saving ? 'جارٍ الحفظ...' : 'تفعيل الاشتراك'}</button>
           </form>}
           {action === 'sale' && <form className="form-stack" onSubmit={saveSale}>
             <div className="store-product-grid">
@@ -469,6 +516,7 @@ export default function Customer360() {
         <article className="module-card"><span className="module-code">NUTRITION</span><h3>الخطط الغذائية</h3>{nutrition.length ? <div className="portal-data-list">{nutrition.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small><button className="text-link button-link" type="button" onClick={() => void openPlanDetails('nutrition', p.id)}>تفاصيل / الوجبات</button></div>)}</div> : <div className="empty-state">لا توجد خطط غذائية.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('nutrition')}>إنشاء خطة غذائية</button></article>
         <article className="module-card"><span className="module-code">FITNESS</span><h3>خطط اللياقة</h3>{fitness.length ? <div className="portal-data-list">{fitness.slice(0, 5).map(p => <div className="portal-data-row" key={p.id}><strong>{p.title}</strong><span>{label(p.status)}</span><small>{p.startDate}{p.endDate ? ` — ${p.endDate}` : ''}{p.specialistName ? ` · ${p.specialistName}` : ''}</small><button className="text-link button-link" type="button" onClick={() => void openPlanDetails('fitness', p.id)}>تفاصيل / التمارين</button></div>)}</div> : <div className="empty-state">لا توجد خطط لياقة.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('fitness')}>إنشاء خطة لياقة</button></article>
         <article className="module-card"><span className="module-code">APPOINTMENTS</span><h3>المواعيد القادمة</h3>{upcoming.length ? <div className="portal-data-list">{upcoming.map(a => <div className="portal-data-row" key={a.id}><strong>{a.appointmentType}</strong><span>{label(a.status)}</span><small>{new Date(a.startsAt).toLocaleString('ar-SA')}{a.staffName ? ` · ${a.staffName}` : ''}</small></div>)}</div> : <div className="empty-state">لا توجد مواعيد قادمة.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('appointment')}>حجز موعد</button></article>
+        <article className="module-card"><span className="module-code">SUBSCRIPTIONS</span><h3>اشتراكات العميل</h3>{data.subscriptions.length ? <div className="portal-data-list">{data.subscriptions.slice(0, 6).map(s => <div className="portal-data-row" key={s.id}><strong>{s.productName}</strong><span>{s.startDate} — {s.endDate}</span><small>{Number(s.unitPrice).toFixed(2)} ر.س · {s.status === 'active' ? 'نشط' : s.status}</small></div>)}</div> : <div className="empty-state">لا توجد اشتراكات للعميل.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('subscription')}>إضافة اشتراك</button></article>
         <article className="module-card"><span className="module-code">SALES</span><h3>مشتريات العميل</h3>{sales.length ? <div className="portal-data-list">{sales.slice(0, 8).map(s => <div className="portal-data-row" key={s.id}><strong>{s.saleNumber}</strong><span>{s.total} ر.س</span><small>{label(s.status)} · {new Date(s.createdAt).toLocaleDateString('ar-SA')} · {label(s.paymentStatus)}</small>{(s.status === 'completed' || s.status === 'partially_returned') && <button className="text-link button-link" type="button" disabled={saving} onClick={() => void openReturnSale(s)}>إرجاع البيع</button>}</div>)}</div> : <div className="empty-state">لا توجد مشتريات مرتبطة بالعميل.</div>}</article>
         <article className="module-card"><span className="module-code">ACTIVITY</span><h3>ملخص العميل</h3><div className="portal-data-list"><div className="portal-data-row"><strong>القياسات</strong><span>{measurements.length}</span></div><div className="portal-data-row"><strong>الخطط الغذائية</strong><span>{nutrition.length}</span></div><div className="portal-data-row"><strong>خطط اللياقة</strong><span>{fitness.length}</span></div><div className="portal-data-row"><strong>المواعيد</strong><span>{appointments.length}</span></div><div className="portal-data-row"><strong>المتابعات</strong><span>{followUps.length}</span></div><div className="portal-data-row"><strong>المبيعات</strong><span>{sales.length}</span></div></div></article>
       </section>

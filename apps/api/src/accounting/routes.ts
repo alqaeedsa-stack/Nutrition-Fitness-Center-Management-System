@@ -79,7 +79,7 @@ accountingRoutes.patch('/accounts/:id/restore',async c=>{
     const r=await withDatabase(c.env,db=>db.execute(sql`update accounting_accounts set is_active=true,updated_at=now() where id=${accountId} and center_id=${auth.user.centerId!} and is_system=false returning id,code,name,is_active as "isActive"`));
     if(!r.rows[0])return c.json({error:{code:'ACCOUNT_NOT_FOUND_OR_LOCKED',message:'الحساب غير موجود أو حساب نظام محمي'}},404);
     return c.json({account:r.rows[0]});
-  }catch(e){return c.json({error:{code:'ACCOUNT_RESTORE_FAILED',message:'تعذر استعادة الحساب',detail:e instanceof Error?e.message:'unknown'}},400);
+  }catch(e){return c.json({error:{code:'ACCOUNT_RESTORE_FAILED',message:'تعذر استعادة الحساب',detail:e instanceof Error?e.message:'unknown'}},400);}
 });
 
 accountingRoutes.delete('/accounts/:id',async c=>{

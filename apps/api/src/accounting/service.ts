@@ -67,3 +67,16 @@ export async function postPurchasePayment(tx: any, args: {
   ];
   return createEntry(tx, { centerId: args.centerId, date: args.paymentDate, sourceType: 'purchase_payment', sourceId: args.paymentId, description: `ترحيل دفعة المورد ${args.paymentNumber}`, createdBy: args.createdBy, lines });
 }
+
+export async function postSale(tx:any,args:{centerId:string;saleId:string;saleNumber:string;saleDate:string;subtotal:number;tax:number;total:number;cogs:number;paymentMethod:string;createdBy:string}){
+ const s=await settings(tx,args.centerId);
+ requireAccounts(s,['revenue_account_id','cash_bank_account_id','cost_of_sales_account_id','inventory_account_id']);
+ if(args.tax>0)requireAccounts(s,['output_vat_account_id']);
+ const lines=[
+  {accountId:s.cash_bank_account_id,description:`بيع ${args.saleNumber} - تحصيل`,debit:args.total,credit:0},
+  {accountId:s.revenue_account_id,description:`بيع ${args.saleNumber} - إيراد`,debit:0,credit:args.subtotal},
+  ...(args.tax>0?[{accountId:s.output_vat_account_id,description:`بيع ${args.saleNumber} - ضريبة مخرجات`,debit:0,credit:args.tax}]:[]),
+  ...(args.cogs>0?[{accountId:s.cost_of_sales_account_id,description:`بيع ${args.saleNumber} - تكلفة المبيعات`,debit:args.cogs,credit:0},{accountId:s.inventory_account_id,description:`بيع ${args.saleNumber} - تخفيض المخزون`,debit:0,credit:args.cogs}]:[])
+ ];
+ return createEntry(tx,{centerId:args.centerId,date:args.saleDate,sourceType:'sale',sourceId:args.saleId,description:`ترحيل عملية البيع ${args.saleNumber}`,createdBy:args.createdBy,lines});
+}

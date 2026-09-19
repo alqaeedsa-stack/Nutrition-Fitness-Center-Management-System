@@ -32,6 +32,82 @@ export function OdooViewSwitcher({ value, onChange, views = ['list','kanban','fo
   </div>;
 }
 
+export function ERPModuleNav({ title }: { title: string }) {
+  const groups: Record<string, { label: string; to: string }[]> = {
+    'العملاء': [
+      { label: 'العملاء', to: '/admin/customers' },
+      { label: 'المواعيد', to: '/admin/appointments' },
+      { label: 'المتابعات', to: '/admin/follow-ups' },
+      { label: 'القياسات', to: '/admin/measurements' },
+      { label: 'الخطط الغذائية', to: '/admin/nutrition' },
+      { label: 'الخطط الرياضية', to: '/admin/fitness' },
+    ],
+    'المواعيد': [
+      { label: 'العملاء', to: '/admin/customers' },
+      { label: 'المواعيد', to: '/admin/appointments' },
+      { label: 'المتابعات', to: '/admin/follow-ups' },
+      { label: 'القياسات', to: '/admin/measurements' },
+      { label: 'الخطط الغذائية', to: '/admin/nutrition' },
+      { label: 'الخطط الرياضية', to: '/admin/fitness' },
+    ],
+    'متابعة العملاء': [
+      { label: 'العملاء', to: '/admin/customers' },
+      { label: 'المواعيد', to: '/admin/appointments' },
+      { label: 'المتابعات', to: '/admin/follow-ups' },
+      { label: 'القياسات', to: '/admin/measurements' },
+      { label: 'الخطط الغذائية', to: '/admin/nutrition' },
+      { label: 'الخطط الرياضية', to: '/admin/fitness' },
+    ],
+    'القياسات': [
+      { label: 'العملاء', to: '/admin/customers' },
+      { label: 'المواعيد', to: '/admin/appointments' },
+      { label: 'المتابعات', to: '/admin/follow-ups' },
+      { label: 'القياسات', to: '/admin/measurements' },
+      { label: 'الخطط الغذائية', to: '/admin/nutrition' },
+      { label: 'الخطط الرياضية', to: '/admin/fitness' },
+    ],
+    'الخطط الغذائية': [
+      { label: 'العملاء', to: '/admin/customers' },
+      { label: 'المواعيد', to: '/admin/appointments' },
+      { label: 'المتابعات', to: '/admin/follow-ups' },
+      { label: 'القياسات', to: '/admin/measurements' },
+      { label: 'الخطط الغذائية', to: '/admin/nutrition' },
+      { label: 'الخطط الرياضية', to: '/admin/fitness' },
+    ],
+    'الخطط الرياضية': [
+      { label: 'العملاء', to: '/admin/customers' },
+      { label: 'المواعيد', to: '/admin/appointments' },
+      { label: 'المتابعات', to: '/admin/follow-ups' },
+      { label: 'القياسات', to: '/admin/measurements' },
+      { label: 'الخطط الغذائية', to: '/admin/nutrition' },
+      { label: 'الخطط الرياضية', to: '/admin/fitness' },
+    ],
+    'الموردون والمشتريات': [
+      { label: 'الموردون والمشتريات', to: '/admin/purchases' },
+      { label: 'فواتير الموردين', to: '/admin/purchase-billing' },
+      { label: 'المنتجات والمخزون', to: '/admin/operations' },
+      { label: 'نقطة البيع', to: '/admin/pos' },
+    ],
+    'فواتير ومدفوعات الموردين': [
+      { label: 'الموردون والمشتريات', to: '/admin/purchases' },
+      { label: 'فواتير الموردين', to: '/admin/purchase-billing' },
+      { label: 'المنتجات والمخزون', to: '/admin/operations' },
+      { label: 'نقطة البيع', to: '/admin/pos' },
+    ],
+    'المنتجات والمخزون والطلبات': [
+      { label: 'المنتجات والمخزون', to: '/admin/operations' },
+      { label: 'نقطة البيع', to: '/admin/pos' },
+      { label: 'الموردون والمشتريات', to: '/admin/purchases' },
+      { label: 'فواتير الموردين', to: '/admin/purchase-billing' },
+    ],
+  };
+  const items = groups[title] ?? [];
+  if (!items.length) return null;
+  return <nav className="erp-module-nav" aria-label="تنقل الوحدة">
+    {items.map(item => <Link key={item.to} className={item.label === title ? 'active' : ''} to={item.to}>{item.label}</Link>)}
+  </nav>;
+}
+
 export function OdooSearchToolbar({ value, onChange, placeholder = 'بحث...', filters = [], onFilter }: { value: string; onChange: (v: string) => void; placeholder?: string; filters?: string[]; onFilter?: (v: string) => void }) {
   return <div className="erp-search-toolbar">
     <div className="erp-search-input"><span aria-hidden="true">⌕</span><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} /></div>

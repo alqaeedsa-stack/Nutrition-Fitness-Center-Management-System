@@ -8,7 +8,7 @@ import { customers, products, sales, saleItems, stockMovements, taxRates } from 
 import { calculateTax } from '../tax/engine';
 import { requirePermission } from '../auth/permissions';
 import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
-import { postSale, reverseSale } from '../accounting/service';
+import { postSale, postSaleWithProductAccounts, reverseSale } from '../accounting/service';
 
 export type StoreBindings = {
   HYPERDRIVE?: { connectionString: string };
@@ -146,16 +146,18 @@ const staffSaleSchema = z.object({
   customerId: z.string().uuid().nullable().optional(),
   paymentMethod: z.enum(['cash', 'mada', 'card', 'bank_transfer']),
   paymentStatus: z.enum(['paid', 'unpaid']).default('paid'),
+  activateSubscriptions: z.boolean().default(true),
   items: z.array(z.object({
     productId: z.string().uuid(),
     quantity: z.number().positive().max(9999),
+    startDate: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional(),
+    endDate: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional(),
   })).min(1),
 });
 
 storeRoutes.post('/admin/sales', async c => {
   const auth = await staffContext(c, 'pos.sell');
   if ('error' in auth) return auth.error;
-
   const parsed = staffSaleSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: 'بيانات البيع غير صحيحة' } }, 400);
 
@@ -169,11 +171,21 @@ storeRoutes.post('/admin/sales', async c => {
 
     const productIds = [...new Set(parsed.data.items.map(item => item.productId))];
     const productRows = await tx.select({
-      id: products.id, sku: products.sku, name: products.name, productType: products.productType, sellingPrice: products.sellingPrice, purchaseCost: products.purchaseCost, taxCode: products.taxCode, active: products.active,
+      id: products.id, sku: products.sku, name: products.name, productType: products.productType,
+      sellingPrice: products.sellingPrice, purchaseCost: products.purchaseCost, taxCode: products.taxCode, active: products.active,
+      posAvailable: products.posAvailable, minimumSalesPrice: products.minimumSalesPrice,
+      subscriptionDeferredRevenueEnabled: products.subscriptionDeferredRevenueEnabled,
+      subscriptionRecognitionMethod: products.subscriptionRecognitionMethod,
+      subscriptionDurationMonths: products.subscriptionDurationMonths,
+      subscriptionDailyProration: products.subscriptionDailyProration,
+      deferredRevenueAccountId: products.deferredRevenueAccountId,
+      subscriptionRevenueAccountId: products.subscriptionRevenueAccountId,
+      revenueAccountId: products.revenueAccountId, costOfSalesAccountId: products.costOfSalesAccountId,
+      inventoryAccountId: products.inventoryAccountId,
     }).from(products).where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds), eq(products.active, true)));
     if (productRows.length !== productIds.length) return { error: 'PRODUCT_NOT_FOUND' as const };
 
-    for (const id of productIds) await tx.execute(sql`select id from products where id = ${id} for update`);
+    for (const id of productIds) await tx.execute(sql`select id from products where id=${id} for update`);
 
     const movements = await tx.select({ productId: stockMovements.productId, quantity: stockMovements.quantity })
       .from(stockMovements).where(and(eq(stockMovements.centerId, auth.user.centerId!), inArray(stockMovements.productId, productIds)));
@@ -185,13 +197,25 @@ storeRoutes.post('/admin/sales', async c => {
     for (const [productId, quantity] of requested) {
       const product = productRows.find(row => row.id === productId)!;
       const available = onHand.get(productId) ?? 0;
-      if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) && quantity > available) return { error: 'INSUFFICIENT_STOCK' as const, productId, available, requested: quantity };
+      if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) && quantity > available) {
+        return { error: 'INSUFFICIENT_STOCK' as const, productId, available, requested: quantity };
+      }
     }
 
     for (const item of parsed.data.items) {
       const product = productRows.find(row => row.id === item.productId)!;
-      if (Number(product.sellingPrice) < Number(product.purchaseCost)) {
+      if (!product.posAvailable) return { error: 'POS_PRODUCT_DISABLED' as const, productId: item.productId };
+      if (product.minimumSalesPrice != null && Number(product.sellingPrice) < Number(product.minimumSalesPrice)) {
+        return { error: 'BELOW_MINIMUM_PRICE' as const, productId: item.productId };
+      }
+      if (product.productType === 'product' && Number(product.sellingPrice) < Number(product.purchaseCost)) {
         return { error: 'BELOW_COST' as const, productId: item.productId, sellingPrice: Number(product.sellingPrice), purchaseCost: Number(product.purchaseCost) };
+      }
+      if (product.productType === 'subscription' && product.subscriptionDeferredRevenueEnabled) {
+        if (!customer[0]) return { error: 'SUBSCRIPTION_CUSTOMER_REQUIRED' as const };
+        if (!item.startDate) return { error: 'SUBSCRIPTION_START_REQUIRED' as const, productId: item.productId };
+        if (!item.endDate && !product.subscriptionDurationMonths) return { error: 'SUBSCRIPTION_END_REQUIRED' as const, productId: item.productId };
+        if (item.endDate && item.endDate < item.startDate) return { error: 'INVALID_SUBSCRIPTION_DATE_RANGE' as const, productId: item.productId };
       }
     }
 
@@ -200,98 +224,107 @@ storeRoutes.post('/admin/sales', async c => {
       const product = productRows.find(row => row.id === item.productId)!;
       try {
         taxLines.push(await calculateTax(tx, auth.user.centerId!, {
-          taxCode: product.taxCode,
-          quantity: item.quantity,
-          unitPrice: Number(product.sellingPrice),
-          discount: 0,
+          taxCode: product.taxCode, quantity: item.quantity, unitPrice: Number(product.sellingPrice), discount: 0,
         }));
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
-        if (message.startsWith('TAX_RATE_NOT_CONFIGURED:')) {
-          return { error: 'TAX_CONFIGURATION_REQUIRED' as const, taxCode: product.taxCode };
-        }
+        if (message.startsWith('TAX_RATE_NOT_CONFIGURED:')) return { error: 'TAX_CONFIGURATION_REQUIRED' as const, taxCode: product.taxCode };
         throw error;
       }
     }
+
     const lineCalculations = parsed.data.items.map((item, index) => {
       const product = productRows.find(row => row.id === item.productId)!;
       const taxableBase = item.quantity * Number(product.sellingPrice);
       const taxAmount = taxLines[index].taxAmount;
-      const lineTotal = Math.max(0, taxableBase + taxAmount);
-      return { item, product, taxableBase, taxAmount, lineTotal };
+      return { item, product, taxableBase, taxAmount, lineTotal: Math.max(0, taxableBase + taxAmount) };
     });
     const subtotal = lineCalculations.reduce((sum, line) => sum + line.taxableBase, 0);
     const taxTotal = lineCalculations.reduce((sum, line) => sum + line.taxAmount, 0);
     const grandTotal = subtotal + taxTotal;
     const saleNumber = 'POS-' + new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14) + '-' + crypto.randomUUID().slice(0, 8).toUpperCase();
 
-    const sale = await tx.insert(sales).values({
-      centerId: auth.user.centerId!,
-      customerId: customer[0]?.id ?? null,
-      cashierId: auth.user.userId,
-      saleNumber,
-      status: 'completed',
-      currencyCode: 'SAR',
-      subtotal: subtotal.toFixed(2),
-      discount: '0',
-      tax: taxTotal.toFixed(2),
-      total: grandTotal.toFixed(2),
-      paymentStatus: parsed.data.paymentStatus,
+    const sale = (await tx.insert(sales).values({
+      centerId: auth.user.centerId!, customerId: customer[0]?.id ?? null, cashierId: auth.user.userId,
+      saleNumber, status: 'completed', currencyCode: 'SAR', subtotal: subtotal.toFixed(2), discount: '0',
+      tax: taxTotal.toFixed(2), total: grandTotal.toFixed(2), paymentStatus: parsed.data.paymentStatus,
       paymentMethod: parsed.data.paymentMethod,
-    }).returning();
-    if (!sale[0]) return { error: 'SALE_CREATE_FAILED' as const };
+    }).returning())[0];
+    if (!sale) return { error: 'SALE_CREATE_FAILED' as const };
 
     for (const line of lineCalculations) {
       const { item, product, taxAmount, lineTotal } = line;
       await tx.insert(saleItems).values({
-        saleId: sale[0].id, productId: product.id, quantity: item.quantity.toString(), unitPrice: product.sellingPrice, discount: '0', tax: taxAmount.toFixed(2), lineTotal: lineTotal.toFixed(2),
+        saleId: sale.id, productId: product.id, quantity: item.quantity.toString(), unitPrice: product.sellingPrice,
+        discount: '0', tax: taxAmount.toFixed(2), lineTotal: lineTotal.toFixed(2),
       });
       if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number])) {
         await tx.insert(stockMovements).values({
-          centerId: auth.user.centerId!, productId: product.id, movementType: 'sale', quantity: (-item.quantity).toString(), unitCost: product.purchaseCost,
-          referenceType: 'sale', referenceId: sale[0].id, occurredAt: new Date(), createdBy: auth.user.userId, notes: 'صرف من نقطة البيع',
+          centerId: auth.user.centerId!, productId: product.id, movementType: 'sale', quantity: (-item.quantity).toString(),
+          unitCost: product.purchaseCost, referenceType: 'sale', referenceId: sale.id, occurredAt: new Date(),
+          createdBy: auth.user.userId, notes: 'صرف من نقطة البيع',
         });
       }
     }
-    const accountingPaymentMethod = parsed.data.paymentStatus === 'unpaid' ? 'unpaid' : parsed.data.paymentStatus === 'paid' ? parsed.data.paymentMethod : 'partial';
-    try {
-      const cogs = lineCalculations.reduce((sum, line) => sum + (NON_STOCK_PRODUCT_TYPES.includes(line.product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) ? 0 : Number(line.item.quantity) * Number(line.product.purchaseCost)), 0);
-      const entry = await postSale(tx, { centerId: auth.user.centerId!, saleId: sale[0].id, saleNumber: sale[0].saleNumber, saleDate: new Date().toISOString().slice(0,10), subtotal, tax: taxTotal, total: grandTotal, cogs, paymentMethod: accountingPaymentMethod, createdBy: auth.user.userId });
-      return { sale: sale[0], journalEntry: entry };
-    } catch (e) {
-      throw e;
+
+    const accountingPaymentMethod = parsed.data.paymentStatus === 'unpaid' ? 'unpaid' : parsed.data.paymentMethod;
+    const accountingLines = lineCalculations.map(line => ({
+      productId: line.product.id, productType: line.product.productType, subtotal: line.taxableBase, tax: line.taxAmount,
+      cogs: NON_STOCK_PRODUCT_TYPES.includes(line.product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) ? 0 : Number(line.item.quantity) * Number(line.product.purchaseCost),
+      revenueAccountId: line.product.revenueAccountId,
+      subscriptionRevenueAccountId: line.product.subscriptionRevenueAccountId,
+      deferredRevenueAccountId: line.product.deferredRevenueAccountId,
+      deferredEnabled: line.product.productType === 'subscription' && line.product.subscriptionDeferredRevenueEnabled,
+      costOfSalesAccountId: line.product.costOfSalesAccountId,
+      inventoryAccountId: line.product.inventoryAccountId,
+    }));
+    const entry = await postSaleWithProductAccounts(tx, {
+      centerId: auth.user.centerId!, saleId: sale.id, saleNumber: sale.saleNumber,
+      saleDate: new Date().toISOString().slice(0,10), total: grandTotal, tax: taxTotal,
+      paymentMethod: accountingPaymentMethod, createdBy: auth.user.userId, lines: accountingLines,
+    });
+
+    const subscriptions=[];
+    if (parsed.data.activateSubscriptions) {
+      for (const line of lineCalculations) {
+        const product=line.product;
+        if (product.productType !== 'subscription' || !product.subscriptionDeferredRevenueEnabled) continue;
+        if (!customer[0]) return { error: 'SUBSCRIPTION_CUSTOMER_REQUIRED' as const };
+        const startDate=line.item.startDate!;
+        let endDate=line.item.endDate;
+        if (!endDate && product.subscriptionDurationMonths) {
+          const d=new Date(Date.UTC(Number(startDate.slice(0,4)),Number(startDate.slice(5,7))-1,Number(startDate.slice(8,10))));
+          d.setUTCMonth(d.getUTCMonth()+product.subscriptionDurationMonths); d.setUTCDate(d.getUTCDate()-1);
+          endDate=d.toISOString().slice(0,10);
+        }
+        if (!endDate) return { error: 'SUBSCRIPTION_END_REQUIRED' as const, productId:product.id };
+        subscriptions.push(await createSubscriptionSchedule(tx,{
+          centerId:auth.user.centerId!,customerId:customer[0].id,productId:product.id,saleId:sale.id,
+          startDate,endDate,unitPrice:line.taxableBase,deferredRevenueAccountId:product.deferredRevenueAccountId!,
+          revenueAccountId:product.subscriptionRevenueAccountId ?? product.revenueAccountId!,recognitionMethod:product.subscriptionRecognitionMethod,
+          dailyProration:product.subscriptionDailyProration,createdBy:auth.user.userId,
+        }));
+      }
     }
+    return { sale, journalEntry:entry, subscriptions };
   }));
 
   if ('error' in result) {
-    const errorCode = result.error;
-    if (!errorCode) {
-      return c.json({ error: { code: 'SALE_CREATE_FAILED', message: 'تعذر إنشاء عملية البيع' } }, 500);
-    }
-
-    const messages: Record<string, string> = {
-      CUSTOMER_NOT_FOUND: 'العميل غير موجود أو غير نشط',
-      PRODUCT_NOT_FOUND: 'أحد المنتجات غير موجود أو غير نشط',
-      TAX_CONFIGURATION_REQUIRED: 'يوجد منتج عليه رمز ضريبة غير مرتبط بكود ضريبي نشط. لم يتم إنشاء البيع.',
-      SALE_CREATE_FAILED: 'تعذر إنشاء عملية البيع',
-      BELOW_COST: 'لا يمكن بيع المنتج بسعر أقل من تكلفة الشراء',
+    const messages: Record<string,string> = {
+      CUSTOMER_NOT_FOUND:'العميل غير موجود أو غير نشط', PRODUCT_NOT_FOUND:'أحد المنتجات غير موجود أو غير نشط',
+      TAX_CONFIGURATION_REQUIRED:'يوجد منتج عليه رمز ضريبة غير مرتبط بكود ضريبي نشط. لم يتم إنشاء البيع.',
+      SALE_CREATE_FAILED:'تعذر إنشاء عملية البيع', BELOW_COST:'لا يمكن بيع المنتج بسعر أقل من تكلفة الشراء',
+      POS_PRODUCT_DISABLED:'الصنف غير متاح في نقطة البيع حسب إعداداته', BELOW_MINIMUM_PRICE:'سعر المنتج أقل من الحد الأدنى المحدد',
+      SUBSCRIPTION_CUSTOMER_REQUIRED:'الاشتراك يتطلب اختيار عميل', SUBSCRIPTION_START_REQUIRED:'حدد تاريخ بداية الاشتراك',
+      SUBSCRIPTION_END_REQUIRED:'حدد تاريخ نهاية الاشتراك أو مدة الاشتراك في إعدادات المنتج',
+      INVALID_SUBSCRIPTION_DATE_RANGE:'تاريخ نهاية الاشتراك يجب أن يكون بعد أو مساويًا لتاريخ البداية',
     };
-    if (errorCode === 'BELOW_COST') return c.json({ error: { code: errorCode, message: messages[errorCode], details: { productId: result.productId, sellingPrice: result.sellingPrice, purchaseCost: result.purchaseCost } } }, 409);
-    if (errorCode === 'INSUFFICIENT_STOCK') {
-      return c.json({
-        error: {
-          code: errorCode,
-          message: 'الكمية المطلوبة أكبر من المخزون المتاح',
-          details: { productId: result.productId, available: result.available, requested: result.requested },
-        },
-      }, 409);
-    }
-    return c.json({
-      error: { code: errorCode, message: messages[errorCode] ?? 'تعذر إنشاء البيع', ...(errorCode === 'TAX_CONFIGURATION_REQUIRED' && 'taxCode' in result ? { details: { taxCode: result.taxCode } } : {}) },
-    }, errorCode === 'TAX_CONFIGURATION_REQUIRED' ? 409 : 400);
+    const code=String(result.error);
+    if(code==='INSUFFICIENT_STOCK') return c.json({error:{code,message:'الكمية المطلوبة أكبر من المخزون المتاح',details:{productId:result.productId,available:result.available,requested:result.requested}}},409);
+    if(code==='BELOW_COST'||code==='BELOW_MINIMUM_PRICE') return c.json({error:{code,message:messages[code],details:{productId:result.productId}}},409);
+    return c.json({error:{code,message:messages[code]??'تعذر إنشاء البيع'}},code==='PRODUCT_NOT_FOUND'||code==='CUSTOMER_NOT_FOUND'?404:409);
   }
-
-  return c.json({ sale: result.sale }, 201);
+  return c.json({ sale: result.sale, journalEntry: result.journalEntry, subscriptions: result.subscriptions }, 201);
 });
 
 storeRoutes.get('/admin/sales', async c => {

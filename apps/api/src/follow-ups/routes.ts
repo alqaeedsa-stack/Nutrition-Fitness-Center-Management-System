@@ -8,7 +8,7 @@ import { customerFollowUps, customers, staffProfiles, users } from '../db/schema
 export type FollowUpBindings = { HYPERDRIVE?: { connectionString: string }; DATABASE_URL?: string };
 export const followUpRoutes = new Hono<{ Bindings: FollowUpBindings }>();
 
-async function auth(c: any, permission: 'customers.read' | 'nutrition.write') {
+async function auth(c: any, permission: 'customers.read' | 'followups.write') {
   const result = await requirePermission(c, permission);
   if ('error' in result) return result;
   if (!result.user.centerId) return { error: c.json({ error: { code: 'CENTER_REQUIRED', message: 'الحساب غير مرتبط بمركز' } }, 403) };
@@ -84,7 +84,7 @@ followUpRoutes.get('/', async c => {
 });
 
 followUpRoutes.post('/', async c => {
-  const a = await auth(c, 'nutrition.write');
+  const a = await auth(c, 'followups.write');
   if ('error' in a) return a.error;
   const parsed = followUpSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message ?? 'بيانات المتابعة غير صحيحة' } }, 400);
@@ -129,6 +129,63 @@ followUpRoutes.post('/', async c => {
     return c.json({ error: { code: result.error, message: entry[0] } }, entry[1] as any);
   }
   return c.json(result, 201);
+});
+
+
+followUpRoutes.patch('/:id', async c => {
+  const a = await auth(c, 'followups.write');
+  if ('error' in a) return a.error;
+  const parsed = followUpSchema.partial().safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message ?? 'بيانات المتابعة غير صحيحة' } }, 400);
+  const d = parsed.data;
+  const result = await withDatabase(c.env, db => db.transaction(async tx => {
+    const [existing] = await tx.select().from(customerFollowUps)
+      .where(and(eq(customerFollowUps.id, c.req.param('id')), eq(customerFollowUps.centerId, a.user.centerId!))).limit(1);
+    if (!existing) return { error: 'FOLLOW_UP_NOT_FOUND' as const };
+    const followUpAt = d.followUpAt ? new Date(d.followUpAt) : existing.followUpAt;
+    const nextFollowUpAt = d.nextFollowUpAt === undefined ? existing.nextFollowUpAt : d.nextFollowUpAt ? new Date(d.nextFollowUpAt) : null;
+    if (nextFollowUpAt && nextFollowUpAt < followUpAt) return { error: 'INVALID_DATE_RANGE' as const };
+    if (d.customerId) {
+      const [customer] = await tx.select({id:customers.id}).from(customers).where(and(eq(customers.id,d.customerId),eq(customers.centerId,a.user.centerId!))).limit(1);
+      if (!customer) return { error:'CUSTOMER_NOT_FOUND' as const };
+    }
+    if (d.staffId) {
+      const [staff] = await tx.select({id:users.id}).from(users).innerJoin(staffProfiles,eq(staffProfiles.userId,users.id))
+        .where(and(eq(users.id,d.staffId),eq(users.centerId,a.user.centerId!),eq(staffProfiles.active,true))).limit(1);
+      if (!staff) return { error:'STAFF_NOT_FOUND' as const };
+    }
+    const [row] = await tx.update(customerFollowUps).set({
+      ...(d.customerId ? {customerId:d.customerId}:{ }),
+      ...(d.staffId ? {staffId:d.staffId}:{ }),
+      ...(d.followUpAt ? {followUpAt}:{ }),
+      ...(d.nextFollowUpAt !== undefined ? {nextFollowUpAt}:{ }),
+      ...(d.weight !== undefined ? {weight:d.weight==null?null:String(d.weight)}:{}),
+      ...(d.height !== undefined ? {height:d.height==null?null:String(d.height)}:{}),
+      ...(d.adherenceScore !== undefined ? {adherenceScore:d.adherenceScore??null}:{}),
+      ...(d.nutritionAdherenceScore !== undefined ? {nutritionAdherenceScore:d.nutritionAdherenceScore??null}:{}),
+      ...(d.fitnessAdherenceScore !== undefined ? {fitnessAdherenceScore:d.fitnessAdherenceScore??null}:{}),
+      ...(d.notes !== undefined ? {notes:d.notes||null}:{}),
+      ...(d.recommendations !== undefined ? {recommendations:d.recommendations||null}:{}),
+      updatedAt:new Date(),
+    }).where(and(eq(customerFollowUps.id,c.req.param('id')),eq(customerFollowUps.centerId,a.user.centerId!))).returning();
+    return row ? {followUp:row} : {error:'FOLLOW_UP_NOT_FOUND' as const};
+  }));
+  if ('error' in result) {
+    const messages:Record<string,[string,number]>={FOLLOW_UP_NOT_FOUND:['المتابعة غير موجودة',404],CUSTOMER_NOT_FOUND:['العميل غير موجود داخل هذا المركز',404],STAFF_NOT_FOUND:['الموظف غير موجود أو غير نشط',404],INVALID_DATE_RANGE:['موعد المتابعة التالية يجب ألا يسبق الموعد الحالي',400]};
+    const e=messages[result.error]??['تعذر تحديث المتابعة',409];
+    return c.json({error:{code:result.error,message:e[0]}},e[1] as any);
+  }
+  return c.json(result);
+});
+
+followUpRoutes.delete('/:id', async c => {
+  const a = await auth(c, 'followups.write');
+  if ('error' in a) return a.error;
+  const [existing] = await withDatabase(c.env, db => db.select({id:customerFollowUps.id}).from(customerFollowUps)
+    .where(and(eq(customerFollowUps.id,c.req.param('id')),eq(customerFollowUps.centerId,a.user.centerId!))).limit(1));
+  if (!existing) return c.json({error:{code:'FOLLOW_UP_NOT_FOUND',message:'المتابعة غير موجودة'}},404);
+  await withDatabase(c.env, db => db.delete(customerFollowUps).where(and(eq(customerFollowUps.id,existing.id),eq(customerFollowUps.centerId,a.user.centerId!))));
+  return c.json({ok:true});
 });
 
 export default followUpRoutes;

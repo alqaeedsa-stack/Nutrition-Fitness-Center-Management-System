@@ -189,6 +189,13 @@ storeRoutes.post('/admin/sales', async c => {
       if (quantity > available) return { error: 'INSUFFICIENT_STOCK' as const, productId, available, requested: quantity };
     }
 
+    for (const item of parsed.data.items) {
+      const product = productRows.find(row => row.id === item.productId)!;
+      if (Number(product.sellingPrice) < Number(product.purchaseCost)) {
+        return { error: 'BELOW_COST' as const, productId: item.productId, sellingPrice: Number(product.sellingPrice), purchaseCost: Number(product.purchaseCost) };
+      }
+    }
+
     const lineCalculations = parsed.data.items.map(item => {
       const product = productRows.find(row => row.id === item.productId)!;
       const taxableBase = item.quantity * Number(product.sellingPrice);
@@ -249,7 +256,9 @@ storeRoutes.post('/admin/sales', async c => {
       PRODUCT_NOT_FOUND: 'أحد المنتجات غير موجود أو غير نشط',
       TAX_CONFIGURATION_REQUIRED: 'يوجد منتج عليه رمز ضريبة غير مرتبط بكود ضريبي نشط. لم يتم إنشاء البيع.',
       SALE_CREATE_FAILED: 'تعذر إنشاء عملية البيع',
+      BELOW_COST: 'لا يمكن بيع المنتج بسعر أقل من تكلفة الشراء',
     };
+    if (errorCode === 'BELOW_COST') return c.json({ error: { code: errorCode, message: messages[errorCode], details: { productId: result.productId, sellingPrice: result.sellingPrice, purchaseCost: result.purchaseCost } } }, 409);
     if (errorCode === 'INSUFFICIENT_STOCK') {
       return c.json({
         error: {

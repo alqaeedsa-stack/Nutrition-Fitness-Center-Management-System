@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { apiFetch } from './lib/api';
 import PurchaseWorkspaceNav from './PurchaseWorkspaceNav';
 
-type Account={id:string;code:string;name:string;accountType:string;accountSubtype?:string;internalGroup?:string;parentId?:string|null;parentCode?:string|null;parentName?:string|null;isActive:boolean;isSystem:boolean;isDeprecated?:boolean;statementSection?:string;allowReconciliation?:boolean};
+type Account={id:string;code:string;name:string;accountType:string;accountSubtype?:string;internalGroup?:string;parentId?:string|null;parentCode?:string|null;parentName?:string|null;isActive:boolean;isSystem:boolean;isDeprecated?:boolean;statementSection?:string;allowReconciliation?:boolean;debit?:string|number;credit?:string|number;balance?:string|number};
 type Entry={id:string;entryNumber:string;entryDate:string;sourceType:string;description:string;status:string;debit:string|number;credit:string|number};
 type Settings={inventoryAccountId?:string|null;inputVatAccountId?:string|null;accountsPayableAccountId?:string|null;cashBankAccountId?:string|null;accountsReceivableAccountId?:string|null;revenueAccountId?:string|null;outputVatAccountId?:string|null;costOfSalesAccountId?:string|null;deferredRevenueAccountId?:string|null;subscriptionRevenueAccountId?:string|null};
 const typeLabels:Record<string,string>={asset:'أصول',liability:'التزامات',equity:'حقوق ملكية',revenue:'إيرادات',expense:'مصروفات'};
@@ -48,7 +48,7 @@ export default function Accounting(){
     </div>
     {!visibleAccounts.length?<p className="empty-state">لا توجد حسابات مطابقة.</p>:<div className="staff-table-wrap" style={{overflowX:'auto'}}>
       <table className="staff-table" style={{margin:0}}>
-       <thead><tr><th style={{width:'42%'}}>الحساب</th><th>النوع</th><th>التصنيف</th><th>القائمة</th><th>التسوية</th><th>الحالة</th><th>فتح</th></tr></thead>
+       <thead><tr><th style={{width:'34%'}}>الحساب</th><th>النوع</th><th>التصنيف</th><th>مدين</th><th>دائن</th><th>الرصيد</th><th>الحالة</th><th>فتح</th></tr></thead>
        <tbody>{(function renderTree(parentId:string|null,depth=0):any[]{return (childrenByParent.get(parentId)??[]).filter(a=>showArchived||a.isActive).flatMap(a=>{
          const hasChildren=(childrenByParent.get(a.id)??[]).some(child=>showArchived||child.isActive);
          const rows:any[]=[<tr key={a.id} onClick={()=>void viewAccount(a)} style={{cursor:'pointer'}} aria-label={'فتح الحساب '+a.name}>
@@ -56,7 +56,7 @@ export default function Accounting(){
              <button type="button" aria-label={expandedAccountIds.has(a.id)?'طي الحساب':'فتح الحساب'} className="secondary-button" style={{minWidth:28,padding:'2px 6px'}} disabled={!hasChildren} onClick={e=>{e.stopPropagation();setExpandedAccountIds(prev=>{const next=new Set(prev);if(next.has(a.id))next.delete(a.id);else next.add(a.id);return next;});}}>{hasChildren?(expandedAccountIds.has(a.id)?'−':'+'):'•'}</button>
              <span><strong dir="ltr">{a.code}</strong> — {a.name}{a.isSystem&&<small style={{display:'block'}}>حساب نظام</small>}</span>
            </div></td>
-           <td><strong>{typeLabels[a.accountType]??a.accountType}</strong></td><td>{subtypeLabels[a.accountSubtype??'']??'—'}</td><td>{statementLabels[a.statementSection??'balance_sheet']}</td><td>{a.allowReconciliation?'مسموح':'—'}</td><td>{a.isActive?'نشط':'مؤرشف'}</td>
+           <td><strong>{typeLabels[a.accountType]??a.accountType}</strong></td><td>{subtypeLabels[a.accountSubtype??'']??'—'}</td><td dir="ltr">{Number(a.debit??0).toFixed(2)}</td><td dir="ltr">{Number(a.credit??0).toFixed(2)}</td><td dir="ltr"><strong>{Number(a.balance??0).toFixed(2)}</strong></td><td>{a.isActive?'نشط':'مؤرشف'}</td>
            <td><button type="button" className="secondary-button" onClick={e=>{e.stopPropagation();void viewAccount(a);}}>فتح الحساب</button></td>
          </tr>];
          if(expandedAccountIds.has(a.id))rows.push(...renderTree(a.id,depth+1)); return rows;

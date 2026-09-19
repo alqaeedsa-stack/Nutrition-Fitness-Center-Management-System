@@ -489,6 +489,70 @@ export const purchaseReceiptItems = pgTable('purchase_receipt_items', {
   index('purchase_receipt_items_order_item_idx').on(table.purchaseOrderItemId),
 ]);
 
+export const purchaseBills = pgTable('purchase_bills', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
+  vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
+  purchaseOrderId: uuid('purchase_order_id').references(() => purchaseOrders.id),
+  billNumber: varchar('bill_number', { length: 100 }).notNull(),
+  vendorInvoiceNumber: varchar('vendor_invoice_number', { length: 100 }),
+  billDate: date('bill_date').notNull(),
+  dueDate: date('due_date'),
+  status: varchar('status', { length: 30 }).notNull().default('draft'),
+  currencyCode: varchar('currency_code', { length: 3 }).notNull().default('SAR'),
+  subtotal: numeric('subtotal', { precision: 14, scale: 2 }).notNull().default('0'),
+  tax: numeric('tax_total', { precision: 14, scale: 2 }).notNull().default('0'),
+  total: numeric('grand_total', { precision: 14, scale: 2 }).notNull().default('0'),
+  paidAmount: numeric('paid_amount', { precision: 14, scale: 2 }).notNull().default('0'),
+  balanceDue: numeric('balance_due', { precision: 14, scale: 2 }).notNull().default('0'),
+  notes: text('notes'),
+  createdBy: uuid('created_by').notNull().references(() => users.id),
+  ...auditTimestamps,
+}, (table) => [
+  uniqueIndex('purchase_bills_center_number_uq').on(table.centerId, table.billNumber),
+  index('purchase_bills_vendor_date_idx').on(table.vendorId, table.billDate),
+  index('purchase_bills_status_idx').on(table.centerId, table.status),
+]);
+
+export const purchaseBillItems = pgTable('purchase_bill_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  purchaseBillId: uuid('purchase_bill_id').notNull().references(() => purchaseBills.id, { onDelete: 'cascade' }),
+  purchaseOrderItemId: uuid('purchase_order_item_id').references(() => purchaseOrderItems.id),
+  purchaseReceiptItemId: uuid('purchase_receipt_item_id').references(() => purchaseReceiptItems.id),
+  productId: uuid('product_id').references(() => products.id),
+  description: varchar('description', { length: 250 }).notNull(),
+  quantity: numeric('quantity', { precision: 14, scale: 3 }).notNull(),
+  unitCost: numeric('unit_cost', { precision: 14, scale: 2 }).notNull(),
+  taxRate: numeric('tax_rate', { precision: 7, scale: 4 }).notNull().default('0'),
+  taxAmount: numeric('tax_amount', { precision: 14, scale: 2 }).notNull().default('0'),
+  lineTotal: numeric('line_total', { precision: 14, scale: 2 }).notNull(),
+  ...auditTimestamps,
+}, (table) => [
+  index('purchase_bill_items_bill_idx').on(table.purchaseBillId),
+  index('purchase_bill_items_order_item_idx').on(table.purchaseOrderItemId),
+  index('purchase_bill_items_receipt_item_idx').on(table.purchaseReceiptItemId),
+]);
+
+export const purchasePayments = pgTable('purchase_payments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
+  vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
+  billId: uuid('bill_id').references(() => purchaseBills.id),
+  paymentNumber: varchar('payment_number', { length: 100 }).notNull(),
+  paymentDate: date('payment_date').notNull(),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  paymentMethod: varchar('payment_method', { length: 50 }).notNull(),
+  reference: varchar('reference', { length: 150 }),
+  notes: text('notes'),
+  status: varchar('status', { length: 30 }).notNull().default('posted'),
+  createdBy: uuid('created_by').notNull().references(() => users.id),
+  ...auditTimestamps,
+}, (table) => [
+  uniqueIndex('purchase_payments_center_number_uq').on(table.centerId, table.paymentNumber),
+  index('purchase_payments_vendor_date_idx').on(table.vendorId, table.paymentDate),
+  index('purchase_payments_bill_idx').on(table.billId),
+]);
+
 export const purchaseReturns = pgTable('purchase_returns', {
   id: uuid('id').defaultRandom().primaryKey(),
   centerId: uuid('center_id').notNull().references(() => centers.id),

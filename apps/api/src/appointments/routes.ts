@@ -113,7 +113,7 @@ appointmentRoutes.post('/', async c => {
     if (!customer) return { error: 'CUSTOMER_NOT_FOUND' as const };
     if (!staff) return { error: 'STAFF_NOT_FOUND' as const };
 
-    const overlap = await tx.select({ id: appointments.id }).from(appointments)
+    const staffOverlap = await tx.select({ id: appointments.id }).from(appointments)
       .where(and(
         eq(appointments.centerId, auth.user.centerId!),
         eq(appointments.staffId, data.staffId),
@@ -121,7 +121,17 @@ appointmentRoutes.post('/', async c => {
         lt(appointments.startsAt, endsAt),
         gt(appointments.endsAt, startsAt),
       )).limit(1);
-    if (overlap[0]) return { error: 'STAFF_TIME_CONFLICT' as const };
+    if (staffOverlap[0]) return { error: 'STAFF_TIME_CONFLICT' as const };
+
+    const customerOverlap = await tx.select({ id: appointments.id }).from(appointments)
+      .where(and(
+        eq(appointments.centerId, auth.user.centerId!),
+        eq(appointments.customerId, data.customerId),
+        ne(appointments.status, 'cancelled'),
+        lt(appointments.startsAt, endsAt),
+        gt(appointments.endsAt, startsAt),
+      )).limit(1);
+    if (customerOverlap[0]) return { error: 'CUSTOMER_TIME_CONFLICT' as const };
 
     const [row] = await tx.insert(appointments).values({
       centerId: auth.user.centerId!,
@@ -141,6 +151,7 @@ appointmentRoutes.post('/', async c => {
       CUSTOMER_NOT_FOUND: ['العميل غير موجود داخل هذا المركز', 404],
       STAFF_NOT_FOUND: ['الموظف المختص غير موجود أو غير نشط', 404],
       STAFF_TIME_CONFLICT: ['يوجد موعد آخر لهذا الموظف في نفس الفترة', 409],
+      CUSTOMER_TIME_CONFLICT: ['يوجد موعد آخر للعميل في نفس الفترة', 409],
       INVALID_STATUS_TRANSITION: ['لا يمكن الانتقال إلى حالة الموعد المطلوبة من الحالة الحالية', 409],
       APPOINTMENT_LOCKED: ['الموعد مغلق بعد الإكمال أو الإلغاء أو عدم الحضور', 409],
     };
@@ -188,10 +199,16 @@ appointmentRoutes.patch('/:id', async c => {
     }
 
     const staffId = data.staffId ?? existing.staffId;
-    const overlap = await tx.select({ id: appointments.id }).from(appointments)
+    const staffOverlap = await tx.select({ id: appointments.id }).from(appointments)
       .where(and(eq(appointments.centerId, auth.user.centerId!), eq(appointments.staffId, staffId), ne(appointments.id, existing.id),
         ne(appointments.status, 'cancelled'), lt(appointments.startsAt, endsAt), gt(appointments.endsAt, startsAt))).limit(1);
-    if (overlap[0] && (data.status ?? existing.status) !== 'cancelled') return { error: 'STAFF_TIME_CONFLICT' as const };
+    if (staffOverlap[0] && nextStatus !== 'cancelled') return { error: 'STAFF_TIME_CONFLICT' as const };
+
+    const customerId = data.customerId ?? existing.customerId;
+    const customerOverlap = await tx.select({ id: appointments.id }).from(appointments)
+      .where(and(eq(appointments.centerId, auth.user.centerId!), eq(appointments.customerId, customerId), ne(appointments.id, existing.id),
+        ne(appointments.status, 'cancelled'), lt(appointments.startsAt, endsAt), gt(appointments.endsAt, startsAt))).limit(1);
+    if (customerOverlap[0] && nextStatus !== 'cancelled') return { error: 'CUSTOMER_TIME_CONFLICT' as const };
 
     const [updated] = await tx.update(appointments).set({
       ...(data.customerId ? { customerId: data.customerId } : {}),

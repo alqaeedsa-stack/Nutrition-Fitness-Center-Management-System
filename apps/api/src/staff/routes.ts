@@ -8,6 +8,7 @@ import { requirePermission, PERMISSIONS, getUserPermissionCodes, type Permission
 import { hashPassword } from '../auth/password';
 import { calculateTax } from '../tax/engine';
 import { postSaleWithProductAccounts, reverseSale } from '../accounting/service';
+import { cancelPendingSubscriptionSchedulesForSale } from '../accounting/subscriptions';
 import { getOriginalSaleUnitCost, getProductCost } from '../inventory/costing';
 
 export type StaffBindings = {
@@ -869,10 +870,15 @@ staffRoutes.post('/pos/sales/:id/void', async c => {
       .where(and(eq(stockMovements.referenceType, 'pos_void'), eq(stockMovements.referenceId, sale.id))).limit(1);
     if (existingReversal[0]) return { error: 'ALREADY_REVERSED' as const };
     const productIds = [...new Set(items.map(item => item.productId))];
-    const productRows = await tx.select({ id: products.id, purchaseCost: products.purchaseCost, productType: products.productType })
+    const productRows = await tx.select({ id: products.id, purchaseCost: products.purchaseCost, costMethod: products.costMethod, productType: products.productType })
       .from(products).where(and(eq(products.centerId, auth.user.centerId!), inArray(products.id, productIds)));
-    const costByProduct = new Map(productRows.map(product => [product.id, Number(product.purchaseCost)]));
-    const stockReturnItems = items.filter(item => productRows.find(product => product.id === item.productId)?.productType !== 'subscription');
+    const costByProduct = new Map<string, number>();
+    for (const product of productRows) {
+      costByProduct.set(product.id, await getOriginalSaleUnitCost(tx, {
+        centerId: auth.user.centerId!, saleId: sale.id, productId: product.id, fallbackCost: Number(product.purchaseCost),
+      }));
+    }
+    const stockReturnItems = items.filter(item => !NON_STOCK_PRODUCT_TYPES.includes((productRows.find(product => product.id === item.productId)?.productType ?? 'product') as (typeof NON_STOCK_PRODUCT_TYPES)[number]));
     if (stockReturnItems.length) {
       await tx.insert(stockMovements).values(stockReturnItems.map(item => ({
         centerId: auth.user.centerId!, productId: item.productId, movementType: 'return',
@@ -882,6 +888,8 @@ staffRoutes.post('/pos/sales/:id/void', async c => {
       })));
     }
     await reverseSale(tx, { centerId: auth.user.centerId!, saleId: sale.id, saleNumber: sale.saleNumber, date: new Date().toISOString().slice(0,10), createdBy: auth.user.userId });
+    await cancelPendingSubscriptionSchedulesForSale(tx, { centerId: auth.user.centerId!, saleId: sale.id, updatedBy: auth.user.userId });
+    await tx.execute(sql`update product_serials set status='available', sale_id=null, updated_at=now() where center_id=${auth.user.centerId!} and sale_id=${sale.id}`);
     const updated = await tx.update(sales).set({ status: 'voided', paymentStatus: 'refunded', updatedAt: new Date() }).where(eq(sales.id, sale.id)).returning();
     return { sale: updated[0] };
   }));

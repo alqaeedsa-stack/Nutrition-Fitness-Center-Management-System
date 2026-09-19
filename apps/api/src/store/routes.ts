@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getAuthenticatedUser } from '../auth/session';
 import { withDatabase } from '../db/client';
 import { customerAccounts } from '../db/customer-accounts';
-import { customers, products, sales, saleItems, stockMovements, taxRates } from '../db/schema';
+import { customers, products, productBarcodes, sales, saleItems, stockMovements, taxRates } from '../db/schema';
 import { requirePermission } from '../auth/permissions';
 import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
 import { postSale, reverseSale } from '../accounting/service';
@@ -71,6 +71,7 @@ storeRoutes.get('/admin/products', async c => {
     reorderPoint: products.reorderPoint,
     active: products.active,
     categoryId: products.categoryId,
+    barcode: sql<string | null>`(select pb.barcode from product_barcodes pb where pb.product_id = ${products.id} and pb.active = true order by pb.id limit 1)`,
   }).from(products).where(eq(products.centerId, auth.user.centerId!)).orderBy(asc(products.name)));
 
   const movements = rows.length ? await withDatabase(c.env, db => db.select({
@@ -84,7 +85,7 @@ storeRoutes.get('/admin/products', async c => {
   const stock = new Map<string, number>();
   for (const movement of movements) stock.set(movement.productId, (stock.get(movement.productId) ?? 0) + Number(movement.quantity));
 
-  return c.json({ products: rows.map(product => ({ ...product, stock: stock.get(product.id) ?? 0 })) });
+  return c.json({ products: rows.map(product => ({ ...product, quantity: stock.get(product.id) ?? 0 })) });
 });
 
 storeRoutes.get('/admin/customers/:customerId/sales', async c => {

@@ -433,7 +433,7 @@ staffRoutes.post('/inventory/receipt', async c => {
   const result = await withDatabase(c.env, db => db.transaction(async tx => {
     const productIds = [...new Set(body.data.items.map(item => item.productId))];
     const productRows = await tx.select({
-      id: products.id, sku: products.sku, name: products.name, purchaseCost: products.purchaseCost, active: products.active,
+      id: products.id, sku: products.sku, name: products.name, productType: products.productType, purchaseCost: products.purchaseCost, active: products.active,
     }).from(products).where(and(
       eq(products.centerId, auth.user.centerId!),
       inArray(products.id, productIds),
@@ -441,7 +441,7 @@ staffRoutes.post('/inventory/receipt', async c => {
     const productMap = new Map(productRows.map(product => [product.id, product]));
     for (const item of body.data.items) {
       const product = productMap.get(item.productId);
-      if (!product || !product.active) return { error: 'PRODUCT_NOT_FOUND' as const };
+      if (!product || !product.active || product.productType === 'subscription') return { error: 'PHYSICAL_PRODUCT_REQUIRED' as const };
     }
 
     const reference = body.data.reference?.trim() || null;
@@ -466,7 +466,7 @@ staffRoutes.post('/inventory/receipt', async c => {
   }));
 
   if ('error' in result) {
-    return c.json({ error: { code: result.error, message: result.error === 'PRODUCT_NOT_FOUND' ? 'أحد المنتجات غير موجود أو موقوف' : 'تعذر تسجيل الاستلام' } }, 409);
+    return c.json({ error: { code: result.error, message: result.error === 'PHYSICAL_PRODUCT_REQUIRED' ? 'الاستلام المباشر مخصص للمنتجات المخزنية فقط' : result.error === 'PRODUCT_NOT_FOUND' ? 'أحد المنتجات غير موجود أو موقوف' : 'تعذر تسجيل الاستلام' } }, 409);
   }
   return c.json({ ok: true, ...result }, 201);
 });

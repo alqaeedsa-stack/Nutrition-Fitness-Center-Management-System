@@ -88,6 +88,60 @@ export async function postSale(tx:any,args:{centerId:string;saleId:string;saleNu
 }
 
 
+export async function postSaleReturn(tx:any,args:{
+  centerId:string;returnId:string;returnNumber:string;date:string;subtotal:number;tax:number;refundTotal:number;paymentMethod:string;createdBy:string;
+  lines:Array<{subtotal:number;tax:number;cogs:number;salesReturnAccountId?:string|null;revenueAccountId?:string|null;costOfSalesAccountId?:string|null;inventoryAccountId?:string|null}>
+}) {
+  const s=await settings(tx,args.centerId);
+  const refundAccount=args.paymentMethod==='unpaid'?s.accounts_receivable_account_id:s.cash_bank_account_id;
+  if(!refundAccount) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب النقدية/البنك أو العملاء غير مُهيأ');
+  if(args.tax>0) requireAccounts(s,['output_vat_account_id']);
+  const grouped=new Map<string,{accountId:string;description:string;debit:number;credit:number}>();
+  const add=(accountId:string|null|undefined,description:string,debit:number,credit:number)=>{
+    if(!accountId || Math.abs(debit)+Math.abs(credit)<0.005) return;
+    const key=accountId+':'+(debit>0?'d':'c');
+    const existing=grouped.get(key);
+    if(existing){existing.debit+=debit;existing.credit+=credit;} else grouped.set(key,{accountId,description,debit,credit});
+  };
+  for(const line of args.lines){
+    const returnAccount=line.salesReturnAccountId ?? line.revenueAccountId ?? s.revenue_account_id;
+    if(!returnAccount) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب مردودات المبيعات/الإيرادات غير مُهيأ');
+    add(returnAccount,`مردود مبيعات - ${args.returnNumber}`,line.subtotal,0);
+    if(line.tax>0) add(s.output_vat_account_id,`عكس ضريبة مخرجات - ${args.returnNumber}`,line.tax,0);
+    if(line.cogs>0){
+      const cogsAccount=line.costOfSalesAccountId ?? s.cost_of_sales_account_id;
+      const inventoryAccount=line.inventoryAccountId ?? s.inventory_account_id;
+      if(!cogsAccount || !inventoryAccount) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب تكلفة المبيعات/المخزون غير مُهيأ');
+      add(inventoryAccount,`إرجاع المخزون - ${args.returnNumber}`,line.cogs,0);
+      add(cogsAccount,`عكس تكلفة المبيعات - ${args.returnNumber}`,0,line.cogs);
+    }
+  }
+  add(refundAccount,`رد قيمة العميل - ${args.returnNumber}`,0,args.refundTotal);
+  return createEntry(tx,{centerId:args.centerId,date:args.date,sourceType:'sale_return',sourceId:args.returnId,description:`ترحيل مرتجع المبيعات ${args.returnNumber}`,createdBy:args.createdBy,lines:Array.from(grouped.values())});
+}
+
+export async function postPurchaseReturn(tx:any,args:{
+  centerId:string;returnId:string;returnNumber:string;date:string;total:number;createdBy:string;
+  lines:Array<{amount:number;purchaseReturnAccountId?:string|null;purchaseAccountId?:string|null;inventoryAccountId?:string|null}>
+}) {
+  const s=await settings(tx,args.centerId);
+  requireAccounts(s,['accounts_payable_account_id']);
+  const grouped=new Map<string,{accountId:string;description:string;debit:number;credit:number}>();
+  const add=(accountId:string|null|undefined,description:string,debit:number,credit:number)=>{
+    if(!accountId || Math.abs(debit)+Math.abs(credit)<0.005) return;
+    const key=accountId+':'+(debit>0?'d':'c');
+    const existing=grouped.get(key);
+    if(existing){existing.debit+=debit;existing.credit+=credit;} else grouped.set(key,{accountId,description,debit,credit});
+  };
+  for(const line of args.lines){
+    const contra=line.purchaseReturnAccountId ?? line.purchaseAccountId ?? line.inventoryAccountId ?? s.inventory_account_id;
+    if(!contra) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب مردودات المشتريات/المخزون غير مُهيأ');
+    add(contra,`مردود مشتريات - ${args.returnNumber}`,0,line.amount);
+  }
+  add(s.accounts_payable_account_id,`إشعار دائن من المورد - ${args.returnNumber}`,args.total,0);
+  return createEntry(tx,{centerId:args.centerId,date:args.date,sourceType:'purchase_return',sourceId:args.returnId,description:`ترحيل مرتجع المشتريات ${args.returnNumber}`,createdBy:args.createdBy,lines:Array.from(grouped.values())});
+}
+
 export async function postSaleWithProductAccounts(tx:any,args:{
   centerId:string;saleId:string;saleNumber:string;saleDate:string;total:number;tax:number;paymentMethod:string;createdBy:string|null;
   lines:Array<{productId:string;productType:string;subtotal:number;tax:number;cogs:number;revenueAccountId?:string|null;subscriptionRevenueAccountId?:string|null;deferredRevenueAccountId?:string|null;deferredEnabled?:boolean;costOfSalesAccountId?:string|null;inventoryAccountId?:string|null}>

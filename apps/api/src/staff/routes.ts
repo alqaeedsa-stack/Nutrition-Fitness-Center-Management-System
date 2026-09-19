@@ -257,6 +257,10 @@ const productSchema = z.object({
   purchaseReturnAccountId: z.string().uuid().nullable().optional(),
   deferredRevenueAccountId: z.string().uuid().nullable().optional(),
   subscriptionRevenueAccountId: z.string().uuid().nullable().optional(),
+  subscriptionDeferredRevenueEnabled: z.boolean().default(false),
+  subscriptionRecognitionMethod: z.enum(['monthly','daily']).default('monthly'),
+  subscriptionDurationMonths: z.coerce.number().int().positive().max(120).nullable().optional(),
+  subscriptionDailyProration: z.boolean().default(true),
 });
 
 const stockAdjustmentSchema = z.object({
@@ -294,6 +298,10 @@ function normalizeProductSettings(data: z.infer<typeof productSchema>) {
     purchaseReturnAccountId: data.purchaseReturnAccountId ?? null,
     deferredRevenueAccountId: data.deferredRevenueAccountId ?? null,
     subscriptionRevenueAccountId: data.subscriptionRevenueAccountId ?? null,
+    subscriptionDeferredRevenueEnabled: data.subscriptionDeferredRevenueEnabled,
+    subscriptionRecognitionMethod: data.subscriptionRecognitionMethod,
+    subscriptionDurationMonths: data.subscriptionDurationMonths ?? null,
+    subscriptionDailyProration: data.subscriptionDailyProration,
   };
 }
 
@@ -326,6 +334,10 @@ staffRoutes.get('/products', async c => {
     revenueAccountId: products.revenueAccountId, purchaseAccountId: products.purchaseAccountId,
     salesReturnAccountId: products.salesReturnAccountId, purchaseReturnAccountId: products.purchaseReturnAccountId,
     deferredRevenueAccountId: products.deferredRevenueAccountId, subscriptionRevenueAccountId: products.subscriptionRevenueAccountId,
+    subscriptionDeferredRevenueEnabled: products.subscriptionDeferredRevenueEnabled, subscriptionRecognitionMethod: products.subscriptionRecognitionMethod,
+    subscriptionDurationMonths: products.subscriptionDurationMonths, subscriptionDailyProration: products.subscriptionDailyProration,
+    subscriptionDeferredRevenueEnabled: products.subscriptionDeferredRevenueEnabled, subscriptionRecognitionMethod: products.subscriptionRecognitionMethod,
+    subscriptionDurationMonths: products.subscriptionDurationMonths, subscriptionDailyProration: products.subscriptionDailyProration,
   }).from(products)
     .leftJoin(categories, eq(categories.id, products.categoryId))
     .leftJoin(brands, eq(brands.id, products.brandId))

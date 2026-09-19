@@ -289,9 +289,10 @@ staffRoutes.post('/products', async c => {
     if (existing[0]) return { error: 'SKU_EXISTS' as const };
     const row = await tx.insert(products).values({
       centerId: auth.user.centerId!, sku: data.sku, name: data.name, categoryId: data.categoryId,
-      brandId: data.brandId ?? null, productType: data.productType, purchaseCost: data.purchaseCost.toFixed(2),
+      brandId: data.brandId ?? null, productType: data.productType,
+      purchaseCost: NON_STOCK_PRODUCT_TYPES.includes(data.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) ? '0.00' : data.purchaseCost.toFixed(2),
       sellingPrice: data.sellingPrice.toFixed(2), taxCode: data.taxCode ?? null,
-      reorderPoint: data.reorderPoint.toFixed(3), active: data.active,
+      reorderPoint: NON_STOCK_PRODUCT_TYPES.includes(data.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) ? '0.000' : data.reorderPoint.toFixed(3), active: data.active,
     }).returning();
     return { product: row[0] };
   }));
@@ -309,6 +310,7 @@ staffRoutes.patch('/products/:id', async c => {
       id: products.id,
       categoryId: products.categoryId,
       brandId: products.brandId,
+      productType: products.productType,
     }).from(products).where(and(
       eq(products.id, c.req.param('id')),
       eq(products.centerId, auth.user.centerId!),
@@ -342,16 +344,20 @@ staffRoutes.patch('/products/:id', async c => {
       if (duplicate[0]) return { error: 'SKU_EXISTS' as const };
     }
 
+    const nextProductType = data.productType ?? existing[0].productType;
+    const nextIsNonStock = NON_STOCK_PRODUCT_TYPES.includes(nextProductType as (typeof NON_STOCK_PRODUCT_TYPES)[number]);
     const updated = await tx.update(products).set({
       ...(data.sku !== undefined ? { sku: data.sku } : {}),
       ...(data.name !== undefined ? { name: data.name } : {}),
       ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
       ...(data.brandId !== undefined ? { brandId: data.brandId } : {}),
       ...(data.productType !== undefined ? { productType: data.productType } : {}),
-      ...(data.purchaseCost !== undefined ? { purchaseCost: data.purchaseCost.toFixed(2) } : {}),
+      ...(nextIsNonStock ? { purchaseCost: '0.00', reorderPoint: '0.000' } : {
+        ...(data.purchaseCost !== undefined ? { purchaseCost: data.purchaseCost.toFixed(2) } : {}),
+        ...(data.reorderPoint !== undefined ? { reorderPoint: data.reorderPoint.toFixed(3) } : {}),
+      }),
       ...(data.sellingPrice !== undefined ? { sellingPrice: data.sellingPrice.toFixed(2) } : {}),
       ...(data.taxCode !== undefined ? { taxCode: data.taxCode } : {}),
-      ...(data.reorderPoint !== undefined ? { reorderPoint: data.reorderPoint.toFixed(3) } : {}),
       ...(data.active !== undefined ? { active: data.active } : {}),
       updatedAt: new Date(),
     }).where(and(

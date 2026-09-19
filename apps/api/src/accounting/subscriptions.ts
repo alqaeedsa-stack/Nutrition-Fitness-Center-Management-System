@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { customerSubscriptions, subscriptionRevenueSchedules } from '../db/schema';
-import { createSubscriptionSale, recognizeSubscriptionRevenue } from './service';
+import { recognizeSubscriptionRevenue } from './service';
 
 function parseDate(value: string) {
   const [y,m,d] = value.split('-').map(Number);

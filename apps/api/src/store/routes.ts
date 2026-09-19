@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { getAuthenticatedUser } from '../auth/session';

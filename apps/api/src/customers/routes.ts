@@ -1,5 +1,6 @@
 import { and, desc, eq, ilike, or } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { appointments, customerFollowUps, customers, fitnessPlans, measurementRecords, measurementTypes, nutritionPlans, sales, staffProfiles } from '../db/schema';
 import { customerAccounts } from '../db/customer-accounts';
 import { withDatabase } from '../db/client';
@@ -7,6 +8,26 @@ import { requirePermission } from '../auth/permissions';
 
 export type CustomerBindings = { HYPERDRIVE?: { connectionString: string }; DATABASE_URL?: string };
 export const customerRoutes = new Hono<{ Bindings: CustomerBindings }>();
+
+const customerCreateSchema = z.object({
+  firstName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().min(1).max(100),
+  phone: z.string().trim().min(6).max(30),
+  email: z.string().trim().email().max(255).optional().or(z.literal('')),
+  dateOfBirth: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional().or(z.literal('')),
+  gender: z.enum(['male', 'female']).optional().or(z.literal('')),
+  source: z.string().trim().max(100).optional().or(z.literal('')),
+  notes: z.string().trim().max(5000).optional().or(z.literal('')),
+});
+
+const customerUpdateSchema = customerCreateSchema.partial().extend({
+  status: z.enum(['active', 'inactive']).optional(),
+  email: z.string().trim().email().max(255).optional().nullable().or(z.literal('')),
+  dateOfBirth: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional().nullable().or(z.literal('')),
+  gender: z.enum(['male', 'female']).optional().nullable().or(z.literal('')),
+  source: z.string().trim().max(100).optional().nullable(),
+  notes: z.string().trim().max(5000).optional().nullable(),
+});
 
 
 customerRoutes.get('/', async (c) => {
@@ -159,11 +180,12 @@ customerRoutes.get('/:id/360', async (c) => {
 customerRoutes.post('/', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
   const auth = await requirePermission(c, 'customers.create'); if ('error' in auth) return auth.error;
-  const body = await c.req.json<{ firstName?: string; lastName?: string; phone?: string; email?: string; dateOfBirth?: string; gender?: string; source?: string; notes?: string }>();
-  const firstName = body.firstName?.trim();
-  const lastName = body.lastName?.trim();
-  const phone = body.phone?.trim();
-  if (!firstName || !lastName || !phone) return c.json({ error: { code: 'VALIDATION_ERROR', message: 'الاسم الأول واسم العائلة والجوال حقول مطلوبة' } }, 400);
+  const parsed = customerCreateSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'بيانات العميل غير صحيحة' } }, 400);
+  const body = parsed.data;
+  const firstName = body.firstName;
+  const lastName = body.lastName;
+  const phone = body.phone;
 
   const created = await withDatabase(c.env, async db => {
     const values = {
@@ -189,7 +211,9 @@ customerRoutes.post('/', async (c) => {
 customerRoutes.patch('/:id', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
   const auth = await requirePermission(c, 'customers.update'); if ('error' in auth) return auth.error;
-  const body = await c.req.json<{ firstName?: string; lastName?: string; phone?: string; email?: string | null; dateOfBirth?: string | null; gender?: string | null; status?: string; source?: string | null; notes?: string | null }>();
+  const parsed = customerUpdateSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'بيانات التعديل غير صحيحة' } }, 400);
+  const body = parsed.data;
   const data = {
     ...(body.firstName !== undefined ? { firstName: body.firstName.trim() } : {}),
     ...(body.lastName !== undefined ? { lastName: body.lastName.trim() } : {}),

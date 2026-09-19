@@ -234,7 +234,7 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
       PO_NOT_FOUND: 'أمر الشراء غير موجود', PO_NOT_RECEIVABLE: 'أمر الشراء يجب أن يكون مؤكدًا قبل الاستلام',
       PO_ITEM_NOT_FOUND: 'أحد بنود أمر الشراء غير موجود', RECEIPT_QTY_EXCEEDED: 'كمية الاستلام أكبر من الكمية المتبقية',
     };
-    const errorCode = result.error;
+    const errorCode = String(result.error ?? 'UNKNOWN');
     const message = messages[errorCode] ?? 'تعذر تسجيل الاستلام';
     const details = 'itemId' in result ? { itemId: result.itemId, remaining: result.remaining, requested: result.requested } : undefined;
     return c.json({ error: { code: errorCode, message, ...(details ? { details } : {}) } }, errorCode === 'PO_NOT_FOUND' ? 404 : 409);

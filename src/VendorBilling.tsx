@@ -130,7 +130,7 @@ export default function VendorBilling(){
         </form>
       </section>
       <section className="panel">
-        <div className="panel-heading-row"><div><p className="eyebrow">فاتورة الموردS</p><h2>فواتير الموردين</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
+        <div className="panel-heading-row"><div><p className="eyebrow">فواتير الموردين</p><h2>فواتير الموردين</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
         <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الفاتورة</th><th>المورد</th><th>أمر الشراء</th><th>التاريخ</th><th>الإجمالي</th><th>مدفوع</th><th>متبقي</th><th>الحالة</th><th></th></tr></thead><tbody>{bills.map(b=><tr key={b.id}><td>{b.billNumber}<small>{b.vendorInvoiceNumber||'بدون رقم مورد'}</small></td><td>{b.vendorName}</td><td>{b.poNumber||'—'}</td><td>{b.billDate}</td><td>{Number(b.total).toFixed(2)}</td><td>{Number(b.paidAmount).toFixed(2)}</td><td>{Number(b.balanceDue).toFixed(2)}</td><td><span className="status-badge active">{statusLabel[b.status]||b.status}</span></td><td>{b.status==='draft'&&<button className="secondary-button" disabled={busy} onClick={()=>void postBill(b.id)}>ترحيل</button>}</td></tr>)}{!bills.length&&<tr><td colSpan={9}>لا توجد فواتير موردين.</td></tr>}</tbody></table></div>
       </section>
     </section>}
@@ -142,7 +142,7 @@ export default function VendorBilling(){
         <label>مرجع العملية<input value={paymentReference} onChange={e=>setPaymentReference(e.target.value)} placeholder="رقم التحويل / المرجع"/></label>
         <button className="primary-action button" disabled={busy}>{busy?'جارٍ التسجيل...':'تسجيل الدفعة'}</button>
       </form></section>
-      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">الدفع HISTORY</p><h2>سجل المدفوعات</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
+      <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">سجل المدفوعات</p><h2>سجل المدفوعات</h2></div><button className="secondary-button" onClick={()=>void load()}>تحديث</button></div>
         <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الدفعة</th><th>التاريخ</th><th>المورد</th><th>الفاتورة</th><th>المبلغ</th><th>الطريقة</th><th>المرجع</th></tr></thead><tbody>{payments.map(p=><tr key={p.id}><td>{p.paymentNumber}</td><td>{p.paymentDate}</td><td>{p.vendorName}</td><td>{p.billNumber||'—'}</td><td>{Number(p.amount).toFixed(2)} ر.س</td><td>{p.paymentMethod}</td><td>{p.reference||'—'}</td></tr>)}{!payments.length&&<tr><td colSpan={7}>لا توجد مدفوعات.</td></tr>}</tbody></table></div>
       </section>
     </section>}

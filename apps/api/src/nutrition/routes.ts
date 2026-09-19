@@ -29,6 +29,12 @@ const planSchema = z.object({
   status: z.enum(['draft', 'active', 'completed', 'cancelled']).default('draft'),
 });
 
+function validPlanStatusTransition(current: string, next: string) {
+  if (current === next) return true;
+  const allowed: Record<string, string[]> = { draft: ['active', 'cancelled'], active: ['completed', 'cancelled'], completed: [], cancelled: [] };
+  return (allowed[current] ?? []).includes(next);
+}
+
 const itemSchema = z.object({
   mealType: z.string().trim().min(2).max(50),
   itemName: z.string().trim().min(2).max(200),
@@ -84,6 +90,7 @@ nutritionRoutes.post('/', async c => {
   const parsed = planSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message ?? 'بيانات الخطة غير صحيحة' } }, 400);
   const d = parsed.data;
+  if (['completed', 'cancelled'].includes(d.status)) return c.json({ error: { code: 'INVALID_INITIAL_STATUS', message: 'لا يمكن إنشاء خطة بحالة مكتملة أو ملغاة' } }, 400);
   if (d.endDate && d.endDate < d.startDate) return c.json({ error: { code: 'INVALID_DATE_RANGE', message: 'تاريخ نهاية الخطة يجب أن يكون بعد تاريخ البداية' } }, 400);
 
   const result = await withDatabase(c.env, async db => db.transaction(async tx => {
@@ -118,6 +125,11 @@ nutritionRoutes.patch('/:id', async c => {
   const [existing] = await withDatabase(c.env, db => db.select().from(nutritionPlans)
     .where(and(eq(nutritionPlans.id, c.req.param('id')), eq(nutritionPlans.centerId, a.user.centerId!))).limit(1));
   if (!existing) return c.json({ error: { code: 'PLAN_NOT_FOUND', message: 'الخطة الغذائية غير موجودة' } }, 404);
+  const nextStatus = d.status ?? existing.status;
+  if (!validPlanStatusTransition(existing.status, nextStatus)) return c.json({ error: { code: 'INVALID_STATUS_TRANSITION', message: 'لا يمكن الانتقال من حالة الخطة الحالية إلى الحالة المطلوبة' } }, 409);
+  const editingStructure = d.customerId !== undefined || d.specialistId !== undefined || d.title !== undefined || d.goals !== undefined || d.startDate !== undefined || d.endDate !== undefined;
+  if (['completed', 'cancelled'].includes(existing.status) && editingStructure) return c.json({ error: { code: 'PLAN_LOCKED', message: 'لا يمكن تعديل بيانات الخطة بعد إكمالها أو إلغائها' } }, 409);
+  if (['completed', 'cancelled'].includes(nextStatus) && existing.status === nextStatus) return c.json({ error: { code: 'PLAN_LOCKED', message: 'الخطة مغلقة ولا تقبل تعديلات' } }, 409);
   const startDate = d.startDate ?? existing.startDate;
   const endDate = d.endDate !== undefined ? d.endDate : existing.endDate;
   if (endDate && endDate < startDate) return c.json({ error: { code: 'INVALID_DATE_RANGE', message: 'تاريخ نهاية الخطة يجب أن يكون بعد تاريخ البداية' } }, 400);

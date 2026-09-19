@@ -227,8 +227,11 @@ accountingRoutes.get('/reports/equity-statement',async c=>{
 accountingRoutes.get('/reports/balance-sheet',async c=>{
   const auth=await access(c,'accounting.read'); if('error' in auth)return auth.error;
   const dates=reportDates(c); if(!dates)return c.json({error:{code:'INVALID_DATE_RANGE',message:'نطاق التاريخ غير صحيح'}},400);
-  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(case when j.id is not null then l.debit else 0 end),0)::numeric(18,2) as debit,coalesce(sum(case when j.id is not null then l.credit else 0 end),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' and j.entry_date <= ${dates.to} where a.center_id=${auth.user.centerId!} and a.account_type in ('asset','liability','equity') group by a.id order by a.account_type,a.code`));
-  return c.json({accounts:r.rows});
+  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(case when j.id is not null then l.debit else 0 end),0)::numeric(18,2) as debit,coalesce(sum(case when j.id is not null then l.credit else 0 end),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' and j.entry_date <= ${dates.to} where a.center_id=${auth.user.centerId!} and (a.account_type in ('asset','liability','equity') or a.statement_section='other_comprehensive_income') group by a.id order by a.account_type,a.code`));
+  const pnl=await withDatabase(c.env,db=>db.execute(sql`select coalesce(sum(case when a.account_type='revenue' then l.credit-l.debit when a.account_type='expense' then l.debit-l.credit else 0 end),0)::numeric(18,2) as net_income from accounting_accounts a join journal_entry_lines l on l.account_id=a.id join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} and a.account_type in ('revenue','expense') and j.entry_date >= ${dates.from} and j.entry_date <= ${dates.to}`));
+  const netIncome=Number((pnl.rows[0] as any)?.net_income??0);
+  if(netIncome!==0) (r.rows as any[]).push({id:'net-income',code:'—',name:'صافي ربح / (خسارة) الفترة',accountType:'equity',debit:netIncome<0?Math.abs(netIncome):0,credit:netIncome>0?netIncome:0});
+  return c.json({accounts:r.rows,netIncome});
 });
 accountingRoutes.get('/ledger/:accountId',async c=>{
   const auth=await access(c,'accounting.read'); if('error' in auth)return auth.error;

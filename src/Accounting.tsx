@@ -57,11 +57,11 @@ export default function Accounting(){
              <span><strong dir="ltr">{a.code}</strong> — {a.name}{a.isSystem&&<small style={{display:'block'}}>حساب نظام</small>}</span>
            </div></td>
            <td><strong>{typeLabels[a.accountType]??a.accountType}</strong></td><td>{subtypeLabels[a.accountSubtype??'']??'—'}</td><td dir="ltr">{Number(a.debit??0).toFixed(2)}</td><td dir="ltr">{Number(a.credit??0).toFixed(2)}</td><td dir="ltr"><strong>{Number(a.balance??0).toFixed(2)}</strong></td><td>{a.isActive?'نشط':'مؤرشف'}</td>
-           <td>
-             <div className="portal-choice-actions" style={{gap:6,flexWrap:'nowrap'}}>
-               <button type="button" className="secondary-button" onClick={e=>{e.stopPropagation();void viewAccount(a);}}>فتح</button>
-               {!a.isSystem&&accountPermissions.canUpdateAccounts&&<button type="button" className="secondary-button" title="تعديل الحساب" onClick={e=>{e.stopPropagation();setEditing(a);setForm({code:a.code,name:a.name,accountType:a.accountType,accountSubtype:a.accountSubtype??subtypeOptions[a.accountType]?.[0]??'asset_current',internalGroup:a.internalGroup??(a.accountType==='revenue'?'income':a.accountType),parentId:a.parentId??'',statementSection:a.statementSection??'balance_sheet',allowReconciliation:Boolean(a.allowReconciliation)});}}>تعديل</button>}
-               {!a.isSystem&&accountPermissions.canDeleteAccounts&&<button type="button" className="secondary-button" title="حذف الحساب" onClick={e=>{e.stopPropagation();void deleteAccount(a);}}>حذف</button>}
+           <td className="account-actions-cell" style={{minWidth:210,whiteSpace:'nowrap'}}>
+             <div className="account-row-actions" style={{display:'flex',alignItems:'center',justifyContent:'flex-start',gap:6,flexWrap:'nowrap'}}>
+               <button type="button" className="secondary-button account-action-open" onClick={e=>{e.stopPropagation();void viewAccount(a);}}>فتح</button>
+               {!a.isSystem&&<button type="button" className="secondary-button account-action-edit" title={accountPermissions.canUpdateAccounts?'تعديل الحساب':'ليس لديك صلاحية تعديل الحساب'} disabled={!accountPermissions.canUpdateAccounts} onClick={e=>{e.stopPropagation();setEditing(a);setForm({code:a.code,name:a.name,accountType:a.accountType,accountSubtype:a.accountSubtype??subtypeOptions[a.accountType]?.[0]??'asset_current',internalGroup:a.internalGroup??(a.accountType==='revenue'?'income':a.accountType),parentId:a.parentId??'',statementSection:a.statementSection??'balance_sheet',allowReconciliation:Boolean(a.allowReconciliation)});}}>تعديل</button>}
+               {!a.isSystem&&<button type="button" className="secondary-button account-action-delete" title={accountPermissions.canDeleteAccounts?'حذف الحساب':'ليس لديك صلاحية حذف الحساب'} disabled={!accountPermissions.canDeleteAccounts} onClick={e=>{e.stopPropagation();void deleteAccount(a);}}>حذف</button>}
              </div>
            </td>
          </tr>];

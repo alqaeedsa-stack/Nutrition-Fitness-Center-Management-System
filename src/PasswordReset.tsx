@@ -5,7 +5,7 @@ import { apiFetch } from './lib/api';
 function AuthShell({ children }: { children: ReactNode }) {
   return <main className="auth-page"><section className="auth-card">
     <div className="brand-mark small">N</div>
-    <div className="brand-block"><span className="eyebrow">Nutrition & Fitness Center</span>{children}</div>
+    <div className="brand-block"><span className="eyebrow">مركز التغذية واللياقة</span>{children}</div>
   </section></main>;
 }
 

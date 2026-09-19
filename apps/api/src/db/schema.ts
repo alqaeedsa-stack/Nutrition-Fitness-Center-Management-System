@@ -256,6 +256,19 @@ export const productBarcodes = pgTable('product_barcodes', {
   active: boolean('active').notNull().default(true),
 });
 
+export const productSerials = pgTable('product_serials', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  serialNumber: varchar('serial_number', { length: 120 }).notNull(),
+  status: varchar('status', { length: 30 }).notNull().default('available'),
+  saleId: uuid('sale_id').references(() => sales.id),
+  ...auditTimestamps,
+}, (table) => [
+  uniqueIndex('product_serials_center_serial_uq').on(table.centerId, table.serialNumber),
+  index('product_serials_product_status_idx').on(table.productId, table.status),
+]);
+
 export const stockMovements = pgTable('stock_movements', {
   id: uuid('id').defaultRandom().primaryKey(),
   centerId: uuid('center_id').notNull().references(() => centers.id),
@@ -309,7 +322,6 @@ export const customerSubscriptions = pgTable('customer_subscriptions', {
   centerId: uuid('center_id').notNull().references(() => centers.id),
   customerId: uuid('customer_id').notNull().references(() => customers.id),
   productId: uuid('product_id').notNull().references(() => products.id),
-  saleId: uuid('sale_id').references(() => sales.id),
   startDate: date('start_date').notNull(),
   endDate: date('end_date').notNull(),
   status: varchar('status', { length: 30 }).notNull().default('active'),
@@ -322,6 +334,22 @@ export const customerSubscriptions = pgTable('customer_subscriptions', {
   index('customer_subscriptions_center_customer_date_idx').on(table.centerId, table.customerId, table.startDate, table.endDate),
   index('customer_subscriptions_center_product_date_idx').on(table.centerId, table.productId, table.startDate, table.endDate),
   index('customer_subscriptions_sale_idx').on(table.saleId),
+]);
+
+export const subscriptionRevenueSchedules = pgTable('subscription_revenue_schedules', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
+  subscriptionId: uuid('subscription_id').notNull().references(() => customerSubscriptions.id, { onDelete: 'cascade' }),
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  recognitionDate: date('recognition_date').notNull(),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  status: varchar('status', { length: 30 }).notNull().default('pending'),
+  journalEntryId: uuid('journal_entry_id'),
+  ...auditTimestamps,
+}, (table) => [
+  uniqueIndex('subscription_revenue_schedule_uq').on(table.subscriptionId, table.recognitionDate),
+  index('subscription_revenue_schedule_due_idx').on(table.centerId, table.recognitionDate, table.status),
 ]);
 
 export const taxRates = pgTable('tax_rates', {

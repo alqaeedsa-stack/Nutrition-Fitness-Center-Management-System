@@ -1,7 +1,7 @@
-import { and, desc, eq, ilike, or } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, lte, or } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { appointments, customerFollowUps, customers, fitnessPlans, measurementRecords, measurementTypes, nutritionPlans, sales, staffProfiles } from '../db/schema';
+import { appointments, customerFollowUps, customers, fitnessPlans, measurementRecords, measurementTypes, nutritionPlans, sales, staffProfiles, customerSubscriptions, products } from '../db/schema';
 import { customerAccounts } from '../db/customer-accounts';
 import { withDatabase } from '../db/client';
 import { requirePermission } from '../auth/permissions';
@@ -175,6 +175,126 @@ customerRoutes.get('/:id/360', async (c) => {
 
   if ('notFound' in result) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);
   return c.json(result);
+});
+
+const subscriptionSchema = z.object({
+  productId: z.string().uuid(),
+  startDate: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+  endDate: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+  saleId: z.string().uuid().nullable().optional(),
+  notes: z.string().trim().max(2000).optional().nullable(),
+});
+
+customerRoutes.get('/:id/subscriptions', async c => {
+  if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
+  const auth = await requirePermission(c, 'customers.read'); if ('error' in auth) return auth.error;
+  const customerId = c.req.param('id');
+  const customer = await withDatabase(c.env, db => db.select({ id: customers.id })
+    .from(customers).where(and(eq(customers.id, customerId), eq(customers.centerId, auth.user.centerId!))).limit(1));
+  if (!customer[0]) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);
+  const rows = await withDatabase(c.env, db => db.select({
+    id: customerSubscriptions.id,
+    productId: customerSubscriptions.productId,
+    productName: products.name,
+    sku: products.sku,
+    saleId: customerSubscriptions.saleId,
+    startDate: customerSubscriptions.startDate,
+    endDate: customerSubscriptions.endDate,
+    status: customerSubscriptions.status,
+    unitPrice: customerSubscriptions.unitPrice,
+    notes: customerSubscriptions.notes,
+  }).from(customerSubscriptions)
+    .innerJoin(products, eq(products.id, customerSubscriptions.productId))
+    .where(and(eq(customerSubscriptions.customerId, customerId), eq(customerSubscriptions.centerId, auth.user.centerId!)))
+    .orderBy(desc(customerSubscriptions.startDate)));
+  return c.json({ subscriptions: rows });
+});
+
+customerRoutes.get('/:id/subscriptions/options', async c => {
+  if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
+  const auth = await requirePermission(c, 'catalog.read'); if ('error' in auth) return auth.error;
+  const customerId = c.req.param('id');
+  const customer = await withDatabase(c.env, db => db.select({ id: customers.id })
+    .from(customers).where(and(eq(customers.id, customerId), eq(customers.centerId, auth.user.centerId!))).limit(1));
+  if (!customer[0]) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);
+  const rows = await withDatabase(c.env, db => db.select({
+    id: products.id, sku: products.sku, name: products.name, sellingPrice: products.sellingPrice,
+  }).from(products).where(and(
+    eq(products.centerId, auth.user.centerId!),
+    eq(products.active, true),
+    eq(products.productType, 'subscription'),
+  )).orderBy(asc(products.name)));
+  return c.json({ products: rows });
+});
+
+customerRoutes.post('/:id/subscriptions', async c => {
+  if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
+  const auth = await requirePermission(c, 'customers.update'); if ('error' in auth) return auth.error;
+  const customerId = c.req.param('id');
+  const parsed = subscriptionSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message ?? 'بيانات الاشتراك غير صحيحة' } }, 400);
+  const data = parsed.data;
+  if (data.endDate < data.startDate) return c.json({ error: { code: 'INVALID_DATE_RANGE', message: 'تاريخ النهاية يجب أن يكون بعد أو مساويًا لتاريخ البداية' } }, 400);
+
+  const result = await withDatabase(c.env, db => db.transaction(async tx => {
+    const customer = await tx.select({ id: customers.id }).from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.centerId, auth.user.centerId!), eq(customers.status, 'active'))).limit(1);
+    if (!customer[0]) return { error: 'CUSTOMER_NOT_FOUND' as const };
+
+    const product = await tx.select({ id: products.id, sellingPrice: products.sellingPrice, productType: products.productType, active: products.active })
+      .from(products).where(and(
+        eq(products.id, data.productId),
+        eq(products.centerId, auth.user.centerId!),
+        eq(products.active, true),
+      )).limit(1);
+    if (!product[0] || product[0].productType !== 'subscription') return { error: 'SUBSCRIPTION_PRODUCT_REQUIRED' as const };
+
+    if (data.saleId) {
+      const sale = await tx.select({ id: sales.id }).from(sales).where(and(
+        eq(sales.id, data.saleId),
+        eq(sales.centerId, auth.user.centerId!),
+        eq(sales.customerId, customerId),
+      )).limit(1);
+      if (!sale[0]) return { error: 'SALE_NOT_FOUND' as const };
+    }
+
+    const overlap = await tx.select({ id: customerSubscriptions.id }).from(customerSubscriptions).where(and(
+      eq(customerSubscriptions.customerId, customerId),
+      eq(customerSubscriptions.centerId, auth.user.centerId!),
+      eq(customerSubscriptions.productId, data.productId),
+      eq(customerSubscriptions.status, 'active'),
+      lte(customerSubscriptions.startDate, data.endDate),
+      gte(customerSubscriptions.endDate, data.startDate),
+    )).limit(1);
+    if (overlap[0]) return { error: 'SUBSCRIPTION_OVERLAP' as const };
+
+    const [row] = await tx.insert(customerSubscriptions).values({
+      centerId: auth.user.centerId!,
+      customerId,
+      productId: data.productId,
+      saleId: data.saleId ?? null,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      status: 'active',
+      unitPrice: product[0].sellingPrice,
+      notes: data.notes || null,
+      createdBy: auth.user.userId,
+      updatedBy: auth.user.userId,
+    }).returning();
+    return { subscription: row };
+  }));
+
+  if ('error' in result) {
+    const messages: Record<string, [string, number]> = {
+      CUSTOMER_NOT_FOUND: ['العميل غير موجود أو غير نشط', 404],
+      SUBSCRIPTION_PRODUCT_REQUIRED: ['يجب اختيار منتج من نوع اشتراك', 409],
+      SALE_NOT_FOUND: ['عملية البيع غير موجودة أو لا تخص هذا العميل', 409],
+      SUBSCRIPTION_OVERLAP: ['يوجد اشتراك نشط لنفس المنتج داخل نفس الفترة', 409],
+    };
+    const entry = messages[result.error];
+    return c.json({ error: { code: result.error, message: entry?.[0] ?? 'تعذر إنشاء الاشتراك' } }, entry?.[1] ?? 409);
+  }
+  return c.json({ subscription: result.subscription }, 201);
 });
 
 customerRoutes.post('/', async (c) => {

@@ -17,7 +17,7 @@ type Data = { customer: Customer; measurements: Measurement[]; nutrition: Plan[]
 type Staff = { id: string; name: string; staffType: string };
 type MeasurementType = { id: string; code: string; name: string; unit?: string | null };
 type AuthMe = { user: { id: string } };
-type StoreProduct = { id: string; sku: string; name: string; sellingPrice: string; purchaseCost: string; taxCode?: string | null; stock: number; active: boolean };
+type StoreProduct = { id: string; sku: string; name: string; sellingPrice: string; purchaseCost: string; taxCode?: string | null; stock: number; productType?: string; active: boolean };
 type SaleCartItem = StoreProduct & { quantity: number };
 
 const statusLabel: Record<string, string> = { active: 'نشطة', draft: 'مسودة', completed: 'مكتملة', cancelled: 'ملغاة', scheduled: 'مجدول', confirmed: 'مؤكد', no_show: 'لم يحضر', pending: 'قيد المعالجة', completed_sale: 'مكتمل', partially_returned: 'مرتجع جزئي', returned: 'مرتجع', refunded: 'مسترد' };
@@ -78,7 +78,7 @@ export default function Customer360() {
     try {
       if (next === 'sale') {
         const result = await apiFetch<{ products: StoreProduct[] }>('/store/admin/products');
-        setStoreProducts(result.products.filter(product => product.active));
+        setStoreProducts(result.products.filter(product => product.active && product.productType !== 'subscription'));
         setSaleCart([]);
         return;
       }
@@ -173,7 +173,7 @@ export default function Customer360() {
       setActionMessage(`تم إنشاء البيع ${result.sale.saleNumber} بقيمة ${result.sale.total} ريال وتحديث مخزون المنتجات وملف العميل.`);
       await load(true);
       const refreshed = await apiFetch<{ products: StoreProduct[] }>('/store/admin/products');
-      setStoreProducts(refreshed.products.filter(product => product.active));
+      setStoreProducts(refreshed.products.filter(product => product.active && product.productType !== 'subscription'));
     } catch (err) { setActionError(err instanceof Error ? err.message : 'تعذر إنشاء البيع.'); }
     finally { setSaving(false); }
   }

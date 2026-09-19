@@ -26,7 +26,11 @@ export type PermissionCode =
   | 'fitness.write'
   | 'reports.read'
   | 'reports.export'
-  | 'zatca.manage';
+  | 'zatca.manage'
+  | 'purchases.read'
+  | 'purchases.write'
+  | 'purchases.post'
+  | 'purchases.pay';
 
 export const PERMISSIONS: Array<{ code: PermissionCode; resource: string; action: string; name: string }> = [
   { code: 'staff.manage', resource: 'staff', action: 'manage', name: 'إدارة الموظفين والصلاحيات' },
@@ -52,6 +56,10 @@ export const PERMISSIONS: Array<{ code: PermissionCode; resource: string; action
   { code: 'reports.read', resource: 'reports', action: 'read', name: 'عرض التقارير' },
   { code: 'reports.export', resource: 'reports', action: 'export', name: 'تصدير التقارير' },
   { code: 'zatca.manage', resource: 'zatca', action: 'manage', name: 'إدارة ZATCA والفوترة الإلكترونية' },
+  { code: 'purchases.read', resource: 'purchases', action: 'read', name: 'عرض المشتريات والموردين' },
+  { code: 'purchases.write', resource: 'purchases', action: 'write', name: 'إنشاء وتعديل مستندات المشتريات' },
+  { code: 'purchases.post', resource: 'purchases', action: 'post', name: 'ترحيل فواتير الموردين' },
+  { code: 'purchases.pay', resource: 'purchases', action: 'pay', name: 'تسجيل مدفوعات الموردين' },
 ];
 
 export async function getUserPermissionCodes(env: any, userId: string) {

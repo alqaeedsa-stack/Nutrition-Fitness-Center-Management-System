@@ -39,3 +39,36 @@
 .customer-table td {
   padding: 9px 10px;
 }
+
+
+/* Customer workspace: fluid form and compact list controls */
+.customer-form {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.customer-toolbar {
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 150px) auto;
+}
+
+.customer-toolbar input,
+.customer-toolbar select {
+  min-height: 34px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.customer-stat {
+  padding: 9px 11px;
+}
+
+.customer-stat strong {
+  font-size: 17px;
+}
+
+@media (max-width: 720px) {
+  .customer-toolbar {
+    grid-template-columns: 1fr;
+  }
+}

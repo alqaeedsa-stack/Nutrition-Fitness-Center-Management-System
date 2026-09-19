@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, ne, notInArray, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
@@ -15,6 +15,8 @@ export type StaffBindings = {
 };
 
 export const staffRoutes = new Hono<{ Bindings: StaffBindings }>();
+
+const NON_STOCK_PRODUCT_TYPES = ['subscription', 'service'] as const;
 
 const staffTypeSchema = z.enum([
   'admin',
@@ -377,7 +379,7 @@ staffRoutes.get('/inventory', async c => {
     sellingPrice: products.sellingPrice, reorderPoint: products.reorderPoint,
     quantity: sql<number>`coalesce(sum(${stockMovements.quantity}), 0)`,
   }).from(products).leftJoin(stockMovements, eq(stockMovements.productId, products.id))
-    .where(and(eq(products.centerId, auth.user.centerId!), ne(products.productType, 'subscription'))).groupBy(products.id).orderBy(asc(products.name)));
+    .where(and(eq(products.centerId, auth.user.centerId!), notInArray(products.productType, [...NON_STOCK_PRODUCT_TYPES]))).groupBy(products.id).orderBy(asc(products.name)));
   const inventory = rows.map(row => ({
     ...row,
     lowStock: Number(row.quantity) <= Number(row.reorderPoint),
@@ -599,7 +601,7 @@ staffRoutes.post('/pos/sales', async c => {
     for (const item of data.items) {
       const product = productMap.get(item.productId)!;
       if (item.unitPrice < Number(product.purchaseCost)) return { error: 'BELOW_COST' as const, productId: item.productId };
-      if (product.productType !== 'subscription' && item.quantity > (available.get(item.productId) ?? 0)) return { error: 'INSUFFICIENT_STOCK' as const, productId: item.productId };
+      if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) && item.quantity > (available.get(item.productId) ?? 0)) return { error: 'INSUFFICIENT_STOCK' as const, productId: item.productId };
     }
 
     const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
@@ -653,7 +655,7 @@ staffRoutes.post('/pos/sales', async c => {
         notes: `صرف من نقطة البيع ${saleNumber}`,
       })));
     }
-    const cogs = data.items.reduce((sum, item) => sum + (productMap.get(item.productId)!.productType === 'subscription' ? 0 : item.quantity * Number(productMap.get(item.productId)!.purchaseCost)), 0);
+    const cogs = data.items.reduce((sum, item) => sum + (NON_STOCK_PRODUCT_TYPES.includes(productMap.get(item.productId)!.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) ? 0 : item.quantity * Number(productMap.get(item.productId)!.purchaseCost)), 0);
     await postSale(tx, { centerId: auth.user.centerId!, saleId: sale.id, saleNumber, saleDate: new Date().toISOString().slice(0,10), subtotal, tax, total, cogs, paymentMethod: data.paymentMethod, createdBy: auth.user.userId });
     return { sale };
   }));

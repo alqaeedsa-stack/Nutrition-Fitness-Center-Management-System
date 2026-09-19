@@ -183,3 +183,120 @@ body { background: #F8FAFC; }
   .odoo-module-tile { min-height:128px; }
   .odoo-dashboard-welcome { padding:16px; }
 }
+
+
+/* Odoo typography and text-color refinement
+   Keep the existing Arabic typeface; align hierarchy with Odoo:
+   dark neutral primary text, muted secondary text, subtle borders,
+   restrained accent links, and regular/medium weights. */
+:root {
+  --odoo-text: #212529;
+  --odoo-muted: #6C757D;
+  --odoo-border: #DEE2E6;
+  --odoo-link: #714B67;
+  --odoo-subtle: #F8F9FA;
+}
+html,
+body,
+#root {
+  color: var(--odoo-text);
+}
+body * {
+  font-weight: 400;
+}
+h1, h2, h3, h4, h5, h6,
+strong, b,
+button,
+label,
+th {
+  font-weight: 500;
+}
+p,
+span,
+td,
+li,
+small,
+input,
+select,
+textarea,
+option {
+  color: var(--odoo-text);
+}
+p,
+small {
+  color: var(--odoo-muted);
+}
+a {
+  color: var(--odoo-link);
+}
+input,
+select,
+textarea {
+  color: var(--odoo-text);
+  border-color: var(--odoo-border);
+}
+input::placeholder,
+textarea::placeholder {
+  color: #98A0A8;
+}
+.odoo-dashboard-brand h1,
+.odoo-dashboard-welcome h2,
+.odoo-section-heading h3,
+.odoo-module-tile strong,
+.odoo-sidebar-title strong,
+.odoo-side-title strong {
+  color: var(--odoo-text);
+  font-weight: 500;
+}
+.odoo-dashboard-welcome p,
+.odoo-module-tile p,
+.odoo-section-heading > span,
+.odoo-user-info span,
+.odoo-sidebar-group > span,
+.odoo-side-section span,
+.odoo-side-section small {
+  color: var(--odoo-muted);
+}
+.odoo-sidebar-group a,
+.odoo-side-links a {
+  color: #495057;
+  font-weight: 400;
+}
+.odoo-sidebar-group a:hover,
+.odoo-side-links a:hover {
+  color: var(--odoo-text);
+  background: #F3F4F6;
+}
+.odoo-sidebar-group a.active,
+.odoo-sidebar-group a.selected,
+.odoo-side-links a.selected {
+  color: var(--odoo-text);
+  background: #E9ECEF;
+  font-weight: 500;
+}
+.odoo-tile-code {
+  color: var(--odoo-link);
+  font-weight: 500;
+}
+.odoo-tile-open {
+  color: var(--odoo-link);
+}
+.odoo-dashboard-quick a {
+  color: #495057;
+  font-weight: 400;
+}
+.odoo-dashboard-quick a:hover {
+  color: var(--odoo-text);
+}
+.odoo-statusbar span {
+  color: var(--odoo-muted);
+  font-weight: 400;
+}
+.odoo-statusbar span.current {
+  color: #FFFFFF;
+  font-weight: 500;
+}
+.status,
+.module-status {
+  color: var(--odoo-muted);
+}

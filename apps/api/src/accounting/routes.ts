@@ -57,6 +57,21 @@ accountingRoutes.get('/journal-entries/:id',async c=>{
   const lines=await withDatabase(c.env,db=>db.execute(sql`select l.id,a.code as "accountCode",a.name as "accountName",l.description,l.debit,l.credit from journal_entry_lines l join accounting_accounts a on a.id=l.account_id where l.journal_entry_id=${c.req.param('id')} order by l.id`));
   return c.json({entry:r.rows[0],lines:lines.rows});
 });
+accountingRoutes.get('/reports/trial-balance',async c=>{
+  const auth=await access(c,'purchases.read'); if('error' in auth)return auth.error;
+  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(l.debit),0)::numeric(18,2) as debit,coalesce(sum(l.credit),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} group by a.id order by a.code`));
+  return c.json({accounts:r.rows});
+});
+accountingRoutes.get('/reports/income-statement',async c=>{
+  const auth=await access(c,'purchases.read'); if('error' in auth)return auth.error;
+  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(l.debit),0)::numeric(18,2) as debit,coalesce(sum(l.credit),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} and a.account_type in ('revenue','expense') group by a.id order by a.account_type,a.code`));
+  return c.json({accounts:r.rows});
+});
+accountingRoutes.get('/reports/balance-sheet',async c=>{
+  const auth=await access(c,'purchases.read'); if('error' in auth)return auth.error;
+  const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType",coalesce(sum(l.debit),0)::numeric(18,2) as debit,coalesce(sum(l.credit),0)::numeric(18,2) as credit from accounting_accounts a left join journal_entry_lines l on l.account_id=a.id left join journal_entries j on j.id=l.journal_entry_id and j.center_id=a.center_id and j.status='posted' where a.center_id=${auth.user.centerId!} and a.account_type in ('asset','liability','equity') group by a.id order by a.account_type,a.code`));
+  return c.json({accounts:r.rows});
+});
 accountingRoutes.get('/ledger/:accountId',async c=>{
   const auth=await access(c,'purchases.read'); if('error' in auth)return auth.error;
   const r=await withDatabase(c.env,db=>db.execute(sql`select a.id,a.code,a.name,a.account_type as "accountType" from accounting_accounts a where a.id=${c.req.param('accountId')} and a.center_id=${auth.user.centerId!} limit 1`));

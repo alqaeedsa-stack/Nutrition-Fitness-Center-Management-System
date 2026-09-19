@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { withDatabase } from '../db/client';
 import { purchaseBillItems, purchaseBills, purchaseOrderItems, purchaseOrders, purchasePayments, purchaseReceiptItems, products, vendors } from '../db/schema';
 import { requirePermission } from '../auth/permissions';
+import { postPurchaseBill, postPurchasePayment } from '../accounting/service';
 
 export type PurchaseBillingBindings = { HYPERDRIVE?: { connectionString: string }; DATABASE_URL?: string };
 export const purchaseBillingRoutes = new Hono<{ Bindings: PurchaseBillingBindings }>();
@@ -110,10 +111,49 @@ purchaseBillingRoutes.post('/bills', async c => {
   })); return c.json({bill:result},201);
 });
 
-purchaseBillingRoutes.post('/bills/:id/post', async c => { const auth=await access(c,'purchases.post'); if('error' in auth) return auth.error; const result=await withDatabase(c.env,db=>db.transaction(async tx=>{ const rows=await tx.select().from(purchaseBills).where(and(eq(purchaseBills.id,c.req.param('id')),eq(purchaseBills.centerId,auth.user.centerId!))).limit(1); const bill=rows[0]; if(!bill) throw new Error('فاتورة المورد غير موجودة'); if(bill.status!=='draft') throw new Error('لا يمكن ترحيل الفاتورة من حالتها الحالية'); await tx.update(purchaseBills).set({status:'posted',updatedAt:new Date()}).where(eq(purchaseBills.id,bill.id)); return {id:bill.id,billNumber:bill.billNumber,status:'posted'}; })); return c.json({bill:result}); });
+purchaseBillingRoutes.post('/bills/:id/post', async c => {
+  const auth=await access(c,'purchases.post'); if('error' in auth) return auth.error;
+  try {
+    const result=await withDatabase(c.env,db=>db.transaction(async tx=>{
+      const rows=await tx.select().from(purchaseBills).where(and(eq(purchaseBills.id,c.req.param('id')),eq(purchaseBills.centerId,auth.user.centerId!))).limit(1);
+      const bill=rows[0]; if(!bill) throw new Error('فاتورة المورد غير موجودة');
+      if(bill.status!=='draft') throw new Error('لا يمكن ترحيل الفاتورة من حالتها الحالية');
+      const entry=await postPurchaseBill(tx,{centerId:auth.user.centerId!,billId:bill.id,billNumber:bill.billNumber,billDate:String(bill.billDate),subtotal:Number(bill.subtotal),tax:Number((bill as any).tax ?? (bill as any).taxTotal ?? 0),createdBy:auth.user.userId});
+      await tx.update(purchaseBills).set({status:'posted',journalEntryId:entry.id,updatedAt:new Date()}).where(eq(purchaseBills.id,bill.id));
+      return {id:bill.id,billNumber:bill.billNumber,status:'posted',journalEntryId:entry.id,entryNumber:entry.entry_number};
+    }));
+    return c.json({bill:result});
+  } catch(e) {
+    const message=e instanceof Error?e.message:'تعذر ترحيل الفاتورة';
+    if(message.startsWith('ACCOUNTING_SETUP_REQUIRED:')) return c.json({error:{code:'ACCOUNTING_SETUP_REQUIRED',message:message.replace('ACCOUNTING_SETUP_REQUIRED: ','')}},409);
+    if(message==='ACCOUNTING_UNBALANCED') return c.json({error:{code:'ACCOUNTING_UNBALANCED',message:'لا يمكن ترحيل قيد غير متوازن'}},409);
+    return c.json({error:{code:'POST_FAILED',message}},400);
+  }
+});
 
-purchaseBillingRoutes.post('/payments', async c => { const auth=await access(c,'purchases.pay'); if('error' in auth) return auth.error; const parsed=paymentSchema.safeParse(await c.req.json().catch(()=>null)); if(!parsed.success) return c.json({error:{code:'VALIDATION_ERROR',message:'بيانات الدفعة غير صحيحة',details:parsed.error.flatten()}},400); const input=parsed.data;
-  const result=await withDatabase(c.env,db=>db.transaction(async tx=>{ const rows=await tx.select().from(purchaseBills).where(and(eq(purchaseBills.id,input.billId),eq(purchaseBills.centerId,auth.user.centerId!))).limit(1); const bill=rows[0]; if(!bill) throw new Error('فاتورة المورد غير موجودة'); if(!['posted','partially_paid'].includes(bill.status)) throw new Error('لا يمكن الدفع إلا لفاتورة مورد مرحّلة'); const balance=Number(bill.balanceDue); if(input.amount>balance+0.005) throw new Error('قيمة الدفعة تتجاوز الرصيد المستحق'); const number=paymentNumber(); const payment=await tx.insert(purchasePayments).values({centerId:auth.user.centerId!,vendorId:bill.vendorId,billId:bill.id,paymentNumber:number,paymentDate:input.paymentDate,amount:input.amount.toFixed(2),paymentMethod:input.paymentMethod,reference:input.reference??null,notes:input.notes??null,status:'posted',createdBy:auth.user.userId}).returning({paymentNumber:purchasePayments.paymentNumber}); const paid=Math.round((Number(bill.paidAmount)+input.amount)*100)/100; const remaining=Math.max(0,Math.round((Number(bill.total)-paid)*100)/100); const status=remaining<=0.005?'paid':'partially_paid'; await tx.update(purchaseBills).set({paidAmount:paid.toFixed(2),balanceDue:remaining.toFixed(2),status,updatedAt:new Date()}).where(eq(purchaseBills.id,bill.id)); return {paymentNumber:payment[0].paymentNumber,billNumber:bill.billNumber,amount:input.amount,remaining}; })); return c.json({payment:result},201);
+purchaseBillingRoutes.post('/payments', async c => {
+  const auth=await access(c,'purchases.pay'); if('error' in auth) return auth.error;
+  const parsed=paymentSchema.safeParse(await c.req.json().catch(()=>null)); if(!parsed.success) return c.json({error:{code:'VALIDATION_ERROR',message:'بيانات الدفعة غير صحيحة',details:parsed.error.flatten()}},400); const input=parsed.data;
+  try {
+    const result=await withDatabase(c.env,db=>db.transaction(async tx=>{
+      const rows=await tx.select().from(purchaseBills).where(and(eq(purchaseBills.id,input.billId),eq(purchaseBills.centerId,auth.user.centerId!))).limit(1);
+      const bill=rows[0]; if(!bill) throw new Error('فاتورة المورد غير موجودة'); if(!['posted','partially_paid'].includes(bill.status)) throw new Error('لا يمكن الدفع إلا لفاتورة مورد مرحّلة');
+      const balance=Number(bill.balanceDue); if(input.amount>balance+0.005) throw new Error('قيمة الدفعة تتجاوز الرصيد المستحق');
+      const number=paymentNumber();
+      const payment=await tx.insert(purchasePayments).values({centerId:auth.user.centerId!,vendorId:bill.vendorId,billId:bill.id,paymentNumber:number,paymentDate:input.paymentDate,amount:input.amount.toFixed(2),paymentMethod:input.paymentMethod,reference:input.reference??null,notes:input.notes??null,status:'posted',createdBy:auth.user.userId}).returning({id:purchasePayments.id,paymentNumber:purchasePayments.paymentNumber});
+      const entry=await postPurchasePayment(tx,{centerId:auth.user.centerId!,paymentId:payment[0].id,paymentNumber:payment[0].paymentNumber,paymentDate:input.paymentDate,amount:input.amount,createdBy:auth.user.userId});
+      const paid=Math.round((Number(bill.paidAmount)+input.amount)*100)/100; const remaining=Math.max(0,Math.round((Number(bill.total)-paid)*100)/100); const status=remaining<=0.005?'paid':'partially_paid';
+      await tx.update(purchasePayments).set({journalEntryId:entry.id}).where(eq(purchasePayments.id,payment[0].id));
+      await tx.update(purchaseBills).set({paidAmount:paid.toFixed(2),balanceDue:remaining.toFixed(2),status,updatedAt:new Date()}).where(eq(purchaseBills.id,bill.id));
+      return {paymentNumber:payment[0].paymentNumber,billNumber:bill.billNumber,amount:input.amount,remaining,journalEntryId:entry.id,entryNumber:entry.entry_number};
+    }));
+    return c.json({payment:result},201);
+  } catch(e) {
+    const message=e instanceof Error?e.message:'تعذر تسجيل الدفعة';
+    if(message.startsWith('ACCOUNTING_SETUP_REQUIRED:')) return c.json({error:{code:'ACCOUNTING_SETUP_REQUIRED',message:message.replace('ACCOUNTING_SETUP_REQUIRED: ','')}},409);
+    if(message==='ACCOUNTING_UNBALANCED') return c.json({error:{code:'ACCOUNTING_UNBALANCED',message:'لا يمكن ترحيل قيد غير متوازن'}},409);
+    return c.json({error:{code:'PAYMENT_FAILED',message}},400);
+  }
 });
 
 purchaseBillingRoutes.get('/payments', async c => { const auth=await access(c,'purchases.read'); if('error' in auth) return auth.error; const rows=await withDatabase(c.env,db=>db.select({id:purchasePayments.id,paymentNumber:purchasePayments.paymentNumber,paymentDate:purchasePayments.paymentDate,amount:purchasePayments.amount,paymentMethod:purchasePayments.paymentMethod,reference:purchasePayments.reference,vendorId:purchasePayments.vendorId,vendorName:vendors.name,billId:purchasePayments.billId,billNumber:purchaseBills.billNumber}).from(purchasePayments).innerJoin(vendors,eq(vendors.id,purchasePayments.vendorId)).leftJoin(purchaseBills,eq(purchaseBills.id,purchasePayments.billId)).where(eq(purchasePayments.centerId,auth.user.centerId!)).orderBy(desc(purchasePayments.paymentDate),desc(purchasePayments.createdAt))); return c.json({payments:rows}); });

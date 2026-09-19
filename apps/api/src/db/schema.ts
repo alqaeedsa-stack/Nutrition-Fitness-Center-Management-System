@@ -449,6 +449,7 @@ export const purchaseOrderItems = pgTable('purchase_order_items', {
   description: varchar('description', { length: 250 }),
   quantity: numeric('quantity', { precision: 14, scale: 3 }).notNull(),
   receivedQuantity: numeric('received_quantity', { precision: 14, scale: 3 }).notNull().default('0'),
+  returnedQuantity: numeric('returned_quantity', { precision: 14, scale: 3 }).notNull().default('0'),
   unitCost: numeric('unit_cost', { precision: 14, scale: 2 }).notNull(),
   tax: numeric('tax', { precision: 14, scale: 2 }).notNull().default('0'),
   lineTotal: numeric('line_total', { precision: 14, scale: 2 }).notNull(),

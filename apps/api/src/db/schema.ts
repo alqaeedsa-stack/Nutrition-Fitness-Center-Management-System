@@ -304,6 +304,26 @@ export const saleItems = pgTable('sale_items', {
   lineTotal: numeric('line_total', { precision: 14, scale: 2 }).notNull(),
 });
 
+export const customerSubscriptions = pgTable('customer_subscriptions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
+  customerId: uuid('customer_id').notNull().references(() => customers.id),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  saleId: uuid('sale_id').references(() => sales.id),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
+  status: varchar('status', { length: 30 }).notNull().default('active'),
+  unitPrice: numeric('unit_price', { precision: 14, scale: 2 }).notNull().default('0'),
+  notes: text('notes'),
+  createdBy: uuid('created_by').notNull().references(() => users.id),
+  updatedBy: uuid('updated_by').notNull().references(() => users.id),
+  ...auditTimestamps,
+}, (table) => [
+  index('customer_subscriptions_center_customer_date_idx').on(table.centerId, table.customerId, table.startDate, table.endDate),
+  index('customer_subscriptions_center_product_date_idx').on(table.centerId, table.productId, table.startDate, table.endDate),
+  index('customer_subscriptions_sale_idx').on(table.saleId),
+]);
+
 export const taxRates = pgTable('tax_rates', {
   id: uuid('id').defaultRandom().primaryKey(),
   centerId: uuid('center_id').notNull().references(() => centers.id),

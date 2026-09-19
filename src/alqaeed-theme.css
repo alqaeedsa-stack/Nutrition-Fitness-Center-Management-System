@@ -376,3 +376,24 @@ html[dir="rtl"] .odoo-dashboard-quick {
     padding: 4px 8px;
   }
 }
+
+
+/* Final ERP typography normalization */
+body { font-size: 14px; line-height: 1.6; }
+button, input, select, textarea { font-size: 14px; line-height: 1.45; }
+label { font-size: 14px; line-height: 1.55; }
+h1 { font-size: 24px; line-height: 1.35; }
+h2 { font-size: 20px; line-height: 1.4; }
+h3 { font-size: 17px; line-height: 1.45; }
+h4, h5, h6 { font-size: 15px; line-height: 1.5; }
+small { font-size: 12px; line-height: 1.55; }
+.eyebrow { font-size: 11px; line-height: 1.4; letter-spacing: 0; }
+.odoo-tile-code, .odoo-section-heading > span { display: none; }
+.odoo-dashboard-brand h1 { font-size: 20px; }
+.odoo-dashboard-welcome h2 { font-size: 22px; }
+.odoo-module-tile strong { font-size: 15px; }
+.odoo-module-tile p { font-size: 13px; }
+.odoo-side-title strong { font-size: 16px; }
+.odoo-side-links a { font-size: 14px; }
+.odoo-sidebar-group a { font-size: 14px; }
+.odoo-statusbar span { font-size: 13px; }

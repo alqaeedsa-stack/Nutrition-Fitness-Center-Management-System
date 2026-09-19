@@ -93,8 +93,8 @@ export default function Reports({ user }: { user: { staffType?: string | null; p
       ['الحركة', 'نوع الحركة', 'الكمية', 'الفترة'],
       ...data.movementTotals.map(row => ['المخزون', movementLabels[row.movementType] ?? row.movementType, row.quantity, `${data.from} — ${data.to}`]),
       [],
-      ['المبيعات اليومية', 'التاريخ', 'عدد العمليات', 'الإجمالي'],
-      ...data.dailySales.map(row => ['المبيعات اليومية', row.date, String(row.count), row.total]),
+      ['الالمبيعات اليوميةية', 'التاريخ', 'عدد العمليات', 'الإجمالي'],
+      ...data.dailySales.map(row => ['الالمبيعات اليوميةية', row.date, String(row.count), row.total]),
     ];
     const csv = '\uFEFF' + rows.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
@@ -131,19 +131,19 @@ export default function Reports({ user }: { user: { staffType?: string | null; p
 
     {data && !loading && <>
       <section className="module-grid">
-        <article className="module-card"><span className="module-code">SALES</span><h3>إجمالي المبيعات</h3><strong>{formatMoney(data.summary.salesTotal)}</strong><small>{data.summary.salesCount} عملية مكتملة</small></article>
-        <article className="module-card"><span className="module-code">VAT</span><h3>الضريبة المسجلة</h3><strong>{formatMoney(data.summary.taxTotal)}</strong><small>ضمن المبيعات المكتملة</small></article>
-        <article className="module-card"><span className="module-code">INVENTORY</span><h3>قيمة المخزون</h3><strong>{formatMoney(data.summary.inventoryValue)}</strong><small>بناءً على تكلفة الشراء الحالية</small></article>
-        <article className="module-card"><span className="module-code">ALERTS</span><h3>تحت حد الطلب</h3><strong>{data.summary.lowStockCount}</strong><small>{data.summary.outOfStockCount} صنف نفد مخزونه</small></article>
+        <article className="module-card"><span className="module-code">المبيعات</span><h3>إجمالي المبيعات</h3><strong>{formatMoney(data.summary.salesTotal)}</strong><small>{data.summary.salesCount} عملية مكتملة</small></article>
+        <article className="module-card"><span className="module-code">الضريبة</span><h3>الضريبة المسجلة</h3><strong>{formatMoney(data.summary.taxTotal)}</strong><small>ضمن المبيعات المكتملة</small></article>
+        <article className="module-card"><span className="module-code">المخزون</span><h3>قيمة المخزون</h3><strong>{formatMoney(data.summary.inventoryValue)}</strong><small>بناءً على تكلفة الشراء الحالية</small></article>
+        <article className="module-card"><span className="module-code">التنبيهات</span><h3>تحت حد الطلب</h3><strong>{data.summary.lowStockCount}</strong><small>{data.summary.outOfStockCount} صنف نفد مخزونه</small></article>
       </section>
 
       <section className="module-grid">
-        <article className="module-card"><span className="module-code">RETURNS</span><h3>المرتجعات</h3><strong>{data.summary.returnedCount}</strong><small>{formatMoney(data.summary.returnedTotal)} إجمالي العمليات المرتجعة</small></article>
-        <article className="module-card"><span className="module-code">VOIDED</span><h3>المبيعات الملغاة</h3><strong>{data.summary.voidedCount}</strong><small>عمليات أُلغيت وعُكس مخزونها</small></article>
+        <article className="module-card"><span className="module-code">المرتجعات</span><h3>المرتجعات</h3><strong>{data.summary.returnedCount}</strong><small>{formatMoney(data.summary.returnedTotal)} إجمالي العمليات المرتجعة</small></article>
+        <article className="module-card"><span className="module-code">المبيعات الملغاة</span><h3>المبيعات الملغاة</h3><strong>{data.summary.voidedCount}</strong><small>عمليات أُلغيت وعُكس مخزونها</small></article>
       </section>
 
       <section className="panel">
-        <div className="panel-heading-row"><div><p className="eyebrow">مبيعات اليوم</p><h2>المبيعات اليومية</h2></div><span>{data.from} — {data.to}</span></div>
+        <div className="panel-heading-row"><div><p className="eyebrow">المبيعات اليومية</p><h2>الالمبيعات اليوميةية</h2></div><span>{data.from} — {data.to}</span></div>
         {!data.dailySales.length ? <p className="empty-state">لا توجد مبيعات مكتملة في الفترة المحددة.</p> :
           <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>التاريخ</th><th>عدد العمليات</th><th>الإجمالي</th><th>مؤشر</th></tr></thead><tbody>
             {data.dailySales.map(row => <tr key={row.date}><td>{row.date}</td><td>{row.count}</td><td>{formatMoney(row.total)}</td><td><div style={{ minWidth: 120 }}><div style={{ width: Math.max(4, Number(row.total) / maxDaily * 100) + '%', height: 8, borderRadius: 4, background: 'currentColor' }} /></div></td></tr>)}

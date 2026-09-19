@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from './lib/api';
+import PurchaseWorkspaceNav from './PurchaseWorkspaceNav';
 
 type BillingOrder={id:string;poNumber:string;vendorId:string;vendorName:string;orderDate:string;status:string;total:string};
 type Candidate={id:string;productId:string;productName:string;description:string|null;ordered:string;received:string;returned:string;unitCost:string;alreadyBilled:number;availableToBill:number};
@@ -95,7 +96,7 @@ export default function VendorBilling(){
 
   const openBills=bills.filter(x=>['posted','partially_paid'].includes(x.status));
 
-  return <main className="app-shell">
+  return <main className="app-shell"><div className="odoo-workspace"><PurchaseWorkspaceNav /><div className="odoo-workspace-main">
     <header className="app-header">
       <div><span className="eyebrow">VENDOR ACCOUNTING</span><h1>فواتير الموردين والمدفوعات</h1><p>فصل واضح بين الاستلام التشغيلي والفاتورة والالتزام المالي والدفع.</p></div>
     </header>
@@ -142,5 +143,5 @@ export default function VendorBilling(){
       </section>
       <section className="panel">{statement&&<><div className="panel-heading-row"><div><p className="eyebrow">LEDGER</p><h2>{statement.vendor.name}</h2></div></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>التاريخ</th><th>المستند</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead><tbody>{statement.ledger.map(x=><tr key={x.type+x.id}><td>{x.date}</td><td>{x.number}</td><td>{x.description}</td><td>{x.debit.toFixed(2)}</td><td>{x.credit.toFixed(2)}</td><td>{x.balance}</td></tr>)}</tbody></table></div></>}{!statement&&<p>اختر موردًا لعرض كشف الحساب.</p>}</section>
     </section>}
-  </main>;
+  </div></div></main>;
 }

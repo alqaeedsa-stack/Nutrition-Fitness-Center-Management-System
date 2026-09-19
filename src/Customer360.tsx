@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { apiFetch } from './lib/api';
+import { OdooChatter, OdooSmartButtons, OdooStatusbar, OdooWizard } from './components/OdooERP';
 
 type Customer = { id: string; customerNumber: string; firstName: string; lastName: string; phone?: string | null; email?: string | null; dateOfBirth?: string | null; gender?: string | null; status: string; source?: string | null; notes?: string | null };
 type Measurement = { id: string; value: string; measuredAt: string; notes?: string | null; typeName: string; unit?: string | null };
@@ -304,6 +305,17 @@ export default function Customer360() {
         <div className="header-actions"><span className="live-search-status">{refreshing ? 'جاري التحديث...' : 'تحديث تلقائي'}</span><button className="secondary-button" type="button" onClick={() => void load(true)}>تحديث الآن</button><Link className="secondary-button" to="/admin/customers">العملاء</Link><Link className="secondary-button" to="/admin/dashboard">لوحة التحكم</Link></div>
       </header>
 
+      <OdooStatusbar current={customer.status === 'active' ? 'active' : 'inactive'} steps={[{ key: 'active', label: 'نشط' }, { key: 'inactive', label: 'غير نشط' }]} />
+
+      <OdooSmartButtons buttons={[
+        { label: 'المواعيد', value: appointments.length, onClick: () => void openAction('appointment') },
+        { label: 'القياسات', value: measurements.length, onClick: () => void openAction('measurement') },
+        { label: 'المتابعات', value: followUps.length, onClick: () => void openAction('followUp') },
+        { label: 'الخطط الغذائية', value: nutrition.length, onClick: () => void openAction('nutrition') },
+        { label: 'خطط اللياقة', value: fitness.length, onClick: () => void openAction('fitness') },
+        { label: 'المبيعات', value: sales.length, onClick: () => void openAction('sale') },
+      ]} />
+
       <section className="customer-action-bar">
         <div className="customer-action-title"><span className="eyebrow">إجراءات سريعة</span><strong>العمل على العميل مباشرة</strong></div>
         <div className="customer-action-links">
@@ -318,8 +330,12 @@ export default function Customer360() {
       </section>
 
       {action && (
-        <section className="customer-action-panel panel">
-          <div className="panel-heading-row"><div><span className="eyebrow">{action === 'measurement' ? 'قياس جديد' : action === 'followUp' ? 'متابعة جديدة' : action === 'appointment' ? 'موعد جديد' : action === 'nutrition' ? 'خطة غذائية جديدة' : action === 'fitness' ? 'خطة لياقة جديدة' : action === 'sale' ? 'بيع للعميل' : action === 'returnSale' ? 'مرتجع جزئي' : detailPlan?.kind === 'nutrition' ? 'عناصر الخطة الغذائية' : 'تمارين الخطة الرياضية'}</span><h2>{action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : action === 'sale' ? 'إنشاء بيع للعميل' : action === 'returnSale' ? 'مرتجع جزئي من عملية بيع' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}</h2></div><button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button></div>
+        <OdooWizard
+          open={true}
+          onClose={() => setAction(null)}
+          title={action === 'measurement' ? 'إضافة قياس للعميل' : action === 'followUp' ? 'تسجيل متابعة للعميل' : action === 'appointment' ? 'حجز موعد للعميل' : action === 'nutrition' ? 'إنشاء خطة غذائية للعميل' : action === 'fitness' ? 'إنشاء خطة لياقة للعميل' : action === 'sale' ? 'إنشاء بيع للعميل' : action === 'returnSale' ? 'مرتجع جزئي من عملية بيع' : detailPlan ? (detailPlan.kind === 'nutrition' ? 'تفاصيل الخطة الغذائية' : 'تفاصيل خطة اللياقة') : ''}}
+          footer={<button className="secondary-button" type="button" onClick={() => setAction(null)}>إغلاق</button>}
+        >
           {actionError && <div className="info-strip warning">{actionError}</div>}
           {actionMessage && <div className="info-strip">{actionMessage}</div>}
 
@@ -419,7 +435,8 @@ export default function Customer360() {
             <label>ملاحظات الموعد<textarea value={appointment.notes} onChange={e => setAppointment(v => ({ ...v, notes: e.target.value }))} /></label>
             <button className="primary-action button" disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ الموعد'}</button>
           </form>}
-        </section>
+
+        </OdooWizard>
       )}
 
       <section className="customer-kpi-grid">
@@ -436,6 +453,15 @@ export default function Customer360() {
       </section>
 
       {customer.notes && <section className="panel"><div className="section-heading left"><span className="eyebrow">ملاحظات</span><h2>ملاحظات العميل</h2></div><p>{customer.notes}</p></section>}
+
+      <OdooChatter
+        notes={customer.notes ? [customer.notes] : []}
+        activities={[
+          { title: 'آخر متابعة', date: followUps[0] ? new Date(followUps[0].followUpAt).toLocaleString('ar-SA') : undefined, detail: followUps[0]?.recommendations || followUps[0]?.notes || undefined },
+          { title: 'آخر موعد', date: appointments[0] ? new Date(appointments[0].startsAt).toLocaleString('ar-SA') : undefined, detail: appointments[0]?.appointmentType },
+          { title: 'آخر عملية بيع', date: sales[0] ? new Date(sales[0].createdAt).toLocaleString('ar-SA') : undefined, detail: sales[0] ? `${sales[0].saleNumber} · ${sales[0].total} ر.س` : undefined },
+        ].filter(activity => activity.date || activity.detail)}
+      />
 
       <section className="module-grid customer-live-grid">
         <article className="module-card"><span className="module-code">FOLLOW-UP</span><h3>المتابعات الدورية</h3>{followUps.length ? <div className="portal-data-list">{followUps.slice(0, 5).map(f => <div className="portal-data-row" key={f.id}><strong>{new Date(f.followUpAt).toLocaleDateString('ar-SA')}</strong><span>{f.weight ? f.weight + ' كجم' : '—'}{f.adherenceScore == null ? '' : ' · ' + f.adherenceScore + '%'}</span><small>{f.staffName || '—'}{f.nextFollowUpAt ? ' · التالية ' + new Date(f.nextFollowUpAt).toLocaleDateString('ar-SA') : ''}</small></div>)}</div> : <div className="empty-state">لا توجد متابعات.</div>}<button className="text-link button-link" type="button" onClick={() => void openAction('followUp')}>إضافة متابعة</button></article>

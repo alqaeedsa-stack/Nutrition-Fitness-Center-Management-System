@@ -592,3 +592,20 @@ h2 { font-size: clamp(25px, 5vw, 42px); line-height: 1.25; }
     padding: 14px 12px;
   }
 }
+
+
+/* Truly fluid card grids */
+.app-shell .module-grid,
+.app-shell .workspace-grid,
+.app-shell .staff-management-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.app-shell .feature-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.app-shell select option {
+  font-size: 12px;
+  padding: 4px 8px;
+}

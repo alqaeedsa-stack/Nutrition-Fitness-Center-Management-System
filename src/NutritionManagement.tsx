@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { apiFetch } from './lib/api';
 
 type User = { id: string; staffType?: string | null; permissions?: string[] };
@@ -13,7 +12,6 @@ export default function NutritionManagement({ user }: { user: User }) {
   const can = (p: string) => isAdmin || (user.permissions ?? []).includes(p);
   const canWrite = can('nutrition.write');
   const statusLabel: Record<string,string> = { draft:'مسودة', active:'نشطة', completed:'مكتملة', cancelled:'ملغاة' };
-  const staffTypeLabel: Record<string,string> = { admin:'إدارة', doctor:'طبيب', nutritionist:'أخصائي تغذية', trainer:'مدرب', employee:'موظف', cashier:'كاشير', warehouse:'مخازن' };
   const [plans, setPlans] = useState<Plan[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [specialists, setSpecialists] = useState<Specialist[]>([]);

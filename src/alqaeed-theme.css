@@ -843,3 +843,58 @@ button:disabled,
   transform: none;
   box-shadow: none;
 }
+
+
+/* Compact grouped module navigation — Odoo-style workspace tabs */
+.erp-module-nav {
+  display:flex;
+  align-items:center;
+  gap:3px;
+  margin:0 0 8px;
+  padding:3px;
+  border:1px solid #D7E9E2;
+  border-radius:8px;
+  background:#F8FFFC;
+  overflow-x:auto;
+  scrollbar-width:thin;
+}
+.erp-module-nav a {
+  flex:0 0 auto;
+  padding:7px 11px;
+  border-radius:6px;
+  color:#356B5B;
+  text-decoration:none;
+  font-size:12px;
+  line-height:1.35;
+  white-space:nowrap;
+}
+.erp-module-nav a:hover {
+  background:#ECFDF5;
+  color:#065F46;
+}
+.erp-module-nav a.active {
+  background:#059669;
+  color:#FFFFFF;
+  box-shadow:0 2px 5px rgba(5,150,105,.14);
+}
+.erp-route-chrome {
+  margin-bottom:6px;
+}
+.erp-route-chrome .erp-breadcrumbs {
+  margin-bottom:6px;
+}
+.erp-route-chrome .erp-page-tools {
+  margin-bottom:8px;
+}
+.erp-route-chrome .erp-search-toolbar {
+  min-width:0;
+}
+@media(max-width:560px) {
+  .erp-module-nav {
+    margin-bottom:6px;
+  }
+  .erp-module-nav a {
+    padding:7px 9px;
+    font-size:12px;
+  }
+}

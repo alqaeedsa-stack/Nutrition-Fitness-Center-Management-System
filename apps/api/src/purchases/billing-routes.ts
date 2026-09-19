@@ -121,7 +121,7 @@ purchaseBillingRoutes.post('/bills/:id/post', async c => {
       const bill=rows[0]; if(!bill) throw new Error('فاتورة المورد غير موجودة');
       if(bill.status!=='draft') throw new Error('لا يمكن ترحيل الفاتورة من حالتها الحالية');
       const billItems=await tx.select({
-        amount: sql<string>`sum(\${purchaseBillItems.lineTotal})`,
+        amount: sql<string>`sum(\${purchaseBillItems.lineTotal} - \${purchaseBillItems.taxAmount})`,
         productId: purchaseBillItems.productId,
         purchaseAccountId: products.purchaseAccountId,
         inventoryAccountId: products.inventoryAccountId,

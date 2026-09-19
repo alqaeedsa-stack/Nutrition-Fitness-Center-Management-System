@@ -34,6 +34,7 @@ export default function CustomerPortal({ onLogout }: Props) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const statusLabel: Record<string,string> = { draft:'مسودة', active:'نشطة', completed:'مكتملة', cancelled:'ملغاة', scheduled:'مجدول', confirmed:'مؤكد', pending:'جديد', returned:'مرتجع', partially_returned:'مرتجع جزئي' };
 
   useEffect(() => {
     async function load() {
@@ -132,7 +133,7 @@ export default function CustomerPortal({ onLogout }: Props) {
           <h3>الخطة الغذائية</h3>
           {nutritionPlans.length ? (
             <div className="portal-data-list">{nutritionPlans.slice(0, 3).map(plan => (
-              <div className="portal-data-row" key={plan.id}><strong>{plan.title}</strong><span>{plan.status}</span><small>{plan.startDate}{plan.endDate ? ` — ${plan.endDate}` : ''}</small></div>
+              <div className="portal-data-row" key={plan.id}><strong>{plan.title}</strong><span>{statusLabel[plan.status] ?? plan.status}</span><small>{plan.startDate}{plan.endDate ? ` — ${plan.endDate}` : ''}</small></div>
             ))}</div>
           ) : <EmptyModule text="لا توجد خطة غذائية منشورة لك حتى الآن." />}
         </article>
@@ -142,7 +143,7 @@ export default function CustomerPortal({ onLogout }: Props) {
           <h3>خطة اللياقة</h3>
           {fitnessPlans.length ? (
             <div className="portal-data-list">{fitnessPlans.slice(0, 3).map(plan => (
-              <div className="portal-data-row" key={plan.id}><strong>{plan.title}</strong><span>{plan.status}</span><small>{plan.startDate}{plan.endDate ? ` — ${plan.endDate}` : ''}</small></div>
+              <div className="portal-data-row" key={plan.id}><strong>{plan.title}</strong><span>{statusLabel[plan.status] ?? plan.status}</span><small>{plan.startDate}{plan.endDate ? ` — ${plan.endDate}` : ''}</small></div>
             ))}</div>
           ) : <EmptyModule text="لا توجد خطة لياقة منشورة لك حتى الآن." />}
         </article>
@@ -152,7 +153,7 @@ export default function CustomerPortal({ onLogout }: Props) {
           <h3>المواعيد القادمة</h3>
           {upcomingAppointments.length ? (
             <div className="portal-data-list">{upcomingAppointments.map(a => (
-              <div className="portal-data-row" key={a.id}><strong>{a.appointmentType}</strong><span>{a.status}</span><small>{new Date(a.startsAt).toLocaleString('ar-SA')}</small></div>
+              <div className="portal-data-row" key={a.id}><strong>{a.appointmentType}</strong><span>{statusLabel[a.status] ?? a.status}</span><small>{new Date(a.startsAt).toLocaleString('ar-SA')}</small></div>
             ))}</div>
           ) : <EmptyModule text="لا توجد مواعيد قادمة مسجلة لك." />}
         </article>
@@ -162,7 +163,7 @@ export default function CustomerPortal({ onLogout }: Props) {
           <h3>مشترياتي</h3>
           {orders.length ? (
             <div className="portal-data-list">{orders.slice(0, 5).map(order => (
-              <div className="portal-data-row" key={order.id}><strong>{order.saleNumber}</strong><span>{order.total} ر.س</span><small>{order.status} · {new Date(order.createdAt).toLocaleDateString('ar-SA')}</small></div>
+              <div className="portal-data-row" key={order.id}><strong>{order.saleNumber}</strong><span>{order.total} ر.س</span><small>{statusLabel[order.status] ?? order.status} · {new Date(order.createdAt).toLocaleDateString('ar-SA')}</small></div>
             ))}</div>
           ) : <EmptyModule text="لا توجد مشتريات مسجلة لك حتى الآن." />}
         </article>

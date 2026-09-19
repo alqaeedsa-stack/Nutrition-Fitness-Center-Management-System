@@ -376,9 +376,9 @@ staffRoutes.post('/products', async c => {
     const row = await tx.insert(products).values({
       centerId: auth.user.centerId!, sku: data.sku, name: data.name, categoryId: data.categoryId,
       brandId: data.brandId ?? null, productType: data.productType,
-      purchaseCost: NON_STOCK_PRODUCT_TYPES.includes(data.productType) ? '0.00' : data.purchaseCost.toFixed(2),
+      purchaseCost: (data.productType === 'service' || data.productType === 'subscription') ? '0.00' : data.purchaseCost.toFixed(2),
       sellingPrice: data.sellingPrice.toFixed(2), taxCode: data.taxCode ?? null,
-      reorderPoint: NON_STOCK_PRODUCT_TYPES.includes(data.productType) ? '0.000' : data.reorderPoint.toFixed(3),
+      reorderPoint: (data.productType === 'service' || data.productType === 'subscription') ? '0.000' : data.reorderPoint.toFixed(3),
       active: data.active, ...settings,
     }).returning();
     return { product: row[0] };
@@ -570,7 +570,7 @@ staffRoutes.post('/inventory/receipt', async c => {
   }));
 
   if ('error' in result) {
-    return c.json({ error: { code: result.error, message: result.error === 'PHYSICAL_PRODUCT_REQUIRED' ? 'الاستلام المباشر مخصص للمنتجات المخزنية فقط' : result.error === 'PRODUCT_NOT_FOUND' ? 'أحد المنتجات غير موجود أو موقوف' : 'تعذر تسجيل الاستلام' } }, 409);
+    return c.json({ error: { code: result.error, message: result.error === 'PHYSICAL_PRODUCT_REQUIRED' ? 'الاستلام المباشر مخصص للمنتجات المخزنية فقط' : result.error === 'SERIAL_QUANTITY_MUST_BE_INTEGER' ? 'الصنف المتتبع بالسيريال يجب استلامه بكميات صحيحة' : result.error === 'SERIAL_MANUAL_REQUIRED' ? 'هذا الصنف يحتاج إدخال السيريالات يدويًا قبل الاستلام' : result.error === 'PRODUCT_NOT_FOUND' ? 'أحد المنتجات غير موجود أو موقوف' : 'تعذر تسجيل الاستلام' } }, 409);
   }
   return c.json({ ok: true, ...result }, 201);
 });

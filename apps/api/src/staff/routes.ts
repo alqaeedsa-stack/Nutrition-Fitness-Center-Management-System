@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gte, inArray, lt, ne, notInArray, or, sql } from 'd
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
-import { auditLogs, brands, categories, customers, productBarcodes, products, saleItems, sales, stockMovements, staffProfiles, users, permissions, userPermissions } from '../db/schema';
+import { auditLogs, brands, categories, centers, customers, productBarcodes, products, saleItems, sales, stockMovements, staffProfiles, users, permissions, userPermissions } from '../db/schema';
 import { storeOrderItems, storeOrders } from '../db/store';
 import { requirePermission, PERMISSIONS, getUserPermissionCodes, type PermissionCode } from '../auth/permissions';
 import { hashPassword } from '../auth/password';
@@ -351,7 +351,7 @@ staffRoutes.get('/products/:id', async c => {
     deferredRevenueAccountId: products.deferredRevenueAccountId, subscriptionRevenueAccountId: products.subscriptionRevenueAccountId,
   }).from(products).where(and(eq(products.id, c.req.param('id')), eq(products.centerId, auth.user.centerId!))).limit(1));
   if (!rows[0]) return c.json({ error: { code: 'PRODUCT_NOT_FOUND', message: 'المنتج غير موجود' } }, 404);
-  const center = await withDatabase(c.env, db => db.select({ inventoryValuationMethod: sql<string>`inventory_valuation_method` }).from(sql`centers`).where(sql`id = ${auth.user.centerId!}`).limit(1));
+  const center = await withDatabase(c.env, db => db.select({ inventoryValuationMethod: centers.inventoryValuationMethod }).from(centers).where(eq(centers.id, auth.user.centerId!)).limit(1));
   return c.json({ product: rows[0], centerDefaultInventoryValuationMethod: center[0]?.inventoryValuationMethod ?? 'perpetual' });
 });
 
@@ -423,10 +423,29 @@ staffRoutes.patch('/products/:id', async c => {
       ...(data.sellingPrice !== undefined ? { sellingPrice: data.sellingPrice.toFixed(2) } : {}),
       ...(data.taxCode !== undefined ? { taxCode: data.taxCode } : {}),
       ...(data.active !== undefined ? { active: data.active } : {}),
-      ...(Object.keys(data).some(k => ['inventoryValuationMethod','costMethod','inventoryTracking','serialAutoGenerate','serialPrefix','allowNegativeStock','expiryTracking','posAvailable','ecommerceAvailable','requiresCustomer','requiresSpecialist','purchaseAllowed','salesUom','purchaseUom','minimumSalesPrice','inventoryAccountId','costOfSalesAccountId','revenueAccountId','purchaseAccountId','salesReturnAccountId','purchaseReturnAccountId','deferredRevenueAccountId','subscriptionRevenueAccountId'].includes(k)) ? normalizeProductSettings({ ...({
-        sku: existing[0].id, name: 'x', categoryId: existing[0].categoryId, productType: existing[0].productType,
-        purchaseCost: 0, sellingPrice: 0, taxCode: null, reorderPoint: 0, active: true,
-      } as any), ...data }) : {}),
+      ...(data.inventoryValuationMethod !== undefined ? { inventoryValuationMethod: data.inventoryValuationMethod === 'inherit' ? null : data.inventoryValuationMethod } : {}),
+      ...(data.costMethod !== undefined ? { costMethod: data.costMethod === 'inherit' ? null : data.costMethod } : {}),
+      ...(data.inventoryTracking !== undefined ? { inventoryTracking: data.inventoryTracking, serialTracking: data.inventoryTracking === 'serial' } : {}),
+      ...(data.serialAutoGenerate !== undefined ? { serialAutoGenerate: data.serialAutoGenerate } : {}),
+      ...(data.serialPrefix !== undefined ? { serialPrefix: data.serialPrefix ?? null } : {}),
+      ...(data.allowNegativeStock !== undefined ? { allowNegativeStock: data.allowNegativeStock } : {}),
+      ...(data.expiryTracking !== undefined ? { expiryTracking: data.expiryTracking } : {}),
+      ...(data.posAvailable !== undefined ? { posAvailable: data.posAvailable } : {}),
+      ...(data.ecommerceAvailable !== undefined ? { ecommerceAvailable: data.ecommerceAvailable } : {}),
+      ...(data.requiresCustomer !== undefined ? { requiresCustomer: data.requiresCustomer } : {}),
+      ...(data.requiresSpecialist !== undefined ? { requiresSpecialist: data.requiresSpecialist } : {}),
+      ...(data.purchaseAllowed !== undefined ? { purchaseAllowed: data.purchaseAllowed } : {}),
+      ...(data.salesUom !== undefined ? { salesUom: data.salesUom } : {}),
+      ...(data.purchaseUom !== undefined ? { purchaseUom: data.purchaseUom } : {}),
+      ...(data.minimumSalesPrice !== undefined ? { minimumSalesPrice: data.minimumSalesPrice == null ? null : data.minimumSalesPrice.toFixed(2) } : {}),
+      ...(data.inventoryAccountId !== undefined ? { inventoryAccountId: data.inventoryAccountId ?? null } : {}),
+      ...(data.costOfSalesAccountId !== undefined ? { costOfSalesAccountId: data.costOfSalesAccountId ?? null } : {}),
+      ...(data.revenueAccountId !== undefined ? { revenueAccountId: data.revenueAccountId ?? null } : {}),
+      ...(data.purchaseAccountId !== undefined ? { purchaseAccountId: data.purchaseAccountId ?? null } : {}),
+      ...(data.salesReturnAccountId !== undefined ? { salesReturnAccountId: data.salesReturnAccountId ?? null } : {}),
+      ...(data.purchaseReturnAccountId !== undefined ? { purchaseReturnAccountId: data.purchaseReturnAccountId ?? null } : {}),
+      ...(data.deferredRevenueAccountId !== undefined ? { deferredRevenueAccountId: data.deferredRevenueAccountId ?? null } : {}),
+      ...(data.subscriptionRevenueAccountId !== undefined ? { subscriptionRevenueAccountId: data.subscriptionRevenueAccountId ?? null } : {}),
       updatedAt: new Date(),
     };
     const updated = await tx.update(products).set(updateData).where(and(eq(products.id, c.req.param('id')), eq(products.centerId, auth.user.centerId!))).returning();

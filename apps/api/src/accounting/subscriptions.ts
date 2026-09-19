@@ -78,3 +78,22 @@ export async function recognizeDueSubscriptionSchedules(tx:any,asOfDate:string,c
   }
   return {recognized};
 }
+
+
+export async function cancelPendingSubscriptionSchedulesForSale(tx:any,args:{centerId:string;saleId:string;updatedBy:string}) {
+  const result = await tx.execute(sql`
+    update subscription_revenue_schedules s
+    set status='cancelled', updated_at=now()
+    where s.status='pending'
+      and s.subscription_id in (
+        select id from customer_subscriptions
+        where center_id=${args.centerId} and sale_id=${args.saleId}
+      )
+  `);
+  await tx.execute(sql`
+    update customer_subscriptions
+    set status='cancelled', updated_by=${args.updatedBy}, updated_at=now()
+    where center_id=${args.centerId} and sale_id=${args.saleId} and status<>'cancelled'
+  `);
+  return {cancelledSchedules:Number(result.rowCount ?? 0)};
+}

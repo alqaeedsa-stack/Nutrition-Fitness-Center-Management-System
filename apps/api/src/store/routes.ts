@@ -7,6 +7,7 @@ import { customerAccounts } from '../db/customer-accounts';
 import { customers, products, sales, saleItems, stockMovements, taxRates } from '../db/schema';
 import { requirePermission } from '../auth/permissions';
 import { storeCartItems, storeCarts, storeOrderItems, storeOrders } from '../db/store';
+import { postSale } from '../accounting/service';
 
 export type StoreBindings = {
   HYPERDRIVE?: { connectionString: string };
@@ -226,7 +227,14 @@ storeRoutes.post('/admin/sales', async c => {
         referenceType: 'sale', referenceId: sale[0].id, occurredAt: new Date(), createdBy: auth.user.userId, notes: 'صرف من نقطة البيع',
       });
     }
-    return { sale: sale[0] };
+    const accountingPaymentMethod = parsed.data.paymentStatus === 'unpaid' ? 'unpaid' : parsed.data.paymentStatus === 'paid' ? parsed.data.paymentMethod : 'partial';
+    try {
+      const cogs = lineCalculations.reduce((sum, line) => sum + Number(line.item.quantity) * Number(line.product.purchaseCost), 0);
+      const entry = await postSale(tx, { centerId: auth.user.centerId!, saleId: sale[0].id, saleNumber: sale[0].saleNumber, saleDate: new Date().toISOString().slice(0,10), subtotal, tax: taxTotal, total: grandTotal, cogs, paymentMethod: accountingPaymentMethod, createdBy: auth.user.userId });
+      return { sale: sale[0], journalEntry: entry };
+    } catch (e) {
+      throw e;
+    }
   }));
 
   if ('error' in result) {

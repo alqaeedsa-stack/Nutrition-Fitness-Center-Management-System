@@ -29,7 +29,7 @@ function requireAccounts(s: any, need: string[]) {
 
 async function createEntry(tx: any, args: {
   centerId: string; date: string; sourceType: string; sourceId: string;
-  description: string; createdBy: string;
+  description: string; createdBy: string | null;
   lines: Array<{accountId:string; description:string; debit:number; credit:number}>
 }) {
   const totalDebit = Math.round(args.lines.reduce((n,l)=>n+l.debit,0)*100)/100;
@@ -84,7 +84,7 @@ export async function postSale(tx:any,args:{centerId:string;saleId:string;saleNu
   ...(args.tax>0?[{accountId:s.output_vat_account_id,description:`بيع ${args.saleNumber} - ضريبة مخرجات`,debit:0,credit:args.tax}]:[]),
   ...(args.cogs>0?[{accountId:s.cost_of_sales_account_id,description:`بيع ${args.saleNumber} - تكلفة المبيعات`,debit:args.cogs,credit:0},{accountId:s.inventory_account_id,description:`بيع ${args.saleNumber} - تخفيض المخزون`,debit:0,credit:args.cogs}]:[])
  ];
- return createEntry(tx,{centerId:args.centerId,date:args.saleDate,sourceType:'sale',sourceId:args.saleId,description:`ترحيل عملية البيع ${args.saleNumber}`,createdBy:args.createdBy,lines});
+ return createEntry(tx,{centerId:args.centerId,date:args.saleDate,sourceType:'sale',sourceId:args.saleId,description:`ترحيل عملية البيع ${args.saleNumber}`,createdBy:args.createdBy ?? null,lines});
 }
 
 
@@ -109,19 +109,22 @@ export async function reverseSale(tx:any,args:{centerId:string;saleId:string;sal
   });
 }
 
-export async function postSubscriptionSale(tx:any,args:{centerId:string;saleId:string;saleNumber:string;saleDate:string;subtotal:number;tax:number;total:number;paymentMethod:string;createdBy:string;deferredAccountId?:string|null;revenueAccountId?:string|null}){
+export async function createSubscriptionSale(tx:any,args:{centerId:string;saleId:string;saleNumber:string;saleDate:string;subtotal:number;tax:number;total:number;paymentMethod:string;createdBy:string|null;deferredEnabled:boolean;deferredAccountId?:string|null;revenueAccountId?:string|null}){
+
   const s=await settings(tx,args.centerId);
   const deferred=args.deferredAccountId ?? s.deferred_revenue_account_id;
-  if(!deferred) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب الإيراد المؤجل غير مُهيأ');
+  const revenue=args.revenueAccountId ?? s.subscription_revenue_account_id ?? s.revenue_account_id;
+  if(args.deferredEnabled && !deferred) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب الإيراد المؤجل غير مُهيأ');
+  if(!args.deferredEnabled && !revenue) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب إيراد الاشتراك غير مُهيأ');
   if(args.tax>0) requireAccounts(s,['output_vat_account_id']);
   const debitAccount=args.paymentMethod==='unpaid'?s.accounts_receivable_account_id:s.cash_bank_account_id;
-  if(args.paymentMethod==='unpaid' && !debitAccount) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب العملاء/الذمم المدينة');
+  if(!debitAccount) throw new Error('ACCOUNTING_SETUP_REQUIRED: حساب النقدية/البنك أو العملاء غير مُهيأ');
   const lines=[
     {accountId:debitAccount,description:`اشتراك ${args.saleNumber} - تحصيل/ذمم`,debit:args.total,credit:0},
-    {accountId:deferred,description:`إيراد مؤجل - ${args.saleNumber}`,debit:0,credit:args.subtotal},
+    {accountId:args.deferredEnabled?deferred:revenue,description:args.deferredEnabled?`إيراد مؤجل - ${args.saleNumber}`:`إيراد اشتراك - ${args.saleNumber}`,debit:0,credit:args.subtotal},
     ...(args.tax>0?[{accountId:s.output_vat_account_id,description:`اشتراك ${args.saleNumber} - ضريبة مخرجات`,debit:0,credit:args.tax}]:[])
   ];
-  return createEntry(tx,{centerId:args.centerId,date:args.saleDate,sourceType:'subscription_sale',sourceId:args.saleId,description:`ترحيل اشتراك ${args.saleNumber} إلى الإيراد المؤجل`,createdBy:args.createdBy,lines});
+  return createEntry(tx,{centerId:args.centerId,date:args.saleDate,sourceType:'subscription_sale',sourceId:args.saleId,description:args.deferredEnabled?`ترحيل اشتراك ${args.saleNumber} إلى الإيراد المؤجل`:`ترحيل اشتراك ${args.saleNumber} مباشرة إلى الإيراد`,createdBy:args.createdBy,lines});
 }
 
 export async function recognizeSubscriptionRevenue(tx:any,args:{centerId:string;scheduleId:string;subscriptionId:string;date:string;amount:number;deferredAccountId:string;revenueAccountId:string;createdBy:string;description:string}){

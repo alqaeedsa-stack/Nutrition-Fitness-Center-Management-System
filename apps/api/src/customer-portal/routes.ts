@@ -56,6 +56,8 @@ async function getCustomerContext(c: any) {
 }
 
 
+const CUSTOMER_APPOINTMENT_SPECIALIST_TYPES = ['doctor', 'nutritionist', 'trainer', 'specialist'] as const;
+
 customerPortalRoutes.get('/appointment-options', async c => {
   const auth = await getCustomerContext(c);
   if ('error' in auth) return auth.error;
@@ -70,6 +72,7 @@ customerPortalRoutes.get('/appointment-options', async c => {
       eq(users.centerId, auth.user.centerId!),
       eq(users.status, 'active'),
       eq(staffProfiles.active, true),
+      inArray(staffProfiles.staffType, [...CUSTOMER_APPOINTMENT_SPECIALIST_TYPES]),
     ))
     .orderBy(asc(staffProfiles.displayName)));
 
@@ -111,6 +114,7 @@ customerPortalRoutes.post('/appointments', async c => {
         eq(users.centerId, auth.user.centerId!),
         eq(users.status, 'active'),
         eq(staffProfiles.active, true),
+        inArray(staffProfiles.staffType, [...CUSTOMER_APPOINTMENT_SPECIALIST_TYPES]),
       )).limit(1);
 
     if (!staff) return { error: 'STAFF_NOT_FOUND' as const };

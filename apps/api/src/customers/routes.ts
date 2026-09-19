@@ -222,21 +222,25 @@ customerRoutes.delete('/:id', async (c) => {
   if (!c.env.HYPERDRIVE && !c.env.DATABASE_URL) return c.json({ error: { code: 'DATABASE_NOT_CONFIGURED', message: 'قاعدة البيانات غير مهيأة بعد' } }, 503);
   const auth = await requirePermission(c, 'customers.delete'); if ('error' in auth) return auth.error;
   const id = c.req.param('id');
+
   const result = await withDatabase(c.env, async db => {
-    const current = await db.select({ id: customers.id }).from(customers).where(and(eq(customers.id, id), eq(customers.centerId, auth.user.centerId!))).limit(1);
+    const current = await db.select({ id: customers.id, status: customers.status })
+      .from(customers)
+      .where(and(eq(customers.id, id), eq(customers.centerId, auth.user.centerId!)))
+      .limit(1);
+
     if (!current[0]) return { notFound: true as const };
-    const refs = await Promise.all([
-      db.select({ id: customerAccounts.id }).from(customerAccounts).where(eq(customerAccounts.customerId, id)).limit(1),
-    ]);
-    if (refs.some(rows => rows.length > 0)) return { dependent: true as const };
-    try {
-      const rows = await db.delete(customers).where(and(eq(customers.id, id), eq(customers.centerId, auth.user.centerId!))).returning({ id: customers.id });
-      return rows[0] ? { deleted: true as const } : { notFound: true as const };
-    } catch {
-      return { dependent: true as const };
-    }
+    if (current[0].status === 'inactive') return { alreadyInactive: true as const };
+
+    const rows = await db.update(customers)
+      .set({ status: 'inactive', updatedBy: auth.user.userId, updatedAt: new Date() })
+      .where(and(eq(customers.id, id), eq(customers.centerId, auth.user.centerId!)))
+      .returning({ id: customers.id, status: customers.status });
+
+    return rows[0] ? { deactivated: true as const, customer: rows[0] } : { notFound: true as const };
   });
+
   if ('notFound' in result) return c.json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'العميل غير موجود' } }, 404);
-  if ('dependent' in result) return c.json({ error: { code: 'CUSTOMER_HAS_DEPENDENCIES', message: 'لا يمكن حذف العميل لوجود بيانات مرتبطة به. استخدم تعطيل الحساب بدلًا من الحذف.' } }, 409);
-  return c.body(null, 204);
+  if ('alreadyInactive' in result) return c.json({ error: { code: 'CUSTOMER_ALREADY_INACTIVE', message: 'العميل معطل بالفعل' } }, 409);
+  return c.json({ customer: result.customer });
 });

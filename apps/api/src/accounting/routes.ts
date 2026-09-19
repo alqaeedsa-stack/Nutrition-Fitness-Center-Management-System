@@ -43,6 +43,12 @@ accountingRoutes.put('/accounts/:id',async c=>{
       const parent=await withDatabase(c.env,db=>db.execute(sql`select id,account_type as "accountType" from accounting_accounts where id=${x.parentId} and center_id=${auth.user.centerId!} limit 1`));
       if(!parent.rows[0])return c.json({error:{code:'ACCOUNT_PARENT_INVALID',message:'الحساب الأب غير تابع للمركز'}},400);
       if(parent.rows[0].accountType!==x.accountType)return c.json({error:{code:'ACCOUNT_TYPE_MISMATCH',message:'نوع الحساب يجب أن يطابق نوع الحساب الأب'}},400);
+      const cycle=await withDatabase(c.env,db=>db.execute(sql`with recursive descendants as (
+        select id,parent_id from accounting_accounts where id=${accountId} and center_id=${auth.user.centerId!}
+        union all
+        select a.id,a.parent_id from accounting_accounts a join descendants d on a.parent_id=d.id where a.center_id=${auth.user.centerId!}
+      ) select id from descendants where id=${x.parentId} limit 1`));
+      if(cycle.rows[0])return c.json({error:{code:'ACCOUNT_CYCLE',message:'لا يمكن نقل الحساب أسفل أحد الحسابات التابعة له'}},400);
     }
     const r=await withDatabase(c.env,db=>db.execute(sql`update accounting_accounts set parent_id=${x.parentId??null},code=${x.code},name=${x.name},account_type=${x.accountType},updated_at=now() where id=${accountId} and center_id=${auth.user.centerId!} returning id,code,name,account_type as "accountType",parent_id as "parentId",is_active as "isActive",is_system as "isSystem"`));
     return c.json({account:r.rows[0]});
@@ -110,8 +116,9 @@ accountingRoutes.post('/accounts',async c=>{
   const x=parsed.data;
   try{
     if (x.parentId) {
-      const parent = await withDatabase(c.env,db=>db.execute(sql`select id from accounting_accounts where id=${x.parentId} and center_id=${auth.user.centerId!} limit 1`));
+      const parent = await withDatabase(c.env,db=>db.execute(sql`select id,account_type as "accountType" from accounting_accounts where id=${x.parentId} and center_id=${auth.user.centerId!} limit 1`));
       if (!parent.rows[0]) return c.json({error:{code:'ACCOUNT_PARENT_INVALID',message:'الحساب الأب غير تابع للمركز'}},400);
+      if (parent.rows[0].accountType !== x.accountType) return c.json({error:{code:'ACCOUNT_TYPE_MISMATCH',message:'نوع الحساب يجب أن يطابق نوع الحساب الأب'}},400);
     }
     const r=await withDatabase(c.env,db=>db.execute(sql`insert into accounting_accounts(center_id,parent_id,code,name,account_type,created_by) values(${auth.user.centerId!},${x.parentId??null},${x.code},${x.name},${x.accountType},${auth.user.userId}) returning id,code,name,account_type as "accountType",parent_id as "parentId"`));
     return c.json({account:r.rows[0]},201);

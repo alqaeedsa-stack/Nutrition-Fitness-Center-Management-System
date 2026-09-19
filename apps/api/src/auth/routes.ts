@@ -193,7 +193,7 @@ authRoutes.post('/register', async (c) => {
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     console.error('Customer registration failed', { stage, detail });
-    return c.json({ error: { code: 'REGISTRATION_FAILED', message: `فشل إنشاء حساب العميل عند المرحلة: ${stage}`, detail } }, 500);
+    return c.json({ error: { code: 'REGISTRATION_FAILED', message: 'تعذر إنشاء حساب العميل حاليًا' } }, 500);
   }
 });
 

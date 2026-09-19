@@ -271,6 +271,85 @@ function returnNumber() {
   return 'PR-' + stamp + '-' + crypto.randomUUID().slice(0, 8).toUpperCase();
 }
 
+purchaseRoutes.get('/dashboard', async c => {
+  const auth = await access(c, 'inventory.read');
+  if ('error' in auth) return auth.error;
+  const rows = await withDatabase(c.env, async db => {
+    const [orders, returns, vendorsCount, openOrders] = await Promise.all([
+      db.select({ status: purchaseOrders.status, total: purchaseOrders.total })
+        .from(purchaseOrders).where(eq(purchaseOrders.centerId, auth.user.centerId!)),
+      db.select({ total: purchaseReturns.total })
+        .from(purchaseReturns).where(eq(purchaseReturns.centerId, auth.user.centerId!)),
+      db.select({ count: sql<number>`count(*)` }).from(vendors)
+        .where(and(eq(vendors.centerId, auth.user.centerId!), eq(vendors.active, true))),
+      db.select({ count: sql<number>`count(*)` }).from(purchaseOrders)
+        .where(and(
+          eq(purchaseOrders.centerId, auth.user.centerId!),
+          inArray(purchaseOrders.status, ['sent', 'confirmed', 'partially_received'])
+        )),
+    ]);
+    const purchaseTotal = orders.filter(x => x.status !== 'cancelled').reduce((s, x) => s + Number(x.total), 0);
+    const received = orders.filter(x => x.status === 'received').length;
+    const partial = orders.filter(x => x.status === 'partially_received').length;
+    const cancelled = orders.filter(x => x.status === 'cancelled').length;
+    const returnTotal = returns.reduce((s, x) => s + Number(x.total), 0);
+    return {
+      activeVendors: Number(vendorsCount[0]?.count ?? 0),
+      openOrders: Number(openOrders[0]?.count ?? 0),
+      purchaseTotal: purchaseTotal.toFixed(2),
+      returnTotal: returnTotal.toFixed(2),
+      orderCounts: { received, partial, cancelled, total: orders.length },
+    };
+  });
+  return c.json(rows);
+});
+
+purchaseRoutes.get('/returns', async c => {
+  const auth = await access(c, 'inventory.read');
+  if ('error' in auth) return auth.error;
+  const rows = await withDatabase(c.env, db => db.select({
+    id: purchaseReturns.id, returnNumber: purchaseReturns.returnNumber, status: purchaseReturns.status,
+    returnDate: purchaseReturns.returnDate, total: purchaseReturns.total, notes: purchaseReturns.notes,
+    vendorId: vendors.id, vendorName: vendors.name, poNumber: purchaseOrders.poNumber,
+  }).from(purchaseReturns)
+    .innerJoin(vendors, eq(vendors.id, purchaseReturns.vendorId))
+    .leftJoin(purchaseOrders, eq(purchaseOrders.id, purchaseReturns.purchaseOrderId))
+    .where(eq(purchaseReturns.centerId, auth.user.centerId!))
+    .orderBy(desc(purchaseReturns.createdAt)));
+  return c.json({ returns: rows });
+});
+
+purchaseRoutes.get('/vendors/:id', async c => {
+  const auth = await access(c, 'inventory.read');
+  if ('error' in auth) return auth.error;
+  const vendor = await withDatabase(c.env, db => db.select().from(vendors)
+    .where(and(eq(vendors.id, c.req.param('id')), eq(vendors.centerId, auth.user.centerId!))).limit(1));
+  if (!vendor[0]) return c.json({ error: { code: 'VENDOR_NOT_FOUND', message: 'المورد غير موجود' } }, 404);
+  const [orders, returns] = await Promise.all([
+    withDatabase(c.env, db => db.select({
+      id: purchaseOrders.id, poNumber: purchaseOrders.poNumber, status: purchaseOrders.status,
+      orderDate: purchaseOrders.orderDate, total: purchaseOrders.total,
+    }).from(purchaseOrders).where(and(
+      eq(purchaseOrders.vendorId, vendor[0].id), eq(purchaseOrders.centerId, auth.user.centerId!)
+    )).orderBy(desc(purchaseOrders.orderDate))),
+    withDatabase(c.env, db => db.select({
+      id: purchaseReturns.id, returnNumber: purchaseReturns.returnNumber,
+      returnDate: purchaseReturns.returnDate, total: purchaseReturns.total, purchaseOrderId: purchaseReturns.purchaseOrderId,
+    }).from(purchaseReturns).where(and(
+      eq(purchaseReturns.vendorId, vendor[0].id), eq(purchaseReturns.centerId, auth.user.centerId!)
+    )).orderBy(desc(purchaseReturns.returnDate))),
+  ]);
+  return c.json({
+    vendor: vendor[0],
+    orders,
+    returns,
+    totals: {
+      orders: orders.filter(x => x.status !== 'cancelled').reduce((s, x) => s + Number(x.total), 0).toFixed(2),
+      returns: returns.reduce((s, x) => s + Number(x.total), 0).toFixed(2),
+    },
+  });
+});
+
 purchaseRoutes.post('/returns', async c => {
   const auth = await access(c, 'inventory.adjust');
   if ('error' in auth) return auth.error;

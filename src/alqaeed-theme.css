@@ -397,3 +397,28 @@ small { font-size: 12px; line-height: 1.55; }
 .odoo-side-links a { font-size: 14px; }
 .odoo-sidebar-group a { font-size: 14px; }
 .odoo-statusbar span { font-size: 13px; }
+
+/* Consistent Odoo-like ERP density */
+.module-code { display:none; }
+.app-shell { max-width: 1440px; margin-inline:auto; }
+.app-header { min-height:64px; padding:14px 0; gap:16px; }
+.app-header h1 { margin:2px 0 0; font-size:24px; line-height:1.35; }
+.app-header p { margin:4px 0 0; font-size:13px; }
+.panel { padding:20px; }
+.panel-heading-row { gap:14px; }
+.form-stack { gap:14px; }
+.form-row { gap:12px; }
+.form-stack input, .form-stack select, .form-stack textarea { min-height:40px; padding:9px 11px; }
+.form-stack textarea { min-height:90px; resize:vertical; }
+.staff-table th, .staff-table td { padding:10px 11px; vertical-align:middle; }
+.staff-table th { font-size:13px; }
+.staff-table td { font-size:13px; }
+.portal-choice-actions { gap:6px; margin-bottom:16px; }
+.portal-choice-actions .secondary-button { min-height:38px; }
+@media (max-width:720px) {
+  .app-header { flex-direction:column; align-items:stretch; }
+  .app-header .secondary-button { width:100%; }
+  .panel { padding:16px; }
+  .form-row { grid-template-columns:1fr; }
+  .staff-table-wrap { overflow-x:auto; }
+}

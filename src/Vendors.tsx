@@ -5,7 +5,7 @@ import { apiFetch } from './lib/api';
 type Vendor = { id:string; code:string; name:string; taxNumber?:string|null; phone?:string|null; email?:string|null; address?:string|null; paymentTerms?:string|null; active:boolean };
 type Product = { id:string; sku:string; name:string; purchaseCost:string };
 type Order = { id:string; poNumber:string; status:string; orderDate:string; expectedDate?:string|null; subtotal:string; tax:string; total:string; vendorId:string; vendorName:string };
-type OrderItem = { id:string; productId:string; productName:string; sku:string; quantity:string; receivedQuantity:string; unitCost:string; tax:string; lineTotal:string };
+type OrderItem = { id:string; productId:string; productName:string; sku:string; quantity:string; receivedQuantity:string; returnedQuantity:string; unitCost:string; tax:string; lineTotal:string };
 const statusLabel:Record<string,string>={draft:'مسودة',sent:'مرسل',confirmed:'مؤكد',partially_received:'مستلم جزئيًا',received:'مستلم بالكامل',cancelled:'ملغي'};
 
 export default function Vendors(){
@@ -18,6 +18,8 @@ export default function Vendors(){
   const [order,setOrder]=useState({vendorId:'',orderDate:new Date().toISOString().slice(0,10),expectedDate:'',notes:''});
   const [lines,setLines]=useState<{productId:string;quantity:string;unitCost:string;tax:string}[]>([]);
   const [receive,setReceive]=useState<Record<string,string>>({});
+  const [returns,setReturns]=useState<Record<string,string>>({});
+  const [returnDate,setReturnDate]=useState(new Date().toISOString().slice(0,10));
   const [busy,setBusy]=useState(false); const [error,setError]=useState(''); const [message,setMessage]=useState('');
 
   async function load(){
@@ -50,6 +52,10 @@ export default function Vendors(){
   }
   async function status(id:string,status:'sent'|'confirmed'|'cancelled'){try{await apiFetch('/purchases/orders/'+id+'/status',{method:'PATCH',body:JSON.stringify({status})});setMessage('تم تحديث حالة أمر الشراء.');await load();if(selected)void openOrder(id)}catch(e){setError(e instanceof Error?e.message:'تعذر تحديث الحالة')}}
   async function openOrder(id:string){try{const r=await apiFetch<{order:Order;items:OrderItem[]}>('/purchases/orders/'+id);setSelected(r);setReceive(Object.fromEntries(r.items.map(x=>[x.id,''])))}catch(e){setError(e instanceof Error?e.message:'تعذر تحميل أمر الشراء')}}
+  async function returnOrder(e:FormEvent){e.preventDefault();if(!selected)return;setBusy(true);setError('');setMessage('');
+    try{const items=selected.items.map(x=>({purchaseOrderItemId:x.id,quantity:Number(returns[x.id]||0)})).filter(x=>x.quantity>0);if(!items.length)throw new Error('حدد كمية مرتجعة واحدة على الأقل.');const r=await apiFetch<{returnNumber:string;total:string}>('/purchases/returns',{method:'POST',body:JSON.stringify({returnDate,items})});setMessage('تم تسجيل المرتجع '+r.returnNumber+' وتخفيض المخزون.');await load();await openOrder(selected.order.id);setReturns({});}catch(e){setError(e instanceof Error?e.message:'تعذر تسجيل مرتجع الشراء')}finally{setBusy(false)}
+  }
+
   async function receiveOrder(e:FormEvent){e.preventDefault();if(!selected)return;setBusy(true);setError('');setMessage('');
     try{const items=selected.items.map(x=>({itemId:x.id,quantity:Number(receive[x.id]||0)})).filter(x=>x.quantity>0);if(!items.length)throw new Error('حدد كمية مستلمة واحدة على الأقل.');const r=await apiFetch<{status:string}>('/purchases/orders/'+selected.order.id+'/receive',{method:'POST',body:JSON.stringify({items})});setMessage(r.status==='received'?'تم استلام أمر الشراء بالكامل.':'تم تسجيل استلام جزئي وتحديث المخزون.');await load();await openOrder(selected.order.id);}catch(e){setError(e instanceof Error?e.message:'تعذر تسجيل الاستلام')}finally{setBusy(false)}
   }
@@ -80,8 +86,8 @@ export default function Vendors(){
     </section>}
 
     {selected&&<section className="panel"><div className="panel-heading-row"><div><span className="eyebrow">RECEIPT</span><h2>{selected.order.poNumber} · {selected.order.vendorName}</h2><p>{statusLabel[selected.order.status]??selected.order.status}</p></div><button className="secondary-button" onClick={()=>setSelected(null)}>إغلاق</button></div>
-      <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المنتج</th><th>المطلوب</th><th>المستلم</th><th>المتبقي</th><th>تكلفة الوحدة</th><th>استلام الآن</th></tr></thead><tbody>{selected.items.map(x=><tr key={x.id}><td>{x.productName}<small>{x.sku}</small></td><td>{Number(x.quantity).toFixed(3)}</td><td>{Number(x.receivedQuantity).toFixed(3)}</td><td>{Math.max(0,Number(x.quantity)-Number(x.receivedQuantity)).toFixed(3)}</td><td>{Number(x.unitCost).toFixed(2)}</td><td><input type="number" min="0" max={Math.max(0,Number(x.quantity)-Number(x.receivedQuantity))} step="0.001" disabled={selected.order.status!=='confirmed'&&selected.order.status!=='partially_received'} value={receive[x.id]??''} onChange={e=>setReceive(v=>({...v,[x.id]:e.target.value}))}/></td></tr>)}</tbody></table></div>
-      {(selected.order.status==='confirmed'||selected.order.status==='partially_received')&&<form className="form-stack" onSubmit={receiveOrder}><label>ملاحظات الاستلام<textarea placeholder="اختياري"/></label><button className="primary-action button" disabled={busy}>{busy?'جارٍ التسجيل...':'تسجيل الاستلام وتحديث المخزون'}</button></form>}
+      <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المنتج</th><th>المطلوب</th><th>المستلم</th><th>مرتجع</th><th>متاح للمرتجع</th><th>تكلفة الوحدة</th><th>استلام الآن</th></tr></thead><tbody>{selected.items.map(x=><tr key={x.id}><td>{x.productName}<small>{x.sku}</small></td><td>{Number(x.quantity).toFixed(3)}</td><td>{Number(x.receivedQuantity).toFixed(3)}</td><td>{Number(x.returnedQuantity).toFixed(3)}</td><td>{Math.max(0,Number(x.receivedQuantity)-Number(x.returnedQuantity)).toFixed(3)}</td><td>{Number(x.unitCost).toFixed(2)}</td><td><input type="number" min="0" max={Math.max(0,Number(x.quantity)-Number(x.receivedQuantity)) step="0.001" disabled={selected.order.status!=='confirmed'&&selected.order.status!=='partially_received'} value={receive[x.id]??''} onChange={e=>setReceive(v=>({...v,[x.id]:e.target.value}))}/></td></tr>)}</tbody></table></div>
+      {(selected.order.status==='confirmed'||selected.order.status==='partially_received')&&<form className="form-stack" onSubmit={receiveOrder}><label>ملاحظات الاستلام<textarea placeholder="اختياري"/></label><button className="primary-action button" disabled={busy}>{busy?'جارٍ التسجيل...':'تسجيل الاستلام وتحديث المخزون'}</button></form>}      {selected.items.some(x=>Number(x.receivedQuantity)>Number(x.returnedQuantity))&&<form className="form-stack" onSubmit={returnOrder}><div className="form-row"><label>تاريخ المرتجع<input type="date" required value={returnDate} onChange={e=>setReturnDate(e.target.value)}/></label></div><div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>المنتج</th><th>متاح للمرتجع</th><th>المرتجع الآن</th></tr></thead><tbody>{selected.items.filter(x=>Number(x.receivedQuantity)>Number(x.returnedQuantity)).map(x=><tr key={x.id}><td>{x.productName}</td><td>{Math.max(0,Number(x.receivedQuantity)-Number(x.returnedQuantity)).toFixed(3)}</td><td><input type="number" min="0" max={Math.max(0,Number(x.receivedQuantity)-Number(x.returnedQuantity))} step="0.001" value={returns[x.id]??''} onChange={e=>setReturns(v=>({...v,[x.id]:e.target.value}))}/></td></tr>)}</tbody></table></div><button className="secondary-button button" disabled={busy}>{busy?'جارٍ التسجيل...':'تسجيل مرتجع جزئي'}</button></form>}
     </section>}
   </main>
 }

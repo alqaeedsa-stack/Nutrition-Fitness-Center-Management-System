@@ -109,7 +109,7 @@ export default function Reports({ user }: { user: { staffType?: string | null; p
 
   return <main className="app-shell">
     <header className="app-header">
-      <div><p className="eyebrow">REPORTS</p><h1>التقارير التشغيلية</h1><p>ملخص مبني على بيانات المركز الفعلية، بدون بيانات تجريبية.</p></div>
+      <div><p className="eyebrow">التقارير</p><h1>التقارير التشغيلية</h1><p>ملخص مبني على بيانات المركز الفعلية، بدون بيانات تجريبية.</p></div>
       <div className="header-actions">
         <Link className="secondary-button" to="/admin/dashboard">لوحة الإدارة</Link>
         {canExport && <button className="secondary-button" type="button" onClick={exportCsv} disabled={!data}>تصدير CSV</button>}
@@ -143,7 +143,7 @@ export default function Reports({ user }: { user: { staffType?: string | null; p
       </section>
 
       <section className="panel">
-        <div className="panel-heading-row"><div><p className="eyebrow">DAILY SALES</p><h2>المبيعات اليومية</h2></div><span>{data.from} — {data.to}</span></div>
+        <div className="panel-heading-row"><div><p className="eyebrow">مبيعات اليوم</p><h2>المبيعات اليومية</h2></div><span>{data.from} — {data.to}</span></div>
         {!data.dailySales.length ? <p className="empty-state">لا توجد مبيعات مكتملة في الفترة المحددة.</p> :
           <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>التاريخ</th><th>عدد العمليات</th><th>الإجمالي</th><th>مؤشر</th></tr></thead><tbody>
             {data.dailySales.map(row => <tr key={row.date}><td>{row.date}</td><td>{row.count}</td><td>{formatMoney(row.total)}</td><td><div style={{ minWidth: 120 }}><div style={{ width: Math.max(4, Number(row.total) / maxDaily * 100) + '%', height: 8, borderRadius: 4, background: 'currentColor' }} /></div></td></tr>)}
@@ -151,14 +151,14 @@ export default function Reports({ user }: { user: { staffType?: string | null; p
       </section>
 
       <section className="staff-management-grid">
-        <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">PAYMENTS</p><h2>طرق الدفع</h2></div></div>
+        <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">المدفوعات</p><h2>طرق الدفع</h2></div></div>
           {!data.paymentMethods.length ? <p className="empty-state">لا توجد مبيعات مكتملة في الفترة.</p> :
             <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>طريقة الدفع</th><th>العمليات</th><th>الإجمالي</th></tr></thead><tbody>
               {data.paymentMethods.map(row => <tr key={row.paymentMethod}><td>{paymentLabels[row.paymentMethod] ?? row.paymentMethod}</td><td>{row.count}</td><td>{formatMoney(row.total)}</td></tr>)}
             </tbody></table></div>}
         </section>
 
-        <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">MOVEMENTS</p><h2>حركة المخزون</h2></div></div>
+        <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">حركات المخزون</p><h2>حركة المخزون</h2></div></div>
           {!data.movementTotals.length ? <p className="empty-state">لا توجد حركات مخزون في الفترة.</p> :
             <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>الحركة</th><th>الكمية الصافية</th></tr></thead><tbody>
               {data.movementTotals.map(row => <tr key={row.movementType}><td>{movementLabels[row.movementType] ?? row.movementType}</td><td>{Number(row.quantity).toFixed(3)}</td></tr>)}
@@ -167,14 +167,14 @@ export default function Reports({ user }: { user: { staffType?: string | null; p
       </section>
 
       <section className="staff-management-grid">
-        <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">LOW STOCK</p><h2>يحتاج إعادة طلب</h2></div></div>
+        <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">مخزون منخفض</p><h2>يحتاج إعادة طلب</h2></div></div>
           {!data.lowStock.length ? <p className="empty-state">لا توجد منتجات تحت حد إعادة الطلب.</p> :
             <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>الرصيد</th><th>الحد</th><th>القيمة</th></tr></thead><tbody>
               {data.lowStock.map(row => <tr key={row.productId}><td>{row.sku}</td><td>{row.name}</td><td>{row.quantity}</td><td>{row.reorderPoint}</td><td>{formatMoney(Number(row.quantity) * Number(row.purchaseCost))}</td></tr>)}
             </tbody></table></div>}
         </section>
 
-        <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">OUT OF STOCK</p><h2>نفد المخزون</h2></div></div>
+        <section className="panel"><div className="panel-heading-row"><div><p className="eyebrow">نفاد المخزون</p><h2>نفد المخزون</h2></div></div>
           {!data.outOfStock.length ? <p className="empty-state">لا توجد منتجات نفد مخزونها.</p> :
             <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>SKU</th><th>المنتج</th><th>الرصيد</th><th>القيمة</th></tr></thead><tbody>
               {data.outOfStock.map(row => <tr key={row.productId}><td>{row.sku}</td><td>{row.name}</td><td>{row.quantity}</td><td>{formatMoney(Number(row.quantity) * Number(row.purchaseCost))}</td></tr>)}

@@ -454,7 +454,7 @@ staffRoutes.post('/inventory/receipt', async c => {
         movementType: 'purchase' as const,
         quantity: item.quantity.toString(),
         unitCost: (item.unitCost ?? Number(product.purchaseCost)).toFixed(2),
-        referenceType: 'purchase_receipt',
+        referenceType: 'direct_receipt',
         referenceId: reference,
         occurredAt: now,
         createdBy: auth.user.userId,

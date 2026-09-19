@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withDatabase } from '../db/client';
@@ -120,7 +120,19 @@ purchaseBillingRoutes.post('/bills/:id/post', async c => {
       const rows=await tx.select().from(purchaseBills).where(and(eq(purchaseBills.id,c.req.param('id')),eq(purchaseBills.centerId,auth.user.centerId!))).limit(1);
       const bill=rows[0]; if(!bill) throw new Error('فاتورة المورد غير موجودة');
       if(bill.status!=='draft') throw new Error('لا يمكن ترحيل الفاتورة من حالتها الحالية');
-      const entry=await postPurchaseBill(tx,{centerId:auth.user.centerId!,billId:bill.id,billNumber:bill.billNumber,billDate:String(bill.billDate),subtotal:Number(bill.subtotal),tax:Number((bill as any).tax ?? (bill as any).taxTotal ?? 0),createdBy:auth.user.userId});
+      const billItems=await tx.select({
+        amount: sql<string>`sum(\${purchaseBillItems.lineTotal})`,
+        productId: purchaseBillItems.productId,
+        purchaseAccountId: products.purchaseAccountId,
+        inventoryAccountId: products.inventoryAccountId,
+      }).from(purchaseBillItems).leftJoin(products,eq(products.id,purchaseBillItems.productId))
+        .where(eq(purchaseBillItems.purchaseBillId,bill.id))
+        .groupBy(purchaseBillItems.productId,products.purchaseAccountId,products.inventoryAccountId);
+      const entry=await postPurchaseBill(tx,{
+        centerId:auth.user.centerId!,billId:bill.id,billNumber:bill.billNumber,billDate:String(bill.billDate),
+        subtotal:Number(bill.subtotal),tax:Number((bill as any).tax ?? (bill as any).taxTotal ?? 0),createdBy:auth.user.userId,
+        lines:billItems.map((x:any)=>({amount:Number(x.amount),purchaseAccountId:x.purchaseAccountId,inventoryAccountId:x.inventoryAccountId})),
+      });
       await tx.update(purchaseBills).set({status:'posted',journalEntryId:entry.id,updatedAt:new Date()}).where(eq(purchaseBills.id,bill.id));
       return {id:bill.id,billNumber:bill.billNumber,status:'posted',journalEntryId:entry.id,entryNumber:entry.entry_number};
     }));

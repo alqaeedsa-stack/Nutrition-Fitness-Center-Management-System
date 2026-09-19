@@ -38,6 +38,15 @@ purchaseBillingRoutes.get('/billing-orders', async c => {
   return c.json({ orders: rows });
 });
 
+purchaseBillingRoutes.get('/billing-summary', async c => {
+  const auth=await access(c,'purchases.read'); if('error' in auth) return auth.error;
+  const rows=await withDatabase(c.env,db=>db.select({status:purchaseBills.status,total:purchaseBills.total,balanceDue:purchaseBills.balanceDue,dueDate:purchaseBills.dueDate}).from(purchaseBills).where(eq(purchaseBills.centerId,auth.user.centerId!)));
+  const today=new Date().toISOString().slice(0,10);
+  const summary={draft:0,posted:0,partiallyPaid:0,paid:0,overdue:0,totalDue:0};
+  for(const x of rows){ if(x.status==='draft')summary.draft++; if(x.status==='posted')summary.posted++; if(x.status==='partially_paid')summary.partiallyPaid++; if(x.status==='paid')summary.paid++; const due=Number(x.balanceDue); summary.totalDue+=due; if(due>0 && x.dueDate && String(x.dueDate)<today && x.status!=='paid')summary.overdue++; }
+  return c.json({summary:{...summary,totalDue:summary.totalDue.toFixed(2)}});
+});
+
 purchaseBillingRoutes.get('/bills', async c => {
   const auth=await access(c,'purchases.read'); if('error' in auth) return auth.error; const status=c.req.query('status');
   const rows=await withDatabase(c.env,db=>db.select({id:purchaseBills.id,billNumber:purchaseBills.billNumber,vendorInvoiceNumber:purchaseBills.vendorInvoiceNumber,billDate:purchaseBills.billDate,dueDate:purchaseBills.dueDate,status:purchaseBills.status,vendorId:purchaseBills.vendorId,vendorName:vendors.name,purchaseOrderId:purchaseBills.purchaseOrderId,poNumber:purchaseOrders.poNumber,subtotal:purchaseBills.subtotal,tax:purchaseBills.tax,total:purchaseBills.total,paidAmount:purchaseBills.paidAmount,balanceDue:purchaseBills.balanceDue}).from(purchaseBills).innerJoin(vendors,eq(vendors.id,purchaseBills.vendorId)).leftJoin(purchaseOrders,eq(purchaseOrders.id,purchaseBills.purchaseOrderId)).where(status?and(eq(purchaseBills.centerId,auth.user.centerId!),eq(purchaseBills.status,status)):eq(purchaseBills.centerId,auth.user.centerId!)).orderBy(desc(purchaseBills.billDate),desc(purchaseBills.createdAt)));

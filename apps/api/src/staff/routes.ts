@@ -359,6 +359,8 @@ staffRoutes.get('/products/:id', async c => {
     revenueAccountId: products.revenueAccountId, purchaseAccountId: products.purchaseAccountId,
     salesReturnAccountId: products.salesReturnAccountId, purchaseReturnAccountId: products.purchaseReturnAccountId,
     deferredRevenueAccountId: products.deferredRevenueAccountId, subscriptionRevenueAccountId: products.subscriptionRevenueAccountId,
+    subscriptionDeferredRevenueEnabled: products.subscriptionDeferredRevenueEnabled, subscriptionRecognitionMethod: products.subscriptionRecognitionMethod,
+    subscriptionDurationMonths: products.subscriptionDurationMonths, subscriptionDailyProration: products.subscriptionDailyProration,
   }).from(products).where(and(eq(products.id, c.req.param('id')), eq(products.centerId, auth.user.centerId!))).limit(1));
   if (!rows[0]) return c.json({ error: { code: 'PRODUCT_NOT_FOUND', message: 'المنتج غير موجود' } }, 404);
   const center = await withDatabase(c.env, db => db.select({ inventoryValuationMethod: centers.inventoryValuationMethod }).from(centers).where(eq(centers.id, auth.user.centerId!)).limit(1));
@@ -456,6 +458,10 @@ staffRoutes.patch('/products/:id', async c => {
       ...(data.purchaseReturnAccountId !== undefined ? { purchaseReturnAccountId: data.purchaseReturnAccountId ?? null } : {}),
       ...(data.deferredRevenueAccountId !== undefined ? { deferredRevenueAccountId: data.deferredRevenueAccountId ?? null } : {}),
       ...(data.subscriptionRevenueAccountId !== undefined ? { subscriptionRevenueAccountId: data.subscriptionRevenueAccountId ?? null } : {}),
+      ...(data.subscriptionDeferredRevenueEnabled !== undefined ? { subscriptionDeferredRevenueEnabled: data.subscriptionDeferredRevenueEnabled } : {}),
+      ...(data.subscriptionRecognitionMethod !== undefined ? { subscriptionRecognitionMethod: data.subscriptionRecognitionMethod } : {}),
+      ...(data.subscriptionDurationMonths !== undefined ? { subscriptionDurationMonths: data.subscriptionDurationMonths ?? null } : {}),
+      ...(data.subscriptionDailyProration !== undefined ? { subscriptionDailyProration: data.subscriptionDailyProration } : {}),
       updatedAt: new Date(),
     };
     const updated = await tx.update(products).set(updateData).where(and(eq(products.id, c.req.param('id')), eq(products.centerId, auth.user.centerId!))).returning();

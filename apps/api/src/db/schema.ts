@@ -460,6 +460,35 @@ export const purchaseOrderItems = pgTable('purchase_order_items', {
 ]);
 
 
+
+export const purchaseReceipts = pgTable('purchase_receipts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  centerId: uuid('center_id').notNull().references(() => centers.id),
+  purchaseOrderId: uuid('purchase_order_id').notNull().references(() => purchaseOrders.id),
+  receiptNumber: varchar('receipt_number', { length: 100 }).notNull(),
+  receiptDate: date('receipt_date').notNull(),
+  status: varchar('status', { length: 30 }).notNull().default('posted'),
+  notes: text('notes'),
+  createdBy: uuid('created_by').notNull().references(() => users.id),
+  ...auditTimestamps,
+}, (table) => [
+  uniqueIndex('purchase_receipts_center_number_uq').on(table.centerId, table.receiptNumber),
+  index('purchase_receipts_order_date_idx').on(table.purchaseOrderId, table.receiptDate),
+]);
+
+export const purchaseReceiptItems = pgTable('purchase_receipt_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  purchaseReceiptId: uuid('purchase_receipt_id').notNull().references(() => purchaseReceipts.id, { onDelete: 'cascade' }),
+  purchaseOrderItemId: uuid('purchase_order_item_id').notNull().references(() => purchaseOrderItems.id),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  quantity: numeric('quantity', { precision: 14, scale: 3 }).notNull(),
+  unitCost: numeric('unit_cost', { precision: 14, scale: 2 }).notNull(),
+  ...auditTimestamps,
+}, (table) => [
+  index('purchase_receipt_items_receipt_idx').on(table.purchaseReceiptId),
+  index('purchase_receipt_items_order_item_idx').on(table.purchaseOrderItemId),
+]);
+
 export const purchaseReturns = pgTable('purchase_returns', {
   id: uuid('id').defaultRandom().primaryKey(),
   centerId: uuid('center_id').notNull().references(() => centers.id),

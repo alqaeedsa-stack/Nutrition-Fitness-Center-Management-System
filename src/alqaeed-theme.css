@@ -1090,6 +1090,7 @@ button:disabled,
   background: var(--ux-surface, #fff);
 }
 .erp-bar {
+  position: relative;
   flex: 0 0 28px;
   min-height: 8px;
   border: 0;

@@ -16,6 +16,8 @@ export type StoreBindings = {
 
 export const storeRoutes = new Hono<{ Bindings: StoreBindings }>();
 
+const NON_STOCK_PRODUCT_TYPES = ['subscription', 'service'] as const;
+
 async function customerContext(c: any) {
   const user = await getAuthenticatedUser(c.env, c.req.raw);
   if (!user) return { error: c.json({ error: { code: 'UNAUTHENTICATED', message: 'يجب تسجيل الدخول' } }, 401) };
@@ -188,7 +190,7 @@ storeRoutes.post('/admin/sales', async c => {
     for (const [productId, quantity] of requested) {
       const product = productRows.find(row => row.id === productId)!;
       const available = onHand.get(productId) ?? 0;
-      if (product.productType !== 'subscription' && quantity > available) return { error: 'INSUFFICIENT_STOCK' as const, productId, available, requested: quantity };
+      if (!NON_STOCK_PRODUCT_TYPES.includes(product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) && quantity > available) return { error: 'INSUFFICIENT_STOCK' as const, productId, available, requested: quantity };
     }
 
     for (const item of parsed.data.items) {
@@ -241,7 +243,7 @@ storeRoutes.post('/admin/sales', async c => {
     }
     const accountingPaymentMethod = parsed.data.paymentStatus === 'unpaid' ? 'unpaid' : parsed.data.paymentStatus === 'paid' ? parsed.data.paymentMethod : 'partial';
     try {
-      const cogs = lineCalculations.reduce((sum, line) => sum + (line.product.productType === 'subscription' ? 0 : Number(line.item.quantity) * Number(line.product.purchaseCost)), 0);
+      const cogs = lineCalculations.reduce((sum, line) => sum + (NON_STOCK_PRODUCT_TYPES.includes(line.product.productType as (typeof NON_STOCK_PRODUCT_TYPES)[number]) ? 0 : Number(line.item.quantity) * Number(line.product.purchaseCost)), 0);
       const entry = await postSale(tx, { centerId: auth.user.centerId!, saleId: sale[0].id, saleNumber: sale[0].saleNumber, saleDate: new Date().toISOString().slice(0,10), subtotal, tax: taxTotal, total: grandTotal, cogs, paymentMethod: accountingPaymentMethod, createdBy: auth.user.userId });
       return { sale: sale[0], journalEntry: entry };
     } catch (e) {

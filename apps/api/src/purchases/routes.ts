@@ -258,7 +258,7 @@ purchaseRoutes.post('/orders/:id/receive', async c => {
 
 
 const returnSchema = z.object({
-  returnDate: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+  returnDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   notes: z.string().trim().max(500).optional().nullable(),
   items: z.array(z.object({
     purchaseOrderItemId: z.string().uuid(),

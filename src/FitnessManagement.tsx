@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from './lib/api';
 
-type User={staffType?:string|null;permissions?:string[]};
+type User={id:string;staffType?:string|null;permissions?:string[]};
 type Customer={id:string;name:string;lastName:string;customerNumber:string};
 type Specialist={id:string;name:string;staffType:string};
 type Exercise={id:string;exerciseName:string;sets?:number|null;repetitions?:number|null;durationSeconds?:number|null;restSeconds?:number|null;targetNotes?:string|null;sortOrder:number};

@@ -8,7 +8,7 @@ export default function PurchaseWorkspaceNav(){
   return (
     <aside className="odoo-side-menu" aria-label="قائمة المشتريات">
       <div className="odoo-side-title">
-        <span className="eyebrow">PURCHASES</span>
+        <span className="eyebrow">المشتريات</span>
         <strong>المشتريات</strong>
       </div>
       <nav className="odoo-side-links">
